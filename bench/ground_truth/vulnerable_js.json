@@ -1,0 +1,38 @@
+{
+  "repository": "vulnerable_js",
+  "description": "Deliberately seeded defects in the JavaScript demo server (tests/fixtures/repos/vulnerable_js). Fake credentials only.",
+  "defects": [
+    {
+      "file_path": "src/server.js",
+      "line_start": 13,
+      "rule": "RVX-SECRET-JS-001",
+      "severity": "high",
+      "category": "security",
+      "description": "Hardcoded fake secret assigned to STRIPE_SECRET"
+    },
+    {
+      "file_path": "src/server.js",
+      "line_start": 18,
+      "rule": "RVX-SQLI-JS-001",
+      "severity": "high",
+      "category": "security",
+      "description": "User input concatenated into a SQL query executed via pg"
+    },
+    {
+      "file_path": "src/server.js",
+      "line_start": 24,
+      "rule": "RVX-CMDI-JS-001",
+      "severity": "high",
+      "category": "security",
+      "description": "Dynamic command interpolated into child_process.exec"
+    },
+    {
+      "file_path": "src/server.js",
+      "line_start": 31,
+      "rule": "RVX-EVAL-JS-001",
+      "severity": "medium",
+      "category": "security",
+      "description": "eval / new Function of caller-supplied input"
+    }
+  ]
+}

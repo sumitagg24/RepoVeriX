@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useFinding } from '@/hooks/useFindings';
+import { VerificationSection } from '@/components/patch-verification';
+import { useFinding, useGenerateFix } from '@/hooks/useFindings';
 import { usePatches } from '@/hooks/usePatches';
+import { getApiErrorMessage } from '@/lib/api-error';
 import {
   Bug,
   AlertTriangle,
@@ -16,12 +18,12 @@ import {
   Copy,
   CheckCircle,
   XCircle,
-  ChevronDown,
-  ChevronUp,
   Search,
   ArrowUpRight,
   Clipboard,
   Clock,
+  Loader2,
+  Wand2,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -62,6 +64,7 @@ export default function FindingDetailPage() {
   const id = params.id as string;
   const { data: finding, isLoading: findingLoading } = useFinding(id);
   const { data: patches, isLoading: patchesLoading } = usePatches({ finding_id: id });
+  const generateFix = useGenerateFix();
 
   if (findingLoading) {
     return (
@@ -344,7 +347,26 @@ export default function FindingDetailPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Candidate Patches</CardTitle>
+              <Button
+                size="sm"
+                onClick={() => generateFix.mutate(id)}
+                disabled={generateFix.isPending}
+              >
+                {generateFix.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-2 h-4 w-4" />
+                )}
+                Generate Fix
+              </Button>
             </CardHeader>
+            {generateFix.isError && (
+              <div className="px-6 pb-2">
+                <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-2">
+                  {getApiErrorMessage(generateFix.error)}
+                </p>
+              </div>
+            )}
             <CardContent>
               {patchesLoading ? (
                 <div className="space-y-4 p-6">
@@ -356,7 +378,10 @@ export default function FindingDetailPage() {
                 <div className="text-center py-12">
                   <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                   <h3 className="text-lg font-medium mb-2">No patches generated</h3>
-                  <p className="text-muted-foreground">Run repair phase to generate candidate fixes</p>
+                  <p className="text-muted-foreground">
+                    Generate a candidate fix to see a reviewable diff. The patch is never applied
+                    to the original repository — verification runs on an isolated copy.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -403,6 +428,7 @@ export default function FindingDetailPage() {
                         </div>
                         <pre className="p-3 bg-muted rounded text-xs overflow-x-auto max-h-64"><code>{patch.diff}</code></pre>
                       </div>
+                      <VerificationSection patch={patch} />
                     </div>
                   ))}
                 </div>

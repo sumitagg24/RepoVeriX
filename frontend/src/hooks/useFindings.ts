@@ -1,6 +1,6 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { findingService } from '@/services/api';
-import type { Finding, FindingDetail, FindingSummary } from '@/types/api';
+import type { Finding, FindingDetail, FindingSummary, Patch } from '@/types/api';
 
 export function useFindings(params?: {
   scan_id?: string;
@@ -30,5 +30,17 @@ export function useScanFindingsSummary(scanId: string | undefined) {
     queryKey: ['findings', 'summary', scanId],
     queryFn: () => findingService.getScanSummary(scanId!),
     enabled: !!scanId,
+  });
+}
+
+export function useGenerateFix() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (findingId: string): Promise<Patch> => findingService.generateFix(findingId),
+    onSuccess: (_, findingId) => {
+      queryClient.invalidateQueries({ queryKey: ['finding', findingId] });
+      queryClient.invalidateQueries({ queryKey: ['patches'] });
+    },
   });
 }

@@ -147,6 +147,11 @@ export const findingService = {
     const response = await api.get<FindingSummary>(`/findings/scan/${scanId}/summary`);
     return response.data;
   },
+
+  generateFix: async (findingId: string): Promise<Patch> => {
+    const response = await api.post<Patch>(`/findings/${findingId}/generate-fix`);
+    return response.data;
+  },
 };
 
 export const patchService = {
@@ -173,6 +178,11 @@ export const patchService = {
 
   getVerification: async (verificationId: string): Promise<VerificationRunDetail> => {
     const response = await api.get<VerificationRunDetail>(`/patches/verification/${verificationId}`);
+    return response.data;
+  },
+
+  verify: async (patchId: string): Promise<VerificationRun> => {
+    const response = await api.post<VerificationRun>(`/patches/${patchId}/verify`);
     return response.data;
   },
 };
