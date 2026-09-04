@@ -1,0 +1,17 @@
+{
+  "line_tolerance": 6,
+  "configurations": ["static_only", "llm_only", "static_llm", "repoverix"],
+  "repositories": [
+    {
+      "name": "vulnerable_app",
+      "path": "backend/tests/fixtures/repos/vulnerable_app",
+      "ground_truth": "bench/ground_truth/vulnerable_app.json"
+    },
+    {
+      "name": "vulnerable_js",
+      "path": "backend/tests/fixtures/repos/vulnerable_js",
+      "ground_truth": "bench/ground_truth/vulnerable_js.json"
+    }
+  ],
+  "notes": "LLM configurations (llm_only, static_llm, repoverix) require a provider key (REPOVERIX_OPENAI_API_KEY / REPOVERIX_ANTHROPIC_API_KEY / REPOVERIX_GEMINI_API_KEY). Without one the LLM stage fails gracefully and is recorded as such - nothing is fabricated."
+}

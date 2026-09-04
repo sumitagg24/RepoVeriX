@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { patchService } from '@/services/api';
 import type { Patch, VerificationRun, VerificationRunDetail } from '@/types/api';
 
@@ -36,5 +36,24 @@ export function useVerificationRun(verificationId: string | undefined) {
     queryKey: ['verification', verificationId],
     queryFn: () => patchService.getVerification(verificationId!),
     enabled: !!verificationId,
+    refetchInterval: (query) => {
+      const run = query.state.data;
+      if (run && (run.status === 'pending' || run.status === 'running')) {
+        return 1500;
+      }
+      return false;
+    },
+  });
+}
+
+export function useVerifyPatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (patchId: string): Promise<VerificationRun> => patchService.verify(patchId),
+    onSuccess: (run) => {
+      queryClient.invalidateQueries({ queryKey: ['patches', 'verifications', run.patch_id] });
+      queryClient.invalidateQueries({ queryKey: ['patches'] });
+    },
   });
 }

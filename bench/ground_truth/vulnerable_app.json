@@ -1,0 +1,58 @@
+{
+  "repository": "vulnerable_app",
+  "description": "Deliberately seeded defects in the Python demo shop (tests/fixtures/repos/vulnerable_app). Every credential is fake.",
+  "defects": [
+    {
+      "file_path": "app.py",
+      "function_name": "search_users",
+      "line_start": 53,
+      "rule": "RVX-SQLI-001",
+      "severity": "critical",
+      "category": "security",
+      "description": "User-controlled name is interpolated into a SQL query executed via cursor.execute"
+    },
+    {
+      "file_path": "app.py",
+      "line_start": 12,
+      "rule": "RVX-SECRET-001",
+      "severity": "high",
+      "category": "security",
+      "description": "Hardcoded fake API credential in module scope"
+    },
+    {
+      "file_path": "app.py",
+      "function_name": "run_report",
+      "line_start": 72,
+      "rule": "RVX-CMDI-001",
+      "severity": "high",
+      "category": "security",
+      "description": "subprocess.call with shell=True interpolating caller-supplied host"
+    },
+    {
+      "file_path": "app.py",
+      "function_name": "score",
+      "line_start": 79,
+      "rule": "RVX-EVAL-001",
+      "severity": "high",
+      "category": "security",
+      "description": "eval() of a caller-supplied expression"
+    },
+    {
+      "file_path": "app.py",
+      "function_name": "fingerprint",
+      "line_start": 84,
+      "rule": "RVX-CRYPTO-001",
+      "severity": "medium",
+      "category": "security",
+      "description": "MD5 used for token fingerprinting"
+    },
+    {
+      "file_path": "app.py",
+      "function_name": "apply_discount",
+      "line_start": 94,
+      "severity": "low",
+      "category": "reliability",
+      "description": "Broad exception handler swallows all discount errors silently"
+    }
+  ]
+}
