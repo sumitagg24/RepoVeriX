@@ -195,8 +195,7 @@ async def test_repoverix_scan_with_mock(db_engine, monkeypatch):
             "severity": "critical",
             "claim": "User-controlled name is interpolated into a SQL query",
             "reasoning": (
-                "search_users builds an f-string containing the name "
-                "and executes it via cursor.execute."
+                "search_users builds an f-string containing the name and executes it via cursor.execute."
             ),
             "verdict": "confirmed",
             "confidence": 0.95,

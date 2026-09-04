@@ -52,9 +52,7 @@ class FindingSummary(BaseModel):
     """Aggregated finding counts used by the dashboard."""
 
     total: int = 0
-    by_category: dict[str, int] = Field(
-        default_factory=lambda: {c.value: 0 for c in FindingCategory}
-    )
+    by_category: dict[str, int] = Field(default_factory=lambda: {c.value: 0 for c in FindingCategory})
     by_severity: dict[str, int] = Field(default_factory=lambda: {s.value: 0 for s in Severity})
     by_status: dict[str, int] = Field(default_factory=lambda: {s.value: 0 for s in FindingStatus})
 

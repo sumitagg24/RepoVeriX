@@ -180,9 +180,7 @@ class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(50), default="registered", nullable=False)
 
     owner: Mapped[User] = relationship(back_populates="repositories")
-    scans: Mapped[list["Scan"]] = relationship(
-        back_populates="repository", cascade="all, delete-orphan"
-    )
+    scans: Mapped[list["Scan"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
 
 
 class Scan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -213,9 +211,7 @@ class Scan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     dependencies: Mapped[list["Dependency"]] = relationship(
         back_populates="scan", cascade="all, delete-orphan"
     )
-    findings: Mapped[list["Finding"]] = relationship(
-        back_populates="scan", cascade="all, delete-orphan"
-    )
+    findings: Mapped[list["Finding"]] = relationship(back_populates="scan", cascade="all, delete-orphan")
 
 
 class AnalysisRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -249,9 +245,7 @@ class File(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_test: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     scan: Mapped[Scan] = relationship(back_populates="files")
-    symbols: Mapped[list["Symbol"]] = relationship(
-        back_populates="file", cascade="all, delete-orphan"
-    )
+    symbols: Mapped[list["Symbol"]] = relationship(back_populates="file", cascade="all, delete-orphan")
 
 
 class Symbol(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -293,9 +287,7 @@ class Finding(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         GUID, ForeignKey("scans.id", ondelete="CASCADE"), index=True, nullable=False
     )
     external_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    category: Mapped[FindingCategory] = mapped_column(
-        enum_type(FindingCategory, "finding_category")
-    )
+    category: Mapped[FindingCategory] = mapped_column(enum_type(FindingCategory, "finding_category"))
     severity: Mapped[Severity] = mapped_column(enum_type(Severity, "severity"))
     status: Mapped[FindingStatus] = mapped_column(enum_type(FindingStatus, "finding_status"))
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -315,9 +307,7 @@ class Finding(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         order_by="Evidence.order_index",
     )
-    patches: Mapped[list["Patch"]] = relationship(
-        back_populates="finding", cascade="all, delete-orphan"
-    )
+    patches: Mapped[list["Patch"]] = relationship(back_populates="finding", cascade="all, delete-orphan")
 
 
 class Evidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):

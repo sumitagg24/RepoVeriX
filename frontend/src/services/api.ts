@@ -21,6 +21,38 @@ import type {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_PREFIX = '/api/v1';
 
+/**
+ * The backend serializes datetime columns as naive UTC strings (no timezone
+ * suffix). JavaScript's Date constructor interprets such strings as browser-
+ * local time, which skews every relative timestamp ("6 hours ago" for a scan
+ * created seconds earlier). Recursively append 'Z' to *_at fields so they are
+ * parsed as UTC.
+ */
+export function normalizeNaiveUtcDates<T>(data: T): T {
+  if (Array.isArray(data)) {
+    return data.map((item) => normalizeNaiveUtcDates(item)) as unknown as T;
+  }
+  if (data !== null && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(record)) {
+      if (
+        typeof value === 'string' &&
+        /_at$/.test(key) &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(value)
+      ) {
+        result[key] = `${value}Z`;
+      } else if (value !== null && typeof value === 'object') {
+        result[key] = normalizeNaiveUtcDates(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result as T;
+  }
+  return data;
+}
+
 const api = axios.create({
   baseURL: `${API_URL}${API_PREFIX}`,
   headers: {
@@ -28,6 +60,13 @@ const api = axios.create({
   },
   withCredentials: false,
 });
+
+api.defaults.transformResponse = [
+  ...(Array.isArray(axios.defaults.transformResponse)
+    ? axios.defaults.transformResponse
+    : []),
+  normalizeNaiveUtcDates,
+];
 
 let accessToken: string | null = null;
 
@@ -98,6 +137,14 @@ export const repositoryService = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/repositories/${id}`);
+  },
+
+  createFromZip: async (name: string, file: File): Promise<Repository> => {
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('file', file);
+    const response = await api.post<Repository>('/repositories/zip', formData);
+    return response.data;
   },
 };
 
