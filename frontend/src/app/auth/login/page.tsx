@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { ShieldCheck, Mail, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { OAuthSignInButton } from '@/components/oauth-buttons';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
@@ -48,6 +49,10 @@ function LoginContent() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
+      {/* theme switch */}
+      <div className="fixed right-4 top-4 z-50">
+        <ThemeToggle variant="solid" />
+      </div>
       {/* faint warm glow */}
       <div
         aria-hidden

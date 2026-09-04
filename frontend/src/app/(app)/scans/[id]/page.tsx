@@ -288,11 +288,11 @@ export default function ScanDetailPage() {
                     >
                       <div className="flex items-start gap-4 flex-1 min-w-0">
                         <div className={`p-3 rounded-lg flex-shrink-0 ${
-                          finding.severity === 'critical' && 'bg-red-500/10 text-red-600' ||
-                          finding.severity === 'high' && 'bg-orange-500/10 text-orange-600' ||
-                          finding.severity === 'medium' && 'bg-yellow-500/10 text-yellow-600' ||
-                          finding.severity === 'low' && 'bg-blue-500/10 text-blue-600' ||
-                          'bg-gray-500/10 text-gray-600'
+                          finding.severity === 'critical' && 'bg-red-500/10 text-red-600 dark:text-red-400' ||
+                          finding.severity === 'high' && 'bg-orange-500/10 text-orange-600 dark:text-orange-400' ||
+                          finding.severity === 'medium' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' ||
+                          finding.severity === 'low' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400' ||
+                          'bg-gray-500/10 text-gray-600 dark:text-gray-400'
                         }`}>
                           <Bug className="h-5 w-5" />
                         </div>
@@ -302,18 +302,18 @@ export default function ScanDetailPage() {
                               {finding.title}
                             </Link>
                             <Badge variant="outline" className={cn(
-                              finding.severity === 'critical' && 'bg-red-500/10 text-red-600',
-                              finding.severity === 'high' && 'bg-orange-500/10 text-orange-600',
-                              finding.severity === 'medium' && 'bg-yellow-500/10 text-yellow-600',
-                              finding.severity === 'low' && 'bg-blue-500/10 text-blue-600',
-                              finding.severity === 'info' && 'bg-gray-500/10 text-gray-600'
+                              finding.severity === 'critical' && 'bg-red-500/10 text-red-600 dark:text-red-400',
+                              finding.severity === 'high' && 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+                              finding.severity === 'medium' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+                              finding.severity === 'low' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                              finding.severity === 'info' && 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
                             )}>
                               {finding.severity}
                             </Badge>
                             <Badge variant="outline" className={cn(
-                              finding.status === 'verified' && 'bg-green-500/10 text-green-600',
-                              finding.status === 'probable' && 'bg-yellow-500/10 text-yellow-600',
-                              finding.status === 'rejected' && 'bg-gray-500/10 text-gray-600'
+                              finding.status === 'verified' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                              finding.status === 'probable' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+                              finding.status === 'rejected' && 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
                             )}>
                               {finding.status}
                             </Badge>
@@ -352,7 +352,7 @@ export default function ScanDetailPage() {
                       <div key={run.id} className="p-4 rounded-lg border">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                           <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-lg ${run.status === 'completed' ? 'bg-green-500/10 text-green-600' : run.status === 'failed' ? 'bg-red-500/10 text-red-600' : 'bg-blue-500/10 text-blue-600'}`}>
+                            <div className={`p-2 rounded-lg ${run.status === 'completed' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : run.status === 'failed' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
                               <Terminal className="h-5 w-5" />
                             </div>
                             <div>
@@ -362,10 +362,10 @@ export default function ScanDetailPage() {
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <Badge variant="outline" className={cn(
-                              run.status === 'pending' && 'bg-yellow-500/10 text-yellow-600',
-                              run.status === 'running' && 'bg-blue-500/10 text-blue-600',
-                              run.status === 'completed' && 'bg-green-500/10 text-green-600',
-                              run.status === 'failed' && 'bg-red-500/10 text-red-600'
+                              run.status === 'pending' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+                              run.status === 'running' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                              run.status === 'completed' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                              run.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400'
                             )}>
                               {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
                             </Badge>

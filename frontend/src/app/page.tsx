@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import {
   ShieldCheck,
   ArrowRight,
@@ -58,6 +59,7 @@ export default function HomePage() {
             <span className="text-[17px] font-semibold tracking-tight">RepoVeriX</span>
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeToggle className="border bg-card shadow-sm ring-1 ring-border hover:bg-card/80" />
             <Link href="/auth/login">
               <Button variant="ghost">Sign in</Button>
             </Link>
@@ -193,16 +195,16 @@ export default function HomePage() {
                 &nbsp;&nbsp;--finding RVX-SQLI-001 --patch sha-parameterize.diff
               </div>
               <div className="space-y-1.5 rounded-lg border border-border/70 p-4">
-                <p className="flex items-center gap-2 text-green-700">
+                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
                   <Check className="h-3.5 w-3.5" /> patch applied to app.py
                 </p>
-                <p className="flex items-center gap-2 text-green-700">
+                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
                   <Check className="h-3.5 w-3.5" /> 4 tests passed · 0.4s
                 </p>
-                <p className="flex items-center gap-2 text-green-700">
+                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
                   <Check className="h-3.5 w-3.5" /> ruff clean — no new issues
                 </p>
-                <p className="flex items-center gap-2 text-green-700">
+                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
                   <Check className="h-3.5 w-3.5" /> RVX-SQLI-001 no longer detected
                 </p>
                 <p className="mt-2 font-sans text-sm font-semibold text-foreground">
