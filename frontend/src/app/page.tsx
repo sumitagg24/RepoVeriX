@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo, LogoMark } from '@/components/logo';
 import { HeroRepoForm } from '@/components/hero-repo-form';
+import { GithubStarButton } from '@/components/github-star-button';
+import { ScrollReveal } from '@/components/scroll-reveal';
 import {
   ArrowRight,
   GitBranch,
@@ -22,13 +24,18 @@ import {
   FileJson,
   GraduationCap,
   Workflow,
-  Star,
   TerminalSquare,
+  GitPullRequest,
+  ShieldAlert,
+  Rocket,
+  Building2,
+  FlaskConical as FlaskIcon,
 } from 'lucide-react';
 
 const navLinks = [
   { name: 'Product', href: '#product' },
   { name: 'Pricing', href: '#pricing' },
+  { name: 'Explore', href: '#explore' },
   { name: 'Docs', href: 'https://github.com/sumitagg24/RepoVeriX' },
   { name: 'Research', href: '#research' },
 ];
@@ -155,16 +162,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle className="border bg-card shadow-sm ring-1 ring-border hover:bg-card/80" />
-            <a
-              href="https://github.com/sumitagg24/RepoVeriX"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:inline-flex"
-            >
-              <Star className="h-4 w-4" />
-              <Github className="h-4 w-4" />
-              Star
-            </a>
+            <GithubStarButton />
             <Link href="/auth/login">
               <Button variant="ghost">Sign in</Button>
             </Link>
@@ -201,8 +199,11 @@ export default function HomePage() {
             {/* URL input */}
             <HeroRepoForm />
             <p className="mt-3 text-xs text-muted-foreground">
-              Browse by pasting a URL, or sign in to audit public and private repositories with
-              full history.
+              Paste any public repository URL — or{' '}
+              <a href="#explore" className="font-medium text-primary hover:underline">
+                explore a sample repository
+              </a>{' '}
+              to see the evidence before signing in.
             </p>
 
             {/* Source strip */}
@@ -226,6 +227,25 @@ export default function HomePage() {
                 {sources.map((s) => s.note).join('  ·  ')}
               </p>
             </div>
+
+            {/* Honest capability stats */}
+            <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ['12', 'code-health detectors'],
+                ['6', 'evidence kinds in a chain'],
+                ['4', 'research configurations'],
+                ['5', 'ways to import a repo'],
+              ].map(([value, label], i) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-border/60 bg-card/50 px-4 py-3 text-center backdrop-blur transition-colors hover:border-primary/30"
+                  style={{ transitionDelay: `${i * 40}ms` }}
+                >
+                  <p className="font-display text-2xl font-semibold tracking-tight text-primary">{value}</p>
+                  <p className="text-[11px] leading-tight text-muted-foreground">{label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -246,11 +266,8 @@ export default function HomePage() {
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {capabilities.map((cap, i) => (
-              <div
-                key={cap.title}
-                className="group flex flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5"
-                style={{ transitionDelay: `${i * 40}ms` }}
-              >
+              <ScrollReveal key={cap.title} delay={i * 60} className="h-full">
+              <div className="group flex h-full flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
                 <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
                   <cap.icon className="h-5 w-5" />
                 </span>
@@ -265,6 +282,7 @@ export default function HomePage() {
                   ))}
                 </ul>
               </div>
+              </ScrollReveal>
             ))}
           </div>
         </div>
@@ -273,7 +291,7 @@ export default function HomePage() {
       {/* Evidence you can inspect */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div>
+          <ScrollReveal>
             <p className="text-sm font-medium text-primary">Evidence you can inspect</p>
             <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
               A scanner tells you what&apos;s wrong. RepoVeriX shows you the proof — and proves the fix.
@@ -302,7 +320,8 @@ export default function HomePage() {
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Button>
             </Link>
-          </div>
+          </ScrollReveal>
+          <ScrollReveal delay={120}>
           <div className="rounded-2xl border bg-card p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Live verdict
@@ -335,6 +354,182 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* Explore sample repositories */}
+      <section id="explore" className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <ScrollReveal>
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-medium text-primary">Evidence you can inspect</p>
+              <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
+                Sample repositories, real findings
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Not a demo reel — these are the fixtures RepoVeriX audits in its own test suite,
+                with real findings, evidence chains and git analytics. Sign in to run them yourself.
+              </p>
+            </div>
+          </ScrollReveal>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {[
+              {
+                name: 'vulnerable-app',
+                meta: 'Python · 5 files · 2 classes',
+                body: 'A deliberately vulnerable Flask-style app: SQL injection, command injection, eval, hardcoded secrets, weak crypto.',
+                tags: ['SQLi', 'RCE', 'Secrets'],
+              },
+              {
+                name: 'demo-git-repo',
+                meta: 'Python · real commit history',
+                body: 'A git-backed fixture that exercises hotspots, ownership, bus factor, co-change coupling and change audits.',
+                tags: ['Git intelligence', 'Hotspots', 'Bus factor'],
+              },
+              {
+                name: 'RepoVeriX itself',
+                meta: 'TypeScript + Python · open source',
+                body: 'The project auditing itself — frontend, backend and analysis engine, all open on GitHub.',
+                tags: ['Open source', 'Self-hosted'],
+              },
+            ].map((repo, i) => (
+              <ScrollReveal key={repo.name} delay={i * 80}>
+                <div className="group flex h-full flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-mono text-sm font-semibold">{repo.name}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{repo.meta}</p>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-muted-foreground">{repo.body}</p>
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {repo.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="rounded-full border border-border/70 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                  <Link href="/auth/signup" className="mt-5">
+                    <Button variant="outline" className="w-full gap-2">
+                      Audit this repository <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* PR workflow */}
+      <section className="border-t border-border/60 bg-card/40">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <ScrollReveal>
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-medium text-primary">Change audit in your PR workflow</p>
+              <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
+                Merge checks backed by repository evidence
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Point the change-audit API at any diff and get deterministic directives — the same
+                questions a careful reviewer asks, answered from the call graph and git history.
+              </p>
+            </div>
+          </ScrollReveal>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {[
+              {
+                icon: GitPullRequest,
+                title: 'Changed contracts',
+                body: 'See every caller outside the diff before an interface change merges — blast radius computed over the call graph.',
+              },
+              {
+                icon: ShieldAlert,
+                title: 'Missing co-changes',
+                body: 'Catch files that git history says usually move with this change, plus changed files no test touches.',
+              },
+              {
+                icon: Rocket,
+                title: 'Merge checks',
+                body: 'A 0–10 risk score from size, blast radius, file health and test coverage, with the exact tests to run.',
+              },
+            ].map((check, i) => (
+              <ScrollReveal key={check.title} delay={i * 80}>
+                <div className="flex h-full flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
+                  <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+                    <check.icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="text-lg font-semibold">{check.title}</h3>
+                  <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{check.body}</p>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Run it your way */}
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <ScrollReveal>
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-medium text-primary">Run it your way</p>
+              <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
+                One engine. Three ways to operate it.
+              </h2>
+            </div>
+          </ScrollReveal>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {[
+              {
+                icon: Github,
+                title: 'Open source',
+                body: 'Run RepoVeriX yourself with Docker Compose — code, storage and model provider stay under your control.',
+                cta: 'View on GitHub',
+                href: 'https://github.com/sumitagg24/RepoVeriX',
+                external: true,
+              },
+              {
+                icon: Building2,
+                title: 'Hosted',
+                body: 'Sign in free, audit public and private repositories with full history, and add seats when your team needs them.',
+                cta: 'Start free',
+                href: '/auth/signup',
+                external: false,
+              },
+              {
+                icon: FlaskIcon,
+                title: 'Research',
+                body: 'Use the benchmark dataset and four-configuration harness to reproduce the precision, recall and patch-correctness results.',
+                cta: 'See the research',
+                href: '#research',
+                external: false,
+              },
+            ].map((option, i) => (
+              <ScrollReveal key={option.title} delay={i * 80}>
+                <div className="group flex h-full flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
+                  <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+                    <option.icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="text-lg font-semibold">{option.title}</h3>
+                  <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{option.body}</p>
+                  <Link
+                    href={option.href}
+                    target={option.external ? '_blank' : undefined}
+                    rel={option.external ? 'noopener noreferrer' : undefined}
+                    className="mt-5"
+                  >
+                    <Button variant="outline" className="w-full gap-2">
+                      {option.cta} <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -349,17 +544,15 @@ export default function HomePage() {
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-3">
             {workflows.map((w, i) => (
-              <div
-                key={w.title}
-                className="group flex flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5"
-                style={{ transitionDelay: `${i * 60}ms` }}
-              >
+              <ScrollReveal key={w.title} delay={i * 60} className="h-full">
+              <div className="group flex h-full flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
                 <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
                   <w.icon className="h-5 w-5" />
                 </span>
                 <h3 className="text-lg font-semibold">{w.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{w.body}</p>
               </div>
+              </ScrollReveal>
             ))}
           </div>
 
@@ -502,9 +695,9 @@ export default function HomePage() {
                 highlight: false,
               },
             ].map((plan, i) => (
+              <ScrollReveal key={plan.name} delay={i * 80} className="h-full">
               <div
-                key={plan.name}
-                className={`group relative flex flex-col rounded-2xl border p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5 ${
+                className={`group relative flex h-full flex-col rounded-2xl border p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5 ${
                   plan.highlight ? 'border-primary/40 bg-card' : 'border-border/70 bg-card/60'
                 }`}
                 style={{ transitionDelay: `${i * 60}ms` }}
@@ -538,6 +731,7 @@ export default function HomePage() {
                   </Button>
                 </Link>
               </div>
+              </ScrollReveal>
             ))}
           </div>
           <p className="mt-8 text-center text-xs text-muted-foreground">
