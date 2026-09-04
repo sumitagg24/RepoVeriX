@@ -12,6 +12,9 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+# This repo has no public/ directory (Next.js tolerates its absence), so
+# create it to keep the COPY below valid either way.
+RUN mkdir -p public
 COPY . .
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
