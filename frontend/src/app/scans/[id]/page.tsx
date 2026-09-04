@@ -276,7 +276,7 @@ export default function ScanDetailPage() {
                 <div className="text-center py-12">
                   <Bug className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                   <h3 className="text-lg font-medium mb-2">No findings yet</h3>
-                  <p className="text-muted-foreground">This scan didn't discover any issues</p>
+                  <p className="text-muted-foreground">This scan did not discover any issues</p>
                 </div>
               ) : (
                 <div className="space-y-3">

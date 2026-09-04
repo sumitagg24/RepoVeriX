@@ -224,13 +224,7 @@ export default function ScansPage() {
               <p className="text-muted-foreground mb-4">
                 {searchQuery ? 'Try adjusting your search' : 'Start your first scan to analyze a repository'}
               </p>
-              {!searchQuery && (
-                <Button asChild>
-                  <DialogTrigger>
-                    <Link href="#">New Scan</Link>
-                  </DialogTrigger>
-                </Button>
-              )}
+              {!searchQuery && <Button onClick={() => setDialogOpen(true)}>New Scan</Button>}
             </div>
           ) : (
             <div className="divide-y">

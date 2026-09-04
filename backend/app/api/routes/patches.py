@@ -125,9 +125,7 @@ async def verify_patch(
     active = await db.execute(
         select(VerificationRun).where(
             VerificationRun.patch_id == patch_id,
-            VerificationRun.status.in_(
-                [VerificationStatus.pending, VerificationStatus.running]
-            ),
+            VerificationRun.status.in_([VerificationStatus.pending, VerificationStatus.running]),
         )
     )
     if active.scalar_one_or_none() is not None:

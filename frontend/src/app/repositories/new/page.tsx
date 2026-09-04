@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useCreateRepository } from '@/hooks/useRepositories';
+import { useCreateRepository, useCreateRepositoryFromZip } from '@/hooks/useRepositories';
 import { Github, Archive, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,6 +31,9 @@ type RepoForm = z.infer<typeof repoSchema>;
 export default function NewRepositoryPage() {
   const router = useRouter();
   const createMutation = useCreateRepository();
+  const createZipMutation = useCreateRepositoryFromZip();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const form = useForm<RepoForm>({
     resolver: zodResolver(repoSchema),
@@ -43,7 +47,15 @@ export default function NewRepositoryPage() {
 
   const onSubmit = async (data: RepoForm) => {
     try {
-      await createMutation.mutateAsync(data);
+      if (data.source_type === 'zip') {
+        if (!selectedFile) {
+          setFileError('Please choose a .zip archive to upload');
+          return;
+        }
+        await createZipMutation.mutateAsync({ name: data.name, file: selectedFile });
+      } else {
+        await createMutation.mutateAsync(data);
+      }
       toast.success('Repository created successfully');
       router.push('/repositories');
       router.refresh();
@@ -72,7 +84,7 @@ export default function NewRepositoryPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form id="repository-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
                 name="name"
@@ -94,7 +106,15 @@ export default function NewRepositoryPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Source Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={createMutation.isPending}>
+                    <Select
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setSelectedFile(null);
+                        setFileError(null);
+                      }}
+                      defaultValue={field.value}
+                      disabled={createMutation.isPending || createZipMutation.isPending}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select source type" />
@@ -119,6 +139,27 @@ export default function NewRepositoryPage() {
                   </FormItem>
                 )}
               />
+
+              {form.watch('source_type') === 'zip' && (
+                <div className="space-y-2">
+                  <Label htmlFor="zip-archive">ZIP Archive</Label>
+                  <Input
+                    id="zip-archive"
+                    type="file"
+                    accept=".zip,application/zip"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setSelectedFile(file);
+                      setFileError(file ? null : 'Please choose a .zip archive to upload');
+                    }}
+                    disabled={createMutation.isPending || createZipMutation.isPending}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {selectedFile ? `Selected: ${selectedFile.name}` : 'Upload a .zip archive of your repository source code'}
+                  </p>
+                  {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
+                </div>
+              )}
 
               <FormField
                 control={form.control}
@@ -150,7 +191,7 @@ export default function NewRepositoryPage() {
                     <FormControl>
                       <Input placeholder="main" {...field} disabled={createMutation.isPending} />
                     </FormControl>
-                    <FormDescription>The default branch to scan (usually 'main' or 'master')</FormDescription>
+                    <FormDescription>The default branch to scan (usually `main` or `master`)</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -162,8 +203,8 @@ export default function NewRepositoryPage() {
           <Link href="/repositories">
             <Button variant="outline">Cancel</Button>
           </Link>
-          <Button type="submit" form="repository-form" disabled={createMutation.isPending} className="w-full sm:w-auto">
-            {createMutation.isPending ? (
+          <Button type="submit" form="repository-form" disabled={createMutation.isPending || createZipMutation.isPending} className="w-full sm:w-auto">
+            {createMutation.isPending || createZipMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Creating...
@@ -190,7 +231,7 @@ export default function NewRepositoryPage() {
             <li>Maximum file size: 100MB</li>
             <li>Supported languages: Python, JavaScript, TypeScript</li>
           </ul>
-          <p className="text-primary font-medium">Note: ZIP upload functionality requires backend implementation for file upload handling.</p>
+          <p className="text-primary font-medium">Your archive is stored securely and only extracted into an isolated sandbox when a scan runs.</p>
         </CardContent>
       </Card>
     </div>

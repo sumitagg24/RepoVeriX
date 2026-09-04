@@ -28,6 +28,18 @@ export function useCreateRepository() {
   });
 }
 
+export function useCreateRepositoryFromZip() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ name, file }: { name: string; file: File }) =>
+      repositoryService.createFromZip(name, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['repositories'] });
+    },
+  });
+}
+
 export function useDeleteRepository() {
   const queryClient = useQueryClient();
   

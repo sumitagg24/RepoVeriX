@@ -57,11 +57,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      # the app appends /api/v1 itself, so only the host is configured here
       args:
-        - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
     container_name: repoverix-frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+      - NEXT_PUBLIC_API_URL=http://backend:8000
       - NODE_ENV=production
     ports:
       - "3000:3000"

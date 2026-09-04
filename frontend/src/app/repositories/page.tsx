@@ -19,7 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GitBranch, Plus, Search, MoreHorizontal, Edit, Trash2, ExternalLink, Loader2 } from 'lucide-react';
-import { useRepositories, useCreateRepository, useDeleteRepository } from '@/hooks/useRepositories';
+import { useRepositories, useCreateRepository, useCreateRepositoryFromZip, useDeleteRepository } from '@/hooks/useRepositories';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -42,10 +42,13 @@ type RepoForm = z.infer<typeof repoSchema>;
 export default function RepositoriesPage() {
   const { data: repositories, isLoading, refetch } = useRepositories();
   const createMutation = useCreateRepository();
+  const createZipMutation = useCreateRepositoryFromZip();
   const deleteMutation = useDeleteRepository();
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRepo, setEditingRepo] = useState<RepoForm | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const form = useForm<RepoForm>({
     resolver: zodResolver(repoSchema),
@@ -63,10 +66,20 @@ export default function RepositoriesPage() {
 
   const onSubmit = async (data: RepoForm) => {
     try {
-      await createMutation.mutateAsync(data);
+      if (data.source_type === 'zip') {
+        if (!selectedFile) {
+          setFileError('Please choose a .zip archive to upload');
+          return;
+        }
+        await createZipMutation.mutateAsync({ name: data.name, file: selectedFile });
+      } else {
+        await createMutation.mutateAsync(data);
+      }
       toast.success('Repository created successfully');
       setDialogOpen(false);
       form.reset();
+      setSelectedFile(null);
+      setFileError(null);
       refetch();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to create repository';
@@ -139,7 +152,14 @@ const handleEditClick = (repo: Repository) => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Source Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          setSelectedFile(null);
+                          setFileError(null);
+                        }}
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select source type" />
@@ -154,6 +174,26 @@ const handleEditClick = (repo: Repository) => {
                     </FormItem>
                   )}
                 />
+                {form.watch('source_type') === 'zip' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="zip-archive">ZIP Archive</Label>
+                    <Input
+                      id="zip-archive"
+                      type="file"
+                      accept=".zip,application/zip"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setSelectedFile(file);
+                        setFileError(file ? null : 'Please choose a .zip archive to upload');
+                      }}
+                      disabled={createZipMutation.isPending}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {selectedFile ? selectedFile.name : 'Upload a .zip archive of your repository source code'}
+                    </p>
+                    {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
+                  </div>
+                )}
                 <FormField
                   control={form.control}
                   name="source_url"
@@ -188,8 +228,12 @@ const handleEditClick = (repo: Repository) => {
                   )}
                 />
                 <DialogFooter>
-                  <Button type="submit" disabled={createMutation.isPending} className="w-full">
-                    {createMutation.isPending ? 'Saving...' : editingRepo ? 'Update' : 'Create Repository'}
+                  <Button type="submit" disabled={createMutation.isPending || createZipMutation.isPending} className="w-full">
+                    {createMutation.isPending || createZipMutation.isPending
+                      ? 'Saving...'
+                      : editingRepo
+                        ? 'Update'
+                        : 'Create Repository'}
                   </Button>
                 </DialogFooter>
               </form>
@@ -226,11 +270,7 @@ const handleEditClick = (repo: Repository) => {
                 {searchQuery ? 'Try adjusting your search' : 'Get started by adding your first repository'}
               </p>
               {!searchQuery && (
-                <Button asChild>
-                  <DialogTrigger>
-                    <Link href="#">Add Repository</Link>
-                  </DialogTrigger>
-                </Button>
+                <Button onClick={() => setDialogOpen(true)}>Add Repository</Button>
               )}
             </div>
           ) : (

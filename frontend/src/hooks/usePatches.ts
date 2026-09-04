@@ -1,6 +1,11 @@
+import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { patchService } from '@/services/api';
 import type { Patch, VerificationRun, VerificationRunDetail } from '@/types/api';
+
+function isActiveRun(run: VerificationRun): boolean {
+  return run.status === 'pending' || run.status === 'running';
+}
 
 export function usePatches(params?: {
   finding_id?: string;
@@ -24,11 +29,38 @@ export function usePatch(id: string | undefined) {
 }
 
 export function usePatchVerifications(patchId: string | undefined) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const hadActiveRun = useRef(false);
+
+  const query = useQuery({
     queryKey: ['patches', 'verifications', patchId],
     queryFn: () => patchService.listVerifications(patchId!),
     enabled: !!patchId,
+    refetchInterval: (q) => {
+      const runs = q.state.data;
+      return runs?.some(isActiveRun) ? 1500 : false;
+    },
+    // Keep polling even when the browser tab loses focus; a verification run
+    // finishes server-side and the panel must not stall on "Pending".
+    refetchIntervalInBackground: true,
   });
+
+  const runs = query.data;
+  const active = runs?.some(isActiveRun) ?? false;
+
+  // When an in-flight verification settles, refresh the patch list so the
+  // patch badge/status reflects the terminal outcome.
+  useEffect(() => {
+    if (hadActiveRun.current && !active) {
+      queryClient.invalidateQueries({ queryKey: ['patches'] });
+      queryClient.invalidateQueries({ queryKey: ['patch'] });
+    }
+    if (active) {
+      hadActiveRun.current = true;
+    }
+  }, [active, queryClient]);
+
+  return query;
 }
 
 export function useVerificationRun(verificationId: string | undefined) {
@@ -38,11 +70,12 @@ export function useVerificationRun(verificationId: string | undefined) {
     enabled: !!verificationId,
     refetchInterval: (query) => {
       const run = query.state.data;
-      if (run && (run.status === 'pending' || run.status === 'running')) {
+      if (run && isActiveRun(run)) {
         return 1500;
       }
       return false;
     },
+    refetchIntervalInBackground: true,
   });
 }
 
