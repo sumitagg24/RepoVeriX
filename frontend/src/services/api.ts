@@ -31,7 +31,19 @@ import type {
   RegressionReport,
   DedupReport,
   GeneratedTest,
-  CounterexampleResult
+  CounterexampleResult,
+  RepositoryQueryResult,
+  ArchitectureSmellsResult,
+  HealthTimeline,
+  ImpactAnalysis,
+  FindingChatResult,
+  ChangeExplanation,
+  PatchQuality,
+  MultiAgentResult,
+  SelfImprovementResult,
+  VulnMiningResult,
+  RiskModelResult,
+  LearningPatternsResult
 } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -247,6 +259,17 @@ export const auditService = {
     );
     return response.data;
   },
+
+  explainChange: async (
+    repositoryId: string,
+    payload: { base?: string; head?: string; diff?: string }
+  ): Promise<ChangeExplanation> => {
+    const response = await api.post<ChangeExplanation>(
+      `/repositories/${repositoryId}/explain-change`,
+      payload
+    );
+    return response.data;
+  },
 };
 
 export const scanAuditService = {
@@ -280,6 +303,23 @@ export const findingAuditService = {
     const response = await api.post<CounterexampleResult>(
       `/findings/${findingId}/validate-counterexample`
     );
+    return response.data;
+  },
+
+  impact: async (findingId: string): Promise<ImpactAnalysis> => {
+    const response = await api.get<ImpactAnalysis>(`/findings/${findingId}/impact`);
+    return response.data;
+  },
+
+  chat: async (
+    findingId: string,
+    question: string,
+    useLlm = false
+  ): Promise<FindingChatResult> => {
+    const response = await api.post<FindingChatResult>(`/findings/${findingId}/chat`, {
+      question,
+      use_llm: useLlm,
+    });
     return response.data;
   },
 };
@@ -368,6 +408,11 @@ export const patchService = {
     const response = await api.post<VerificationRun>(`/patches/${patchId}/verify`);
     return response.data;
   },
+
+  quality: async (patchId: string): Promise<PatchQuality> => {
+    const response = await api.get<PatchQuality>(`/patches/${patchId}/quality`);
+    return response.data;
+  },
 };
 
 export const dashboardService = {
@@ -389,6 +434,59 @@ export const intelligenceService = {
     const response = await api.post<WikiProseResult>(
       `/repositories/${repositoryId}/intelligence/wiki/${encodeURIComponent(path)}/prose`
     );
+    return response.data;
+  },
+
+  query: async (
+    repositoryId: string,
+    question: string,
+    useLlm = false
+  ): Promise<RepositoryQueryResult> => {
+    const response = await api.post<RepositoryQueryResult>(`/repositories/${repositoryId}/query`, {
+      question,
+      use_llm: useLlm,
+    });
+    return response.data;
+  },
+
+  architectureSmells: async (repositoryId: string): Promise<ArchitectureSmellsResult> => {
+    const response = await api.get<ArchitectureSmellsResult>(
+      `/repositories/${repositoryId}/architecture-smells`
+    );
+    return response.data;
+  },
+
+  healthTimeline: async (repositoryId: string): Promise<HealthTimeline> => {
+    const response = await api.get<HealthTimeline>(
+      `/repositories/${repositoryId}/health-timeline`
+    );
+    return response.data;
+  },
+};
+
+export const researchService = {
+  multiAgent: async (repositoryId: string): Promise<MultiAgentResult> => {
+    const response = await api.get<MultiAgentResult>(`/repositories/${repositoryId}/multi-agent`);
+    return response.data;
+  },
+
+  selfImprovement: async (repositoryId: string): Promise<SelfImprovementResult> => {
+    const response = await api.get<SelfImprovementResult>(`/repositories/${repositoryId}/self-improvement`);
+    return response.data;
+  },
+
+  vulnMining: async (repositoryId: string): Promise<VulnMiningResult> => {
+    const response = await api.get<VulnMiningResult>(`/repositories/${repositoryId}/vuln-mining`);
+    return response.data;
+  },
+
+  riskModel: async (repositoryId: string): Promise<RiskModelResult> => {
+    const response = await api.get<RiskModelResult>(`/repositories/${repositoryId}/risk-model`);
+    return response.data;
+  },
+
+  learningPatterns: async (): Promise<LearningPatternsResult> => {
+    const response = await api.get<LearningPatternsResult>('/learning/patterns');
     return response.data;
   },
 };

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 
@@ -19,9 +20,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.analysis import attackpaths, changes, depreach, regression
+from app.analysis import attackpaths, changeexplain, changes, depreach, regression
 from app.analysis.ingest import source_dir
 from app.analysis.intel import _language_of
+from app.analysis.llm import build_llm_provider, complete_json, load_prompt
+from app.analysis.models import AnalysisError, LLMUsage
 from app.analysis.parsing import is_supported, parse_source
 from app.api.dependencies import get_current_user, get_db
 from app.core.config import get_settings
@@ -169,6 +172,75 @@ async def change_audit(
     db.add(row)
     await db.commit()
     return audit
+
+
+# --------------------------------------------------------------------------- change explanation
+
+
+@router.post("/{repository_id}/explain-change")
+async def explain_change(
+    repository_id: uuid.UUID,
+    payload: ChangeAuditRequest,
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Human-readable explanation of a change (diff or refs).
+
+    Deterministic narrative from the change audit; an LLM prose paragraph is
+    appended when a provider is configured.
+    """
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "change_audit"))
+    repository = await _load_repository(repository_id, db, current_user)
+    src = _working_copy(repository)
+
+    if payload.diff:
+        hunks = changes.parse_unified_diff(payload.diff)
+        if not hunks:
+            raise HTTPException(status_code=422, detail="Diff contains no file changes")
+        mode, base, head = "diff", None, None
+    else:
+        if not payload.base or not payload.head:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide base+head refs or a raw unified diff",
+            )
+        mode, base, head = "refs", payload.base, payload.head
+        try:
+            hunks, _raw = await changes.git_diff(src, base, head)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"git diff failed: {exc}") from exc
+        if not hunks:
+            raise HTTPException(status_code=422, detail="No differences between the refs")
+
+    parsed = _parse_working_copy(src)
+    audit = await changes.analyze_change(src, parsed, hunks)
+    audit["mode"] = mode
+    explanation = changeexplain.build_explanation(audit)
+
+    provider = build_llm_provider(get_settings())
+    if provider is not None:
+        try:
+            system = load_prompt("system_security")
+            template = load_prompt("change_explanation")
+            usage = LLMUsage()
+            data = await complete_json(
+                provider,
+                system,
+                template.format(
+                    audit=json.dumps(audit, default=str)[:20000],
+                    question="Explain this change",
+                ),
+                usage,
+            )
+        except AnalysisError:
+            data = {}
+        if data.get("explanation"):
+            explanation["llm_narrative"] = data["explanation"]
+            explanation["model"] = getattr(provider, "model", None)
+
+    return explanation
 
 
 # --------------------------------------------------------------------------- evidence graph

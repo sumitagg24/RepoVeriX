@@ -1,20 +1,24 @@
 """Finding and evidence routes."""
 
+import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.analysis import counterexamples, ingest, testgen
-from app.analysis.llm import LLMUsage, build_llm_provider
+from app.analysis import counterexamples, findingchat, impact, ingest, testgen
+from app.analysis.ingest import source_dir
+from app.analysis.knowledge import KnowledgeGraph
+from app.analysis.llm import LLMUsage, build_llm_provider, complete_json, load_prompt
 from app.analysis.models import AnalysisError
 from app.analysis.repair import generate_repair
 from app.api.dependencies import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.ratelimit import check_action, enforce
-from app.db.models import Finding, GeneratedTest, Patch, PatchStatus, Repository, Scan
+from app.db.models import Finding, GeneratedTest, Patch, PatchStatus, Repository, Scan, ScanStatus
 from app.schemas.finding import FindingDetail, FindingRead
 from app.schemas.verification import PatchRead
 
@@ -385,3 +389,178 @@ async def get_scan_findings_summary(
         "by_severity": by_severity,
         "by_status": by_status,
     }
+
+
+class FindingQuestionRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=500)
+    use_llm: bool = False
+
+
+async def _load_finding_chain(
+    finding_id: uuid.UUID, db: AsyncSession, user
+) -> Finding:
+    result = await db.execute(
+        select(Finding)
+        .options(
+            selectinload(Finding.evidence),
+            selectinload(Finding.scan).selectinload(Scan.repository),
+            selectinload(Finding.patches).selectinload(Patch.verification_runs),
+        )
+        .join(Scan)
+        .join(Repository)
+        .where(Finding.id == finding_id, Repository.owner_id == user.id)
+    )
+    finding = result.scalar_one_or_none()
+    if finding is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+    return finding
+
+
+@router.get("/{finding_id}/impact")
+async def get_finding_impact(
+    finding_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Why does this matter: impact + reachability for one finding."""
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "finding_impact"))
+    finding = await _load_finding_chain(finding_id, db, current_user)
+    src = source_dir(str(finding.scan.repository.id))
+    graph = None
+    if src.exists():
+        from app.analysis.discovery import walk_repo_files
+        from app.analysis.intel import _language_of
+        from app.analysis.parsing import is_supported, parse_source
+
+        parsed = {}
+        try:
+            files_raw, _ = walk_repo_files(src)
+            for full in files_raw[: get_settings().intel_max_files]:
+                lang = _language_of(full)
+                if lang is None or not is_supported(lang):
+                    continue
+                rel = full.relative_to(src).as_posix()
+                try:
+                    parsed[rel] = parse_source(
+                        full.read_text(encoding="utf-8", errors="replace"), lang, rel
+                    )
+                except Exception:
+                    continue
+        except Exception:
+            parsed = {}
+        graph = KnowledgeGraph(list(parsed.values()))
+    return impact.analyze_impact(finding, graph)
+
+
+@router.post("/{finding_id}/chat")
+async def chat_about_finding(
+    finding_id: uuid.UUID,
+    payload: FindingQuestionRequest,
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ask a question about one finding.
+
+    Deterministic intents by default; ``use_llm`` upgrades open-ended questions
+    to an LLM grounded in the finding's own evidence when a provider exists.
+    """
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "finding_chat"))
+    finding = await _load_finding_chain(finding_id, db, current_user)
+
+    # similar findings = same signature in other completed scans of the repo
+    similar: list[Finding] = []
+    scan_result = await db.execute(
+        select(Scan)
+        .where(
+            Scan.repository_id == finding.scan.repository_id,
+            Scan.status == ScanStatus.completed,
+            Scan.id != finding.scan_id,
+        )
+        .order_by(Scan.created_at.desc())
+    )
+    other_scans = list(scan_result.scalars().all())
+    if other_scans:
+        s_result = await db.execute(
+            select(Finding)
+            .options(selectinload(Finding.scan))
+            .where(
+                Finding.external_id == finding.external_id,
+                Finding.scan_id.in_([s.id for s in other_scans]),
+            )
+        )
+        similar = list(s_result.scalars().all())
+
+    snippet: str | None = None
+    src = source_dir(str(finding.scan.repository.id))
+    if src.exists() and finding.file_path:
+        try:
+            target = (src / finding.file_path).resolve()
+            if str(target).startswith(str(src.resolve())) and target.is_file():
+                lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+                start = max(0, (finding.line_start or 1) - 3)
+                end = min(len(lines), (finding.line_end or finding.line_start or start + 1) + 3)
+                snippet = "\n".join(
+                    f"{i + 1}: {lines[i]}" for i in range(start, end)
+                )
+        except Exception:
+            snippet = None
+
+    result = findingchat.answer_finding_question(
+        payload.question, finding, similar=similar, snippet=snippet
+    )
+
+    provider = build_llm_provider(get_settings())
+    if payload.use_llm and provider is not None:
+        evidence = json.dumps(
+            {
+                "finding": {
+                    "title": finding.title,
+                    "severity": finding.severity.value,
+                    "status": finding.status.value,
+                    "confidence": finding.confidence,
+                    "category": finding.category.value,
+                    "description": finding.description,
+                    "impact": finding.impact,
+                    "recommendation": finding.recommendation,
+                    "file_path": finding.file_path,
+                    "function_name": finding.function_name,
+                    "line_start": finding.line_start,
+                },
+                "evidence": [
+                    {
+                        "kind": e.kind.value,
+                        "description": e.description,
+                        "file": e.file_path,
+                        "line_start": e.line_start,
+                        "line_end": e.line_end,
+                        "snippet": (e.snippet or "")[:2000],
+                    }
+                    for e in sorted(finding.evidence, key=lambda x: x.order_index)
+                ],
+                "code_snippet": snippet,
+            },
+            default=str,
+        )[:30000]
+        system = load_prompt("system_security")
+        template = load_prompt("finding_chat")
+        usage = LLMUsage()
+        try:
+            data = await complete_json(
+                provider,
+                system,
+                template.format(evidence=evidence, question=payload.question),
+                usage,
+            )
+        except AnalysisError as exc:
+            raise HTTPException(status_code=502, detail=exc.message) from exc
+        result = {
+            **result,
+            "answer": data.get("answer") or result["answer"],
+            "mode": "llm",
+            "model": getattr(provider, "model", None),
+            "usage": usage.to_dict(),
+        }
+    return result

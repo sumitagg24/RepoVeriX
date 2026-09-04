@@ -1,7 +1,12 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { auditService, findingAuditService, scanAuditService } from '@/services/api';
+import {
+  auditService,
+  findingAuditService,
+  intelligenceService,
+  scanAuditService,
+} from '@/services/api';
 import { toast } from 'sonner';
 
 function errorDetail(error: unknown): string {
@@ -84,5 +89,63 @@ export function useDedup(scanId: string) {
     staleTime: 60_000,
     retry: false,
     enabled: scanId.length > 0,
+  });
+}
+
+// --------------------------------------------------------------------------- Tier 2
+
+export function useRepoQuery(repositoryId: string) {
+  return useMutation({
+    mutationFn: ({ question, useLlm }: { question: string; useLlm: boolean }) =>
+      intelligenceService.query(repositoryId, question, useLlm),
+    onError: (error: unknown) => toast.error(errorDetail(error)),
+  });
+}
+
+export function useArchitectureSmells(repositoryId: string) {
+  return useQuery({
+    queryKey: ['architecture-smells', repositoryId],
+    queryFn: () => intelligenceService.architectureSmells(repositoryId),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useHealthTimeline(repositoryId: string) {
+  return useQuery({
+    queryKey: ['health-timeline', repositoryId],
+    queryFn: () => intelligenceService.healthTimeline(repositoryId),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useExplainChange() {
+  return useMutation({
+    mutationFn: ({
+      repositoryId,
+      payload,
+    }: {
+      repositoryId: string;
+      payload: { base?: string; head?: string; diff?: string };
+    }) => auditService.explainChange(repositoryId, payload),
+    onError: (error: unknown) => toast.error(errorDetail(error)),
+  });
+}
+
+export function useFindingImpact(findingId: string) {
+  return useQuery({
+    queryKey: ['finding-impact', findingId],
+    queryFn: () => findingAuditService.impact(findingId),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useFindingChat() {
+  return useMutation({
+    mutationFn: ({ findingId, question, useLlm }: { findingId: string; question: string; useLlm: boolean }) =>
+      findingAuditService.chat(findingId, question, useLlm),
+    onError: (error: unknown) => toast.error(errorDetail(error)),
   });
 }

@@ -114,6 +114,7 @@ def changed_symbols(
                 {
                     "name": ref.qualified_name,
                     "kind": ref.kind,
+                    "file": hunk.file,
                     "line_start": ref.line_start,
                     "line_end": ref.line_end,
                 }
