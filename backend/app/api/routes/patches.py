@@ -108,10 +108,14 @@ async def verify_patch(
 
     Execution happens inside an isolated sandbox (Docker in production); the
     original repository is never modified. Sandbox runs are rate limited per
-    user because they consume host resources.
-    """
+    user because they consume host resources."""
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "verify_patch"))
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_verify
+
+        await assert_can_verify(db, current_user)
+
     result = await db.execute(
         select(Patch)
         .options(selectinload(Patch.finding))

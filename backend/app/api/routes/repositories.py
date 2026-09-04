@@ -38,6 +38,10 @@ async def create_repository(
     db: AsyncSession = Depends(get_db),
 ):
     """Register a new repository for the current user."""
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_import_repository
+
+        await assert_can_import_repository(db, current_user)
     repository = Repository(
         owner_id=current_user.id,
         name=payload.name,
@@ -68,6 +72,10 @@ async def create_repository_from_archive(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "import_archive"))
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_import_repository
+
+        await assert_can_import_repository(db, current_user)
     # Content is validated as a ZIP at scan time by the hardened extractor;
     # the URL itself may be a codeload-style link without a .zip suffix.
     name = payload.name or Path(str(payload.url)).stem[:200] or "archive-repo"
@@ -100,6 +108,10 @@ async def create_repository_from_oauth(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "import_oauth"))
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_import_repository
+
+        await assert_can_import_repository(db, current_user)
     result = await db.execute(
         select(OAuthAccount).where(
             OAuthAccount.user_id == current_user.id,
@@ -213,6 +225,10 @@ async def create_repository_from_zip(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "upload_zip"))
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_import_repository
+
+        await assert_can_import_repository(db, current_user)
 
     clean_name = (name or "").strip()
     if not clean_name:

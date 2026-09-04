@@ -24,10 +24,14 @@ import {
   Menu,
   X,
   Plus,
+  CreditCard,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/logo';
+import { Badge } from '@/components/ui/badge';
+import { UpgradeToastListener } from '@/components/upgrade-toast';
 import { useAuth } from '@/context/AuthContext';
+import type { PlanName } from '@/types/api';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -35,6 +39,12 @@ const navigation = [
   { name: 'Scans', href: '/scans', icon: ScanSearch },
   { name: 'Findings', href: '/findings', icon: Bug },
 ];
+
+const PLAN_LABELS: Record<PlanName, string> = {
+  free: 'Free',
+  pro: 'Pro',
+  team: 'Team',
+};
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -54,6 +64,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      <UpgradeToastListener />
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -74,6 +85,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setSidebarOpen(false)}>
             <Logo withTagline />
           </Link>
+          {user && (
+            <Link
+              href="/billing"
+              className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-primary/20"
+              title="Current plan — view billing"
+            >
+              {PLAN_LABELS[user.plan]}
+            </Link>
+          )}
           <button className="lg:hidden p-1.5 rounded-lg hover:bg-sidebar-accent" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
           </button>
@@ -123,7 +143,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Theme + user */}
-        <div className="p-3 pb-2 border-t border-sidebar-border">
+        <div className="p-3 pb-2 border-t border-sidebar-border space-y-1">
+          <Link
+            href="/billing"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          >
+            <span className="flex items-center gap-2">
+              <CreditCard className="h-3.5 w-3.5" />
+              Billing
+            </span>
+            {user && (
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px] capitalize">
+                {PLAN_LABELS[user.plan]}
+              </Badge>
+            )}
+          </Link>
           <div className="flex items-center justify-between rounded-xl px-2.5 py-1.5">
             <span className="text-xs font-medium text-muted-foreground">Appearance</span>
             <ThemeToggle />

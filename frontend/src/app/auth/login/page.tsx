@@ -80,6 +80,10 @@ function LoginContent() {
         <div className="animate-rise rounded-2xl border bg-card p-6 shadow-sm">
           <div className="space-y-2.5">
             <OAuthSignInButton provider="google" next="/dashboard" />
+            <div className="grid grid-cols-2 gap-2.5">
+              <OAuthSignInButton provider="github" next="/dashboard" />
+              <OAuthSignInButton provider="gitlab" next="/dashboard" />
+            </div>
           </div>
 
           <div className="my-5 flex items-center gap-3">

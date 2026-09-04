@@ -98,6 +98,20 @@ class Settings(BaseSettings):
     openai_base_url: str | None = None
 
     # --- OAuth (Google / GitHub / GitLab sign-in & repo import) ---
+    # --- billing / subscription ---
+    # Enforce plan entitlements (402 when a quota is exhausted). Tests and
+    # local dev often disable this; production deployments enable it.
+    billing_enforce: bool = True
+    # Demo mode: checkout & billing pages simulate success without Stripe
+    # credentials (enables trying the full paid flow locally).
+    billing_demo_mode: bool = True
+    # Monthly usage period length used by the entitlement engine.
+    billing_period_days: int = 30
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_pro_price_id: str | None = None
+    stripe_team_price_id: str | None = None
+
     # Absolute URL of the frontend, used as the post-OAuth landing origin.
     frontend_url: str = "http://localhost:3000"
     google_oauth_client_id: str | None = None

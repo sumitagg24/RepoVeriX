@@ -85,10 +85,14 @@ async def generate_fix(
 
     The patch is stored as a candidate; it is never applied to the original
     repository. Verification happens later against an isolated copy. LLM-backed
-    generations consume tokens, so this endpoint is rate limited per user.
-    """
+    generations consume tokens, so this endpoint is rate limited per user."""
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "generate_fix"))
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_generate_fix
+
+        await assert_can_generate_fix(db, current_user)
+
     result = await db.execute(
         select(Finding)
         .options(

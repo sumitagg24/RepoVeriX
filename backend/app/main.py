@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import (
     auth_router,
+    billing_router,
     dashboard_router,
     findings_router,
     oauth_router,
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(scans_router, prefix=settings.api_prefix)
     app.include_router(findings_router, prefix=settings.api_prefix)
     app.include_router(patches_router, prefix=settings.api_prefix)
+    app.include_router(billing_router, prefix=settings.api_prefix)
     app.include_router(dashboard_router, prefix=settings.api_prefix)
 
     @app.get("/health", tags=["health"])
