@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.dependencies import get_current_user, get_db
+from app.api.dependencies import get_current_user, get_db, get_scan_scheduler
 from app.db.models import Repository, Scan, ScanStatus
 from app.schemas.scan import ScanCreate, ScanDetail, ScanRead
 
@@ -17,10 +17,11 @@ router = APIRouter(prefix="/scans", tags=["scans"])
 @router.post("", response_model=ScanRead, status_code=status.HTTP_201_CREATED)
 async def create_scan(
     payload: ScanCreate,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    scheduler=Depends(get_scan_scheduler),
 ):
-    """Start a new scan for a repository."""
+    """Start a new scan for a repository and schedule it in the background."""
     # Verify repository ownership
     repo_result = await db.execute(
         select(Repository).where(
@@ -31,6 +32,11 @@ async def create_scan(
     repository = repo_result.scalar_one_or_none()
     if repository is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
+    if repository.status in ("ingesting",):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Repository is currently being ingested by another scan",
+        )
 
     scan = Scan(
         repository_id=payload.repository_id,
@@ -40,13 +46,14 @@ async def create_scan(
     db.add(scan)
     await db.commit()
     await db.refresh(scan)
+    scheduler(scan.id)
     return scan
 
 
 @router.get("", response_model=list[ScanRead])
 async def list_scans(
     repository_id: uuid.UUID | None = None,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List scans, optionally filtered by repository."""
@@ -62,7 +69,7 @@ async def list_scans(
 @router.get("/{scan_id}", response_model=ScanDetail)
 async def get_scan(
     scan_id: uuid.UUID,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single scan with its analysis runs."""
@@ -84,7 +91,7 @@ async def get_scan(
 @router.post("/{scan_id}/cancel", response_model=ScanRead)
 async def cancel_scan(
     scan_id: uuid.UUID,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Cancel a running or pending scan."""
@@ -108,8 +115,14 @@ async def cancel_scan(
 
     scan.status = ScanStatus.failed
     from datetime import UTC, datetime
+
     scan.finished_at = datetime.now(UTC)
     scan.error = "Cancelled by user"
     await db.commit()
     await db.refresh(scan)
+
+    # signal the background orchestrator to stop at the next stage boundary
+    from app.analysis import runtime
+
+    runtime.request_cancel(scan.id)
     return scan

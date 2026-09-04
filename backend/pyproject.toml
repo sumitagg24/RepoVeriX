@@ -15,13 +15,17 @@ dependencies = [
   "pyjwt>=2.8",
   "bcrypt>=4.1",
   "python-multipart>=0.0.9",
+  "httpx>=0.27",
+  "tree-sitter>=0.23",
+  "tree-sitter-python>=0.23",
+  "tree-sitter-javascript>=0.23",
+  "tree-sitter-typescript>=0.23",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8",
   "pytest-asyncio>=0.23",
-  "httpx>=0.27",
   "ruff>=0.5",
 ]
 
@@ -35,10 +39,21 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+norecursedirs = [".*", "tests/fixtures"]
 
 [tool.ruff]
-line-length = 100
+line-length = 110
 target-version = "py311"
+exclude = [".venv", "tests/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Depends(...) in argument defaults is the idiomatic FastAPI pattern
+"app/api/**" = ["B008"]
+# Long intentional prose/regex literals (rule descriptions, patterns)
+"app/analysis/evidence.py" = ["E501"]
+"app/analysis/detectors.py" = ["E501"]
+# str + Enum is intentional: enums serialise by value for JSON/DB
+"app/db/models.py" = ["UP042"]

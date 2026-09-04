@@ -21,6 +21,9 @@ from app.db.database import init_db
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     settings = get_settings()
+    from app.core.logging import setup_logging
+
+    setup_logging(settings.debug)
     if settings.auto_create_tables:
         await init_db()
     yield

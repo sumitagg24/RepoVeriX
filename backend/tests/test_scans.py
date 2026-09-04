@@ -28,6 +28,7 @@ class TestScans:
     async def test_create_scan_invalid_repo(self, client: AsyncClient, auth_headers):
         """Test creating scan with invalid repository fails."""
         import uuid
+
         response = await client.post(
             "/api/v1/scans",
             headers=auth_headers,
@@ -49,7 +50,9 @@ class TestScans:
         assert any(s["id"] == str(test_scan.id) for s in data)
 
     @pytest.mark.asyncio
-    async def test_list_scans_filter_by_repo(self, client: AsyncClient, auth_headers, test_repository, test_scan):
+    async def test_list_scans_filter_by_repo(
+        self, client: AsyncClient, auth_headers, test_repository, test_scan
+    ):
         """Test listing scans filtered by repository."""
         response = await client.get(f"/api/v1/scans?repository_id={test_repository.id}", headers=auth_headers)
         assert response.status_code == 200
@@ -69,6 +72,7 @@ class TestScans:
     async def test_get_scan_not_found(self, client: AsyncClient, auth_headers):
         """Test getting nonexistent scan returns 404."""
         import uuid
+
         response = await client.get(f"/api/v1/scans/{uuid.uuid4()}", headers=auth_headers)
         assert response.status_code == 404
 
@@ -76,6 +80,7 @@ class TestScans:
     async def test_cancel_scan(self, client: AsyncClient, auth_headers, test_repository, db_session):
         """Test cancelling a scan."""
         from app.db.models import Scan, ScanStatus
+
         scan = Scan(
             repository_id=test_repository.id,
             configuration="repoverix",

@@ -1,6 +1,7 @@
 """FastAPI dependencies for authentication and database access."""
 
-from collections.abc import AsyncGenerator
+import uuid
+from collections.abc import AsyncGenerator, Callable
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -60,3 +61,19 @@ async def get_current_user(
             detail="Inactive user",
         )
     return user
+
+
+async def get_scan_scheduler() -> Callable[[uuid.UUID], None]:
+    """Return the function that starts a scan in the background.
+
+    Kept as a dependency so tests can substitute a stub and so a future job
+    queue can replace the in-process scheduler without touching routes.
+    """
+    from app.analysis import runtime as scan_runtime
+    from app.analysis.orchestrate import run_scan
+    from app.db.database import SessionLocal
+
+    def _schedule(scan_id: uuid.UUID) -> None:
+        scan_runtime.schedule_scan(scan_id, lambda sid: run_scan(SessionLocal, sid))
+
+    return _schedule

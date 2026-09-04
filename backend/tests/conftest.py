@@ -1,7 +1,14 @@
 """Pytest configuration and fixtures."""
 
 import asyncio
+import os
+import tempfile
 from collections.abc import AsyncGenerator
+
+# Keep repository storage out of the project tree and ensure settings are read
+# with an isolated location before any ``get_settings()`` call caches defaults.
+os.environ.setdefault("REPOVERIX_REPOSITORY_STORAGE_DIR", tempfile.mkdtemp(prefix="repoverix-tests-"))
+os.environ.setdefault("REPOVERIX_JWT_SECRET", "test-secret-key-that-is-long-enough-32chars")
 
 import pytest
 import pytest_asyncio
@@ -59,11 +66,24 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture(scope="function")
 async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
     """Create test client with database override."""
+
     async def override_get_db():
         yield db_session
 
     from app.api.dependencies import get_db as get_db_dep
+    from app.api.dependencies import get_scan_scheduler as get_scheduler_dep
+
     app.dependency_overrides[get_db_dep] = override_get_db
+
+    # Never spawn real background scans during HTTP tests; tests exercise the
+    # orchestrator directly against their own in-memory engine.
+    def _noop_schedule(scan_id):
+        return None
+
+    async def _override_scheduler():
+        return _noop_schedule
+
+    app.dependency_overrides[get_scheduler_dep] = _override_scheduler
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
@@ -90,6 +110,7 @@ async def test_user(db_session) -> User:
 async def auth_headers(test_user) -> dict:
     """Create auth headers for test user."""
     from app.core.security import create_access_token
+
     token = create_access_token(test_user.id)
     return {"Authorization": f"Bearer {token}"}
 

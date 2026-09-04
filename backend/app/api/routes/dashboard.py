@@ -13,7 +13,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/summary", response_model=DashboardSummary)
 async def get_dashboard_summary(
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get aggregated dashboard summary for the current user."""
@@ -25,9 +25,7 @@ async def get_dashboard_summary(
 
     # Total scans
     scan_count = await db.execute(
-        select(func.count(Scan.id))
-        .join(Repository)
-        .where(Repository.owner_id == current_user.id)
+        select(func.count(Scan.id)).join(Repository).where(Repository.owner_id == current_user.id)
     )
     total_scans = scan_count.scalar() or 0
 

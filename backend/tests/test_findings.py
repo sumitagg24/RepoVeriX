@@ -38,7 +38,9 @@ class TestFindings:
         assert any(f["title"] == "SQL Injection" for f in data)
 
     @pytest.mark.asyncio
-    async def test_list_findings_filter_by_scan(self, client: AsyncClient, auth_headers, test_scan, db_session):
+    async def test_list_findings_filter_by_scan(
+        self, client: AsyncClient, auth_headers, test_scan, db_session
+    ):
         """Test listing findings filtered by scan."""
         from app.db.models import Finding, FindingCategory, FindingSource, FindingStatus, Severity
 
@@ -63,7 +65,9 @@ class TestFindings:
         assert all(f["scan_id"] == str(test_scan.id) for f in data)
 
     @pytest.mark.asyncio
-    async def test_list_findings_filter_by_category(self, client: AsyncClient, auth_headers, test_scan, db_session):
+    async def test_list_findings_filter_by_category(
+        self, client: AsyncClient, auth_headers, test_scan, db_session
+    ):
         """Test listing findings filtered by category."""
         from app.db.models import Finding, FindingCategory, FindingSource, FindingStatus, Severity
 
@@ -118,6 +122,7 @@ class TestFindings:
     async def test_get_finding_not_found(self, client: AsyncClient, auth_headers):
         """Test getting nonexistent finding returns 404."""
         import uuid
+
         response = await client.get(f"/api/v1/findings/{uuid.uuid4()}", headers=auth_headers)
         assert response.status_code == 404
 

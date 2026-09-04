@@ -1,0 +1,42 @@
+You are reviewing the following repository files for defects. There is no static-analysis
+tool output for this pass: you must reason directly from the code.
+
+Repository: {repo_name}
+Languages: {languages}
+Total functions/methods reviewed: {function_count}
+
+CONTEXT STARTS
+{file_chunks}
+CONTEXT ENDS
+
+Review every function/method above. Look for:
+- security defects (injection, hardcoded credentials, unsafe deserialization, path traversal, auth bypass)
+- logic errors (wrong conditions, off-by-one, incorrect error handling, resource leaks)
+- API misuse and database misuse
+- reliability problems (unhandled exceptions, swallowed errors)
+
+Rules:
+- Only report a candidate if you can point to the specific code that is defective.
+- If you cannot ground a suspicion in specific lines, do not report it.
+- Prefer precision over recall: it is worse to invent an issue than to miss one.
+- Do not claim execution happened; you are only reading code.
+
+Respond with ONLY this JSON object:
+{{
+  "findings": [
+    {{
+      "title": "concise title",
+      "category": "security|logic|api_misuse|database|dependency|reliability",
+      "severity": "critical|high|medium|low|info",
+      "file_path": "path shown in the context",
+      "line_start": <int>,
+      "line_end": <int>,
+      "function_name": "name or null",
+      "claim": "one-sentence statement",
+      "reasoning": "reasoning grounded in the code, citing file:line",
+      "confidence": 0.0-1.0,
+      "requires_verification": true|false
+    }}
+  ]
+}}
+If you find nothing, respond with {{"findings": []}}.
