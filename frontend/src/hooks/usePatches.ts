@@ -79,6 +79,16 @@ export function useVerificationRun(verificationId: string | undefined) {
   });
 }
 
+export function usePatchQuality(patchId: string | undefined) {
+  return useQuery({
+    queryKey: ['patch-quality', patchId],
+    queryFn: () => patchService.quality(patchId!),
+    enabled: !!patchId,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
 export function useVerifyPatch() {
   const queryClient = useQueryClient();
 

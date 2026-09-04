@@ -11,6 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRepository } from '@/hooks/useRepositories';
 import { useIntelligence } from '@/hooks/useIntelligence';
 import { ArchitectureDiagram } from '@/components/intelligence/architecture-diagram';
+import { QueryConsole } from '@/components/intelligence/query-console';
+import { ArchitectureSmells } from '@/components/intelligence/architecture-smells';
+import { HealthTimeline } from '@/components/intelligence/health-timeline';
 import {
   Activity,
   ArrowLeft,
@@ -20,6 +23,7 @@ import {
   HeartPulse,
   History,
   Loader2,
+  MessageSquare,
   RefreshCw,
   Sparkles,
   Users,
@@ -521,26 +525,28 @@ export default function IntelligencePage() {
 
       {data && data.status === 'ready' && (
         <Tabs defaultValue="health">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
             <TabsTrigger value="health">Health</TabsTrigger>
             <TabsTrigger value="git">Git</TabsTrigger>
             <TabsTrigger value="architecture">Architecture</TabsTrigger>
             <TabsTrigger value="wiki">Wiki</TabsTrigger>
+            <TabsTrigger value="ask">Ask</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="health" className="mt-4">
+          <TabsContent value="health" className="mt-4 space-y-4">
             <HealthSection
               files={data.health.files ?? []}
               avg={data.health.average_score}
               distribution={data.health.distribution ?? {}}
             />
+            <HealthTimeline repositoryId={repoId} />
           </TabsContent>
 
           <TabsContent value="git" className="mt-4">
             <GitSection git={data.git} />
           </TabsContent>
 
-          <TabsContent value="architecture" className="mt-4">
+          <TabsContent value="architecture" className="mt-4 space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-sm">
@@ -554,10 +560,21 @@ export default function IntelligencePage() {
                 <ArchitectureDiagram graph={data.architecture} />
               </CardContent>
             </Card>
+            <ArchitectureSmells repositoryId={repoId} />
           </TabsContent>
 
           <TabsContent value="wiki" className="mt-4">
             <WikiSection repoId={repoId} />
+          </TabsContent>
+
+          <TabsContent value="ask" className="mt-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                Ask questions about {repository?.name} — answered from the computed index.
+              </div>
+              <QueryConsole repositoryId={repoId} />
+            </div>
           </TabsContent>
         </Tabs>      )}
     </div>

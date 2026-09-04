@@ -14,9 +14,11 @@ from app.api.routes import (
     dashboard_router,
     findings_router,
     intelligence_router,
+    learning_router,
     oauth_router,
     patches_router,
     repositories_router,
+    research_router,
     scans_router,
 )
 from app.core.config import get_settings
@@ -125,6 +127,8 @@ def create_app() -> FastAPI:
     app.include_router(patches_router, prefix=settings.api_prefix)
     app.include_router(billing_router, prefix=settings.api_prefix)
     app.include_router(intelligence_router, prefix=settings.api_prefix)
+    app.include_router(research_router, prefix=settings.api_prefix)
+    app.include_router(learning_router, prefix=settings.api_prefix)
     app.include_router(dashboard_router, prefix=settings.api_prefix)
 
     @app.get("/health", tags=["health"])

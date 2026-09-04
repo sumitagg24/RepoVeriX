@@ -574,3 +574,227 @@ export interface CounterexampleResult {
   finding_id: string;
   counterexample: CounterexampleProof | null;
 }
+
+// --------------------------------------------------------------------------- Tier 2
+
+export interface QuerySource {
+  kind: string;
+  file?: string;
+  line_start?: number | null;
+}
+
+export interface RepositoryQueryResult {
+  question: string;
+  intent: string;
+  intent_title: string;
+  answer: string;
+  sources: QuerySource[];
+  mode: 'deterministic' | 'llm';
+  model?: string | null;
+}
+
+export interface ArchitectureSmell {
+  smell: string;
+  severity: 'high' | 'medium' | 'low';
+  modules: string[];
+  detail: string;
+  remediation: string;
+}
+
+export interface ArchitectureSmellsResult {
+  module_count: number;
+  edge_count: number;
+  smell_count: number;
+  by_type: Record<string, number>;
+  smells: ArchitectureSmell[];
+}
+
+export interface HealthTimelinePoint {
+  commit_sha: string | null;
+  average_score: number | null;
+  files_scored: number;
+  distribution: Record<string, number> | null;
+  worst_files: string[] | null;
+  recorded_at: string;
+}
+
+export interface HealthTimeline {
+  repository_id: string;
+  count: number;
+  points: HealthTimelinePoint[];
+}
+
+export interface PatchQualityCriterion {
+  criterion: string;
+  points: number;
+  detail: string;
+}
+
+export interface PatchQuality {
+  score: number;
+  grade: 'excellent' | 'good' | 'fair' | 'poor';
+  verified: boolean;
+  verification_status: string | null;
+  breakdown: PatchQualityCriterion[];
+  stats: { files: string[]; added: number; removed: number };
+}
+
+export interface ImpactEvidenceNode {
+  kind: string;
+  file?: string | null;
+  line_start?: number | null;
+  line_end?: number | null;
+  description: string;
+}
+
+export interface ImpactAnalysis {
+  finding_id: string;
+  summary: string;
+  why_it_matters: string[];
+  worst_case: string;
+  callers: string[];
+  entrypoint_reachable: boolean;
+  evidence_chain: ImpactEvidenceNode[];
+  source: ImpactEvidenceNode | null;
+  sink: ImpactEvidenceNode | null;
+  fix_direction: string;
+  category: string;
+  severity: string;
+}
+
+export interface ChangeExplanationFile {
+  path: string;
+  symbols_changed: string[];
+  note: string | null;
+}
+
+export interface ChangeExplanation {
+  risk_score: number;
+  risk_label: string;
+  summary: string;
+  bullets: string[];
+  per_file: ChangeExplanationFile[];
+  risk_components: string[];
+  directives: string[];
+  llm_narrative?: string;
+  model?: string | null;
+}
+
+export interface FindingChatResult {
+  question: string;
+  intent: string;
+  intent_title: string;
+  answer: string;
+  sources: QuerySource[];
+  mode: 'deterministic' | 'llm';
+  model?: string | null;
+}
+
+// --------------------------------------------------------------------------- Tier 3 (research)
+
+export interface AgentReport {
+  agent: string;
+  verdict: 'ok' | 'attention' | 'critical';
+  score: number;
+  signals: string[];
+  confidence: number;
+  flagged_files?: string[];
+}
+
+export interface MultiAgentResult {
+  repository_id?: string;
+  agent_count: number;
+  overall_risk: number;
+  overall_verdict: 'ok' | 'attention' | 'critical';
+  agents: AgentReport[];
+  converging_evidence: { file: string; agents: string[] }[];
+  recommendations: string[];
+  method: string;
+}
+
+export interface RuleStat {
+  rule: string;
+  total: number;
+  verified: number;
+  probable: number;
+  rejected: number;
+  patches: number;
+  verified_repairs: number;
+  precision: number;
+  false_positive_rate: number;
+}
+
+export interface SelfImprovementResult {
+  repository_id: string;
+  scans_analyzed: number;
+  finding_samples: number;
+  stats: { rule_count: number; rules: RuleStat[] };
+  recommendation: {
+    exploring: boolean;
+    mode: string;
+    recommended_context_strategy: string;
+    rule_profile: Record<string, number>;
+    deweighted_rules: string[];
+    sample_total: number;
+    strategy_scores: Record<string, number>;
+  };
+}
+
+export interface VulnMiningFinding {
+  rule: string;
+  severity: string;
+  file_path: string;
+  line_start: number;
+  status: string;
+  author?: string;
+  introducing_commit?: string;
+  introduced_at?: string;
+  age_days?: number | null;
+}
+
+export interface VulnMiningResult {
+  available: boolean;
+  reason?: string;
+  findings_analyzed: number;
+  introduced_findings?: number;
+  top_introducing_authors?: { author: string; introduced_findings: number }[];
+  fix_commits_in_window?: number;
+  median_finding_age_days?: number | null;
+  oldest_finding_age_days?: number | null;
+  repeated_vulnerable_roles?: { file_role: string; findings: number }[];
+  findings?: VulnMiningFinding[];
+  method?: string;
+}
+
+export interface RiskModelResult {
+  repository_id?: string;
+  available: boolean;
+  reason?: string;
+  samples?: number;
+  positive_files?: number;
+  features?: string[];
+  coefficients?: { feature: string; weight: number }[];
+  predictions?: { path: string; predicted_risk: number; actual_finding: boolean }[];
+  top_risk_files?: string[];
+  evaluation?: {
+    method: string;
+    precision_at_k: number;
+    k: number;
+    flagged_in_top_k: number;
+    caveat: string;
+  };
+  model?: string;
+}
+
+export interface LearningPatternsResult {
+  repositories_analyzed: number;
+  total_findings?: number;
+  recurring_patterns?: { rule: string; language: string; occurrences: number }[];
+  category_distribution?: { category: string; language: string; findings: number }[];
+  risky_file_roles?: { file_role: string; category: string; hits: number }[];
+  rule_co_occurrence?: { rules: string[]; repositories: number }[];
+  transfer_suggestions?: { rule: string; verified_in: string[]; check_also: string[] }[];
+  repositories_with_verified_findings?: string[];
+  message?: string;
+  method?: string;
+}

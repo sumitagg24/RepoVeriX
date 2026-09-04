@@ -67,6 +67,35 @@ async def get_patch(
     return patch
 
 
+@router.get("/{patch_id}/quality")
+async def patch_quality(
+    patch_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Deterministic 0-100 quality score for a candidate patch."""
+    from app.analysis.patchquality import score_patch
+
+    result = await db.execute(
+        select(Patch)
+        .options(
+            selectinload(Patch.finding),
+            selectinload(Patch.verification_runs),
+        )
+        .join(Finding)
+        .join(Scan)
+        .join(Repository)
+        .where(
+            Patch.id == patch_id,
+            Repository.owner_id == current_user.id,
+        )
+    )
+    patch = result.scalar_one_or_none()
+    if patch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patch not found")
+    return score_patch(patch, list(patch.verification_runs))
+
+
 @router.get("/{patch_id}/verifications", response_model=list[VerificationRunRead])
 async def list_verification_runs(
     patch_id: uuid.UUID,

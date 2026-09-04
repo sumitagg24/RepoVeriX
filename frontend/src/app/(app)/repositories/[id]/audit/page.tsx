@@ -13,13 +13,15 @@ import {
   useAttackPaths,
   useChangeAudit,
   useDependencyReachability,
+  useExplainChange,
   useRegression,
 } from '@/hooks/useAudit';
-import type { AttackPath } from '@/types/api';
+import type { AttackPath, ChangeExplanation } from '@/types/api';
 import {
   AlertTriangle,
   ArrowRight,
   Bug,
+  FileText,
   FileWarning,
   FlaskConical,
   GitCompare,
@@ -59,6 +61,65 @@ function RiskGauge({ score }: { score: number }) {
         <span className="text-[10px] text-muted-foreground">/ 10 risk</span>
       </div>
     </div>
+  );
+}
+
+function ExplanationCard({ explanation }: { explanation: ChangeExplanation }) {
+  const riskColor =
+    explanation.risk_score >= 7
+      ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+      : explanation.risk_score >= 4
+        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+        : 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary" /> What this change does
+          </CardTitle>
+        </div>
+        <Badge variant="outline" className={riskColor}>
+          {explanation.risk_label} · {explanation.risk_score.toFixed(1)}/10
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {explanation.llm_narrative && (
+          <div className="rounded-xl border bg-card/60 p-4 text-sm leading-relaxed">
+            {explanation.llm_narrative}
+            {explanation.model && (
+              <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                LLM narrative · {explanation.model}
+              </p>
+            )}
+          </div>
+        )}
+        <p className="text-sm font-medium">{explanation.summary}</p>
+        <ul className="space-y-1.5">
+          {explanation.bullets.map((b, i) => (
+            <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+              <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="divide-y rounded-xl border">
+          {explanation.per_file.map((f) => (
+            <div key={f.path} className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3">
+              <code className="min-w-0 flex-1 truncate text-xs font-medium">{f.path}</code>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {f.symbols_changed.map((s) => (
+                  <Badge key={s} variant="outline" className="font-mono text-[10px]">
+                    {s.split(':').pop()}
+                  </Badge>
+                ))}
+                {f.note && <span className="text-[11px] text-amber-600 dark:text-amber-400">{f.note}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -115,11 +176,13 @@ export default function AuditPage() {
   const [diff, setDiff] = useState('');
 
   const changeAudit = useChangeAudit();
+  const explain = useExplainChange();
   const attackPaths = useAttackPaths(id);
   const depReach = useDependencyReachability(id);
   const regression = useRegression(id);
 
   const audit = changeAudit.data;
+  const explanation = explain.data ?? null;
   const riskComponents = useMemo(() => {
     if (!audit) return null;
     const total = Object.values(audit.risk_components).reduce((a, b) => a + b, 0);
@@ -211,22 +274,49 @@ export default function AuditPage() {
                   className="font-mono text-xs"
                 />
               )}
-              <Button onClick={runAudit} disabled={changeAudit.isPending || (mode === 'refs' && !head)}>
-                {changeAudit.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Run change audit
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={runAudit} disabled={changeAudit.isPending || (mode === 'refs' && !head)}>
+                  {changeAudit.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Run change audit
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={explain.isPending || (mode === 'refs' && !head)}
+                  onClick={() =>
+                    explain.mutate({
+                      repositoryId: id,
+                      payload: mode === 'refs' ? { base, head } : { diff },
+                    })
+                  }
+                >
+                  {explain.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="mr-2 h-4 w-4" />
+                  )}
+                  Explain in plain English
+                </Button>
+              </div>
               {changeAudit.isError && (
                 <p className="text-sm text-destructive">
                   {(changeAudit.error as { response?: { data?: { detail?: string } } })?.response?.data
                     ?.detail || (changeAudit.error as Error).message}
                 </p>
               )}
+              {explain.isError && (
+                <p className="text-sm text-destructive">
+                  {(explain.error as { response?: { data?: { detail?: string } } })?.response?.data
+                    ?.detail || (explain.error as Error).message}
+                </p>
+              )}
             </CardContent>
           </Card>
+
+          {explanation && <ExplanationCard explanation={explanation} />}
 
           {audit && (
             <>

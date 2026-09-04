@@ -285,6 +285,31 @@ class RepositoryInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     repository: Mapped[Repository] = relationship(back_populates="insight")
 
 
+class HealthSnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One point on the repository health timeline.
+
+    Written whenever the intelligence bundle is (re)computed, keyed by the
+    working-copy commit so repeat computes of the same code collapse to one
+    point. The series renders the repository's health over time.
+    """
+
+    __tablename__ = "health_snapshots"
+    __table_args__ = (
+        UniqueConstraint("repository_id", "commit_sha", name="uq_health_snapshot_repo_commit"),
+    )
+
+    repository_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("repositories.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    commit_sha: Mapped[str | None] = mapped_column(String(64))
+    average_score: Mapped[float | None] = mapped_column(Float)
+    files_scored: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    distribution: Mapped[dict[str, int] | None] = mapped_column(JSON)
+    worst_files: Mapped[list[str] | None] = mapped_column(JSON)
+
+    repository: Mapped[Repository] = relationship()
+
+
 class ChangeAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One recorded PR / change audit (base..head refs or a raw diff)."""
 
