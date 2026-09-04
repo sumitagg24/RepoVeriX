@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRepository } from '@/hooks/useRepositories';
 import { useScans } from '@/hooks/useScans';
-import { GitBranch, ExternalLink, Plus, Search, Loader2, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { GitBranch, ExternalLink, Plus, Search, Loader2, Clock, CheckCircle, AlertTriangle, BrainCircuit } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -82,6 +82,12 @@ export default function RepositoryDetailPage() {
               </Button>
             </a>
           )}
+          <Button asChild variant="outline" className="gap-2">
+            <Link href={`/repositories/${repository.id}/intelligence`}>
+              <BrainCircuit className="h-4 w-4" />
+              Intelligence
+            </Link>
+          </Button>
           <Button asChild>
             <Link href={`/scans/new?repo=${repository.id}`}>
               <Plus className="mr-2 h-4 w-4" />

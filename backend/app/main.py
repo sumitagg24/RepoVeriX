@@ -12,6 +12,7 @@ from app.api.routes import (
     billing_router,
     dashboard_router,
     findings_router,
+    intelligence_router,
     oauth_router,
     patches_router,
     repositories_router,
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
     app.include_router(findings_router, prefix=settings.api_prefix)
     app.include_router(patches_router, prefix=settings.api_prefix)
     app.include_router(billing_router, prefix=settings.api_prefix)
+    app.include_router(intelligence_router, prefix=settings.api_prefix)
     app.include_router(dashboard_router, prefix=settings.api_prefix)
 
     @app.get("/health", tags=["health"])
