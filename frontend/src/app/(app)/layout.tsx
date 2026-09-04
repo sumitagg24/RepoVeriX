@@ -76,7 +76,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <ShieldCheck className="h-5 w-5" />
             </span>
             <span className="leading-tight">
-              <span className="block font-semibold tracking-tight">RepoVeriX</span>
+              <span className="block font-display text-[17px] font-semibold tracking-tight">RepoVeriX</span>
               <span className="block text-[11px] text-muted-foreground">audit · repair · verify</span>
             </span>
           </Link>

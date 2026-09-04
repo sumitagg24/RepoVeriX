@@ -69,22 +69,36 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    /* let variable fonts pick their optical size per text size */
+    font-optical-sizing: auto;
   }
-  /* Page titles get the editorial serif — the warm, human RepoVeriX mark. */
+  /* Page titles get Fraunces — the warm, editorial RepoVeriX mark. */
   h1 {
-    font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+  }
+  /* code, ids and diffs render in the JetBrains Mono webfont */
+  code,
+  kbd,
+  samp {
+    font-family: var(--font-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
 }
 
 @layer components {
   /* Editorial serif used for display headings — the warm, human touch. */
   .font-display {
-    font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
   }
   .text-balance {
     text-wrap: balance;
+  }
+  /* numerals in big figures align into tidy columns */
+  .tabular-nums-display {
+    font-variant-numeric: tabular-nums lining-nums;
   }
 }
 

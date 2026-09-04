@@ -56,7 +56,7 @@ export default function HomePage() {
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <ShieldCheck className="h-5 w-5" />
             </span>
-            <span className="text-[17px] font-semibold tracking-tight">RepoVeriX</span>
+            <span className="font-display text-[17px] font-semibold tracking-tight">RepoVeriX</span>
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle className="border bg-card shadow-sm ring-1 ring-border hover:bg-card/80" />
@@ -242,7 +242,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            <span className="font-medium text-foreground">RepoVeriX</span>
+            <span className="font-display font-semibold text-foreground">RepoVeriX</span>
             <span className="hidden sm:inline">·</span>
             <span className="hidden sm:inline">Evidence-grounded repository auditing</span>
           </div>

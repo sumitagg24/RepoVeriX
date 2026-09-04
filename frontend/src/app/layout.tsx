@@ -1,10 +1,31 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Toaster } from 'sonner';
 
-const inter = Inter({ subsets: ['latin'] });
+/* Font system — all self-hosted at build time (no runtime CDN requests).
+ *  - Inter      : UI / body copy
+ *  - Fraunces   : display / hero headings (warm editorial serif, optical sizing)
+ *  - JetBrains  : code, diffs, identifiers
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+});
+
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  style: ['normal', 'italic'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const jetbrains = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'RepoVeriX - Repository Auditing & Automated Repair',
@@ -30,7 +51,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`}>
+      <body
+        className={`${inter.className} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} antialiased`}
+      >
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <Providers>{children}</Providers>
         <Toaster position="top-right" richColors />

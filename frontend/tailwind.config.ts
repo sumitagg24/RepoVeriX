@@ -15,6 +15,12 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        // --font-mono / --font-display are set on <body> by next/font
+        sans: ['var(--font-inter)', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SF Mono', 'Menlo', 'Consolas', 'monospace'],
+        display: ['var(--font-display)', 'Georgia', 'serif'],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
