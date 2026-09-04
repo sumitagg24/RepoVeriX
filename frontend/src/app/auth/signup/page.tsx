@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -30,8 +31,11 @@ const signupSchema = z
 
 type SignupForm = z.infer<typeof signupSchema>;
 
-export default function SignupPage() {
+function SignupPageInner() {
   const { signup } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get('plan');
   const [isLoading, setIsLoading] = useState(false);
 
   const {
@@ -48,6 +52,10 @@ export default function SignupPage() {
     try {
       await signup(data.email, data.password, data.fullName);
       toast.success('Account created — welcome to RepoVeriX');
+      // Landing-page pricing CTAs carry ?plan=pro|team → land users on the plan they picked.
+      if (planParam && planParam !== 'free') {
+        router.push(`/billing?plan=${encodeURIComponent(planParam)}`);
+      }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Failed to create account');
       setIsLoading(false);
@@ -76,7 +84,13 @@ export default function SignupPage() {
         </div>
 
         <div className="animate-rise rounded-2xl border bg-card p-6 shadow-sm">
-          <OAuthSignInButton provider="google" next="/dashboard" />
+          <div className="space-y-2.5">
+            <OAuthSignInButton provider="google" next="/dashboard" />
+            <div className="grid grid-cols-2 gap-2.5">
+              <OAuthSignInButton provider="github" next="/dashboard" />
+              <OAuthSignInButton provider="gitlab" next="/dashboard" />
+            </div>
+          </div>
 
           <div className="my-5 flex items-center gap-3">
             <Separator className="flex-1" />
@@ -134,5 +148,19 @@ export default function SignupPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="h-8 w-40 animate-pulse rounded bg-muted" />
+        </div>
+      }
+    >
+      <SignupPageInner />
+    </Suspense>
   );
 }

@@ -19,7 +19,9 @@ import type {
   VerificationRun,
   VerificationRunDetail,
   DashboardSummary,
-  FindingSummary
+  FindingSummary,
+  BillingOverview,
+  CheckoutResult
 } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -101,6 +103,14 @@ api.interceptors.response.use(
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth/')) {
         window.location.href = '/auth/login';
       }
+    }
+    if (error.response?.status === 402 && typeof window !== 'undefined') {
+      // Let any mountable component surface an upsell without breaking the caller.
+      window.dispatchEvent(
+        new CustomEvent('repoverix:upgrade', {
+          detail: { reason: (error.response?.headers?.['x-upgrade-reason'] as string) || 'limit' },
+        })
+      );
     }
     return Promise.reject(error);
   }
@@ -277,6 +287,28 @@ export const patchService = {
 export const dashboardService = {
   getSummary: async (): Promise<DashboardSummary> => {
     const response = await api.get<DashboardSummary>('/dashboard/summary');
+    return response.data;
+  },
+};
+
+export const billingService = {
+  overview: async (): Promise<BillingOverview> => {
+    const response = await api.get<BillingOverview>('/billing');
+    return response.data;
+  },
+
+  checkout: async (plan: string): Promise<CheckoutResult> => {
+    const response = await api.post<CheckoutResult>(`/billing/checkout?plan=${plan}`);
+    return response.data;
+  },
+
+  portal: async (): Promise<{ url: string }> => {
+    const response = await api.post<{ url: string }>('/billing/portal');
+    return response.data;
+  },
+
+  demoActivate: async (plan: string): Promise<CheckoutResult> => {
+    const response = await api.post<CheckoutResult>(`/billing/demo/activate?plan=${plan}`);
     return response.data;
   },
 };

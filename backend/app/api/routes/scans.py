@@ -28,6 +28,10 @@ async def create_scan(
     """Start a new scan for a repository and schedule it in the background."""
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "create_scan"))
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_scan
+
+        await assert_can_scan(db, current_user)
     # Verify repository ownership
     repo_result = await db.execute(
         select(Repository).where(

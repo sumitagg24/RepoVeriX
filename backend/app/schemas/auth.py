@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.db.models import PlanName
 from app.schemas.common import TimestampedORMModel
 
 
@@ -33,3 +34,4 @@ class UserRead(TimestampedORMModel):
     email: EmailStr
     full_name: str
     is_active: bool
+    plan: PlanName

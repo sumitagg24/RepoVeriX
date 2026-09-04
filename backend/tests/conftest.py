@@ -12,6 +12,9 @@ os.environ.setdefault("REPOVERIX_JWT_SECRET", "test-secret-key-that-is-long-enou
 # Most tests exercise endpoints in bulk from one client IP; keep the limiter
 # off by default. tests/test_ratelimit.py re-enables it with tight settings.
 os.environ.setdefault("REPOVERIX_RATE_LIMIT_ENABLED", "false")
+# Quota enforcement would break bulk fixture creation; tests/test_billing.py
+# re-enables it explicitly with generous budgets.
+os.environ.setdefault("REPOVERIX_BILLING_ENFORCE", "false")
 
 import pytest
 import pytest_asyncio

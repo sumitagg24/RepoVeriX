@@ -131,7 +131,52 @@ Also tune session length: `REPOVERIX_ACCESS_TOKEN_EXPIRE_MINUTES=1440` (1 day).
 
 ---
 
-## 5. Docker (needed for verification + sandboxed test runs)
+## 5. Billing (Stripe subscriptions + plan quotas)
+
+The product ships with a full paid flow: Free / Pro ($29/mo) / Team ($99/mo),
+monthly usage quotas (repositories, scans, AI fixes, sandbox verifications), a
+billing page with usage meters, Stripe Checkout, and a customer portal. It
+works in **two modes**:
+
+- **Demo mode** (default, zero config): `REPOVERIX_BILLING_DEMO_MODE=true` —
+  clicking “Upgrade” on the billing page instantly activates the plan so the
+  entire flow is testable without any keys. **Never leave this on in
+  production** — anyone can grant themselves Pro.
+- **Live Stripe**: set demo mode to `false` and configure:
+
+```bash
+REPOVERIX_BILLING_DEMO_MODE=false
+REPOVERIX_BILLING_ENFORCE=true
+REPOVERIX_BILLING_PERIOD_DAYS=30
+REPOVERIX_STRIPE_SECRET_KEY=sk_live_…
+REPOVERIX_STRIPE_WEBHOOK_SECRET=whsec_…
+REPOVERIX_STRIPE_PRO_PRICE_ID=price_…   # recurring $29/mo price
+REPOVERIX_STRIPE_TEAM_PRICE_ID=price_…  # recurring $99/mo price
+```
+
+Steps (one-time, in Stripe dashboard):
+
+1. Create a Stripe account and find the secret key (Developers → API keys).
+2. Create **Products → Recurring prices**: Pro at $29/month and Team at
+   $99/month; paste the `price_…` IDs into the two env vars above.
+3. Add a **webhook endpoint** pointing at
+   `https://<your-api>/api/v1/billing/webhook` with the events
+   `checkout.session.completed`, `customer.subscription.updated` and
+   `customer.subscription.deleted`; copy the signing secret into
+   `REPOVERIX_STRIPE_WEBHOOK_SECRET`.
+4. Make sure `REPOVERIX_FRONTEND_URL` is the public frontend origin — it is
+   used for Stripe's success/cancel return URLs.
+
+How quotas behave: every user gets a monthly budget that rolls over when the
+period ends. Over-quota actions (import, scan, generate-fix, verify) return
+**HTTP 402** with an `X-Upgrade-Reason` header; the UI shows an upsell toast
+linking to the billing page. Prices/limits live in
+`backend/app/services/billing.py` — change them there if you want to sell at
+different numbers, and mirror the prices on the landing page.
+
+---
+
+## 6. Docker (needed for verification + sandboxed test runs)
 
 "Verify Fix" copies the repo, applies the patch, and runs tests **inside a
 container**. That requires:
@@ -152,7 +197,7 @@ container**. That requires:
 
 ---
 
-## 6. Repository import sources
+## 7. Repository import sources
 
 The UI's **Import repository** dialog supports five sources. What each needs:
 
@@ -175,7 +220,7 @@ default branch isn't `main`.
 
 ---
 
-## 7. Frontend → backend URL
+## 8. Frontend → backend URL
 
 The Next.js app talks to the API through one build-time variable:
 
@@ -191,7 +236,7 @@ the frontend origin: `REPOVERIX_CORS_ORIGINS=["https://repoverix.example.com"]`
 
 ---
 
-## 8. RepoVeriX-Bench (research experiments)
+## 9. RepoVeriX-Bench (research experiments)
 
 The bench harness is ready (`cd backend && python -m app.benchmark run`). To
 produce real numbers instead of `TBD`:
@@ -207,7 +252,7 @@ come from actual runs.
 
 ---
 
-## 9. Putting it online for real users
+## 10. Putting it online for real users
 
 GitHub cannot host the running app. Use the deploy kit (already committed):
 
@@ -225,7 +270,7 @@ installed, open ports 80/443.
 
 ---
 
-## 10. Before-you-ship checklist
+## 11. Before-you-ship checklist
 
 - [ ] `REPOVERIX_JWT_SECRET` replaced with a long random value
 - [ ] `REPOVERIX_DATABASE_URL` points at a Postgres instance with a strong password
@@ -236,4 +281,6 @@ installed, open ports 80/443.
 - [ ] `NEXT_PUBLIC_API_URL` = public backend origin; frontend rebuilt
 - [ ] `REPOVERIX_CORS_ORIGINS` includes the real frontend origin
 - [ ] Backend `git` installed and egress to github.com allowed (for git imports)
-- [ ] Smoke test with a real account: signup (incl. Google) → import repo (GitHub URL, S3 link, ZIP) → scan → generate fix → verify
+- [ ] Billing: demo mode OFF in production; Stripe key, webhook secret and both price IDs set (§5)
+- [ ] Smoke test with a real account: signup (incl. Google/GitHub) → import repo (GitHub URL, S3 link, ZIP) → scan → generate fix → verify
+- [ ] Paid flow smoke: upgrade to Pro (demo mode) → quotas on billing page move → downgrade back

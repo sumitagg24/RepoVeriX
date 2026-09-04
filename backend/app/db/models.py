@@ -163,6 +163,22 @@ def enum_type(enum_cls: type[enum.Enum], name: str) -> Enum:
 
 
 # --------------------------------------------------------------------------- models
+class PlanName(str, enum.Enum):
+    free = "free"
+    pro = "pro"
+    team = "team"
+
+
+class SubscriptionStatus(str, enum.Enum):
+    """Stripe subscription lifecycle (mirrors the API)."""
+
+    active = "active"
+    trialing = "trialing"
+    past_due = "past_due"
+    canceled = "canceled"
+    incomplete = "incomplete"
+
+
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
@@ -170,6 +186,21 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # --- subscription & usage (billing) ---
+    plan: Mapped[PlanName] = mapped_column(
+        enum_type(PlanName, "plan_name"), default=PlanName.free, nullable=False
+    )
+    subscription_status: Mapped[SubscriptionStatus | None] = mapped_column(
+        enum_type(SubscriptionStatus, "subscription_status"), nullable=True
+    )
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(200), index=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(200))
+    # Monthly usage counters, rolled over when ``current_period_end`` passes.
+    scans_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fixes_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    verifications_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     repositories: Mapped[list["Repository"]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"

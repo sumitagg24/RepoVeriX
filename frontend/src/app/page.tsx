@@ -213,6 +213,90 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Pricing */}
+      <section className="border-t border-border/60 bg-card/40">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <p className="text-center text-sm font-medium text-primary">Plans & pricing</p>
+          <h2 className="mt-2 text-center font-display text-4xl font-semibold tracking-tight text-balance">
+            Pay for audits, not for seats you don&apos;t use
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Start free, no card required. Upgrade when the evidence is working for you.
+          </p>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {[
+              {
+                name: 'Free',
+                price: 0,
+                tagline: 'Try RepoVeriX on a small repository.',
+                features: ['3 repositories', '5 scans / month', 'Static + hybrid findings', '2 AI fixes', '2 sandbox verifications'],
+                cta: 'Start free',
+                highlight: false,
+              },
+              {
+                name: 'Pro',
+                price: 29,
+                tagline: 'For developers who audit code every week.',
+                features: ['20 repositories', '60 scans / month', 'Full LLM reasoning', 'Unlimited findings & evidence', 'Sandboxed verified repairs', 'PDF / Markdown reports'],
+                cta: 'Go Pro',
+                highlight: true,
+              },
+              {
+                name: 'Team',
+                price: 99,
+                tagline: 'For teams shipping and reviewing together.',
+                features: ['100 repositories', '400 scans / month', '5 collaborators', 'Priority queue & support', 'Audit history & reports', 'Everything in Pro'],
+                cta: 'Start with Team',
+                highlight: false,
+              },
+            ].map((plan, i) => (
+              <div
+                key={plan.name}
+                className={`group relative flex flex-col rounded-2xl border p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5 ${
+                  plan.highlight ? 'border-primary/40 bg-card' : 'border-border/70 bg-card/60'
+                }`}
+                style={{ transitionDelay: `${i * 60}ms` }}
+              >
+                {plan.highlight && (
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground">
+                    Most popular
+                  </span>
+                )}
+                <div className="flex items-baseline gap-1.5">
+                  <h3 className="font-display text-xl font-semibold">{plan.name}</h3>
+                  <span className="ml-auto text-3xl font-semibold tracking-tight">${plan.price}</span>
+                  <span className="text-sm text-muted-foreground">/ mo</span>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+                <ul className="mt-6 flex-1 space-y-2.5 text-sm">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href={`/auth/signup?plan=${plan.name.toLowerCase()}`} className="mt-7 block">
+                  <Button
+                    variant={plan.highlight ? 'default' : 'outline'}
+                    className="w-full gap-2 shadow-sm transition-transform duration-300 group-hover:scale-[1.02]"
+                  >
+                    {plan.cta}
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            ))}
+          </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            Prices in USD. Cancel anytime. Questions?{' '}
+            <Link href="/settings" className="font-medium text-primary hover:underline">
+              Contact support
+            </Link>
+          </p>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">

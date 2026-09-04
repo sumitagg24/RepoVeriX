@@ -5,6 +5,7 @@ export interface User {
   email: string;
   full_name: string;
   is_active: boolean;
+  plan: PlanName;
   created_at: string;
   updated_at: string;
 }
@@ -251,4 +252,43 @@ export interface PaginatedResponse<T> {
 
 export interface ApiError {
   detail: string;
+}
+
+export type PlanName = 'free' | 'pro' | 'team';
+
+export interface PlanInfo {
+  name: PlanName;
+  display_name: string;
+  price_monthly: number;
+  max_repositories: number;
+  scans_per_month: number;
+  fixes_per_month: number;
+  verifications_per_month: number;
+  llm_enabled: boolean;
+  sandbox_enabled: boolean;
+  collaborators: number;
+}
+
+export interface BillingUsage {
+  repositories: number;
+  scans_used: number;
+  fixes_used: number;
+  verifications_used: number;
+  period_ends_at: string;
+}
+
+export interface BillingOverview {
+  plan: PlanInfo;
+  usage: BillingUsage;
+  subscription: {
+    status: string | null;
+    stripe_customer_id: string | null;
+    period_end: string | null;
+  };
+  demo_mode: boolean;
+}
+
+export interface CheckoutResult {
+  url: string;
+  demo: boolean;
 }
