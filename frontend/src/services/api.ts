@@ -23,7 +23,15 @@ import type {
   BillingOverview,
   CheckoutResult,
   RepositoryIntelligence,
-  WikiProseResult
+  WikiProseResult,
+  ChangeAuditResult,
+  EvidenceGraph,
+  AttackPaths,
+  DependencyReachability,
+  RegressionReport,
+  DedupReport,
+  GeneratedTest,
+  CounterexampleResult
 } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -196,6 +204,82 @@ export const repositoryService = {
 
   createFromOAuth: async (data: OAuthImport): Promise<Repository> => {
     const response = await api.post<Repository>('/repositories/oauth', data);
+    return response.data;
+  },
+};
+
+export const auditService = {
+  changeAudit: async (
+    repositoryId: string,
+    payload: { base?: string; head?: string; diff?: string }
+  ): Promise<ChangeAuditResult> => {
+    const response = await api.post<ChangeAuditResult>(
+      `/repositories/${repositoryId}/change-audit`,
+      payload
+    );
+    return response.data;
+  },
+
+  evidenceGraph: async (repositoryId: string): Promise<EvidenceGraph> => {
+    const response = await api.get<EvidenceGraph>(
+      `/repositories/${repositoryId}/evidence-graph`
+    );
+    return response.data;
+  },
+
+  attackPaths: async (repositoryId: string): Promise<AttackPaths> => {
+    const response = await api.get<AttackPaths>(
+      `/repositories/${repositoryId}/attack-paths`
+    );
+    return response.data;
+  },
+
+  dependencyReachability: async (repositoryId: string): Promise<DependencyReachability> => {
+    const response = await api.get<DependencyReachability>(
+      `/repositories/${repositoryId}/dependency-reachability`
+    );
+    return response.data;
+  },
+
+  regression: async (repositoryId: string): Promise<RegressionReport> => {
+    const response = await api.get<RegressionReport>(
+      `/repositories/${repositoryId}/regression`
+    );
+    return response.data;
+  },
+};
+
+export const scanAuditService = {
+  sarif: async (scanId: string): Promise<Record<string, unknown>> => {
+    const response = await api.get<Record<string, unknown>>(`/scans/${scanId}/sarif`, {
+      responseType: 'json',
+    });
+    return response.data;
+  },
+
+  dedup: async (scanId: string): Promise<DedupReport> => {
+    const response = await api.get<DedupReport>(`/scans/${scanId}/dedup`);
+    return response.data;
+  },
+};
+
+export const findingAuditService = {
+  generateTest: async (findingId: string): Promise<GeneratedTest> => {
+    const response = await api.post<GeneratedTest>(
+      `/findings/${findingId}/generate-test`
+    );
+    return response.data;
+  },
+
+  runTest: async (testId: string): Promise<{ id: string; status: string; result: Record<string, unknown> }> => {
+    const response = await api.post(`/findings/generated-tests/${testId}/run`);
+    return response.data;
+  },
+
+  validateCounterexample: async (findingId: string): Promise<CounterexampleResult> => {
+    const response = await api.post<CounterexampleResult>(
+      `/findings/${findingId}/validate-counterexample`
+    );
     return response.data;
   },
 };

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes import (
+    audit_router,
     auth_router,
     billing_router,
     dashboard_router,
@@ -118,6 +119,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=settings.api_prefix)
     app.include_router(oauth_router, prefix=settings.api_prefix)
     app.include_router(repositories_router, prefix=settings.api_prefix)
+    app.include_router(audit_router, prefix=settings.api_prefix)
     app.include_router(scans_router, prefix=settings.api_prefix)
     app.include_router(findings_router, prefix=settings.api_prefix)
     app.include_router(patches_router, prefix=settings.api_prefix)

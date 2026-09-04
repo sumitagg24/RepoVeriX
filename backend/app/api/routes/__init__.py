@@ -1,5 +1,6 @@
 """API route modules."""
 
+from app.api.routes.audit import router as audit_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.billing import router as billing_router
 from app.api.routes.dashboard import router as dashboard_router
@@ -11,6 +12,7 @@ from app.api.routes.repositories import router as repositories_router
 from app.api.routes.scans import router as scans_router
 
 __all__ = [
+    "audit_router",
     "auth_router",
     "billing_router",
     "repositories_router",

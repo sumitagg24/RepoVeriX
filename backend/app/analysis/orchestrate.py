@@ -861,7 +861,7 @@ async def _evidence_validation(db: AsyncSession, ctx: StageContext) -> dict[str,
                     snippet=(node.snippet or "")[:4000] or None,
                     description=node.description[:4000],
                     order_index=node.order_index,
-                    metadata=node.extra,
+                    extra=node.extra,
                 )
             )
         persisted += 1

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { User, Shield, Key, Bell, Globe, Trash2, Loader2, Link2 } from 'lucide-react';
+import { User, Shield, Key, Bell, Globe, Trash2, Loader2, Link2, Cookie } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { SettingsConnections } from '@/components/settings-connections';
 import { useForm } from 'react-hook-form';
@@ -36,6 +37,10 @@ type PasswordForm = z.infer<typeof passwordSchema>;
 export default function SettingsPage() {
   const { user, logout, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('profile');
+  const [cookieChoice, setCookieChoice] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'unset';
+    return localStorage.getItem('repoverix-cookie-consent') || 'unset';
+  });
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -81,7 +86,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="profile">
             <User className="mr-2 h-4 w-4" />
             Profile
@@ -97,6 +102,10 @@ export default function SettingsPage() {
           <TabsTrigger value="notifications">
             <Bell className="mr-2 h-4 w-4" />
             Notifications
+          </TabsTrigger>
+          <TabsTrigger value="privacy">
+            <Cookie className="mr-2 h-4 w-4" />
+            Privacy
           </TabsTrigger>
           <TabsTrigger value="danger">
             <Trash2 className="mr-2 h-4 w-4 text-destructive" />
@@ -263,6 +272,79 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <SettingsConnections />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Privacy Tab */}
+        <TabsContent value="privacy">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Cookie className="h-5 w-5" />
+                Cookies & consent
+              </CardTitle>
+              <CardDescription>
+                Essential cookies keep you signed in and secure. Non-essential analytics cookies
+                are only loaded with your explicit consent — change your choice below any time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-4">
+                <div>
+                  <p className="font-medium">Analytics cookies</p>
+                  <p className="text-sm text-muted-foreground">
+                    Current choice:{' '}
+                    <span className="font-medium capitalize">
+                      {cookieChoice === 'accepted' ? 'Accepted' : cookieChoice === 'rejected' ? 'Rejected' : 'Not chosen yet'}
+                    </span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={cookieChoice === 'accepted' ? 'default' : 'outline'}
+                    onClick={() => {
+                      localStorage.setItem('repoverix-cookie-consent', 'accepted');
+                      setCookieChoice('accepted');
+                      toast.success('Analytics cookies enabled');
+                    }}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={cookieChoice === 'rejected' ? 'default' : 'outline'}
+                    onClick={() => {
+                      localStorage.setItem('repoverix-cookie-consent', 'rejected');
+                      setCookieChoice('rejected');
+                      toast.success('Analytics cookies disabled');
+                    }}
+                  >
+                    Reject
+                  </Button>
+                  {cookieChoice !== 'unset' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        localStorage.removeItem('repoverix-cookie-consent');
+                        setCookieChoice('unset');
+                        toast.success('Choice cleared — the banner will show again');
+                      }}
+                    >
+                      Clear choice
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                See our{' '}
+                <Link href="/privacy" className="font-medium text-primary hover:underline">
+                  privacy policy
+                </Link>{' '}
+                for details on what we store and why.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

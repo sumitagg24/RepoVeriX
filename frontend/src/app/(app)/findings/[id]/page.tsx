@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { VerificationSection } from '@/components/patch-verification';
 import { useFinding, useGenerateFix } from '@/hooks/useFindings';
 import { usePatches } from '@/hooks/usePatches';
+import { useGeneratedTest, useCounterexample } from '@/hooks/useAudit';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useState } from 'react';
 import {
   Bug,
   AlertTriangle,
@@ -24,8 +26,12 @@ import {
   Clock,
   Loader2,
   Wand2,
+  TestTube,
+  ShieldCheck,
+  FlaskConical,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 const severityColors: Record<string, string> = {
@@ -65,6 +71,11 @@ export default function FindingDetailPage() {
   const { data: finding, isLoading: findingLoading } = useFinding(id);
   const { data: patches, isLoading: patchesLoading } = usePatches({ finding_id: id });
   const generateFix = useGenerateFix();
+  const { generate: generateTest, run: runTest } = useGeneratedTest();
+  const counterexample = useCounterexample();
+  const [generated, setGenerated] = useState<{ id: string; test_code: string; generated_by: string } | null>(null);
+  const [runResult, setRunResult] = useState<{ status: string; result: Record<string, unknown> } | null>(null);
+  const [proof, setProof] = useState<{ counterexample: import('@/types/api').CounterexampleProof | null } | null>(null);
 
   if (findingLoading) {
     return (
@@ -175,10 +186,11 @@ export default function FindingDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="details">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="evidence">Evidence ({finding.evidence?.length || 0})</TabsTrigger>
           <TabsTrigger value="patches">Patches ({patches?.length || 0})</TabsTrigger>
+          <TabsTrigger value="validation">Validation</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
@@ -432,6 +444,157 @@ export default function FindingDetailPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="validation" className="space-y-4">
+          {/* Regression test generation */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <TestTube className="h-4 w-4" /> Automated regression test
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {generated && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      runTest.mutate(generated.id, {
+                        onSuccess: (data) => {
+                          setRunResult(data);
+                          toast.success(
+                            data.status === 'passed' ? 'Test passed — defect not present' : 'Test failed — defect demonstrated'
+                          );
+                        },
+                      });
+                    }}
+                    disabled={runTest.isPending}
+                  >
+                    {runTest.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FlaskConical className="mr-2 h-4 w-4" />
+                    )}
+                    Run test
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    generateTest.mutate(id, {
+                      onSuccess: (data) => {
+                        setGenerated({ id: data.id, test_code: data.test_code, generated_by: data.generated_by });
+                        setRunResult(null);
+                        toast.success('Regression test generated');
+                      },
+                    });
+                  }}
+                  disabled={generateTest.isPending}
+                >
+                  {generateTest.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="mr-2 h-4 w-4" />
+                  )}
+                  Generate test
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                A contract test that asserts the vulnerable pattern is gone. It FAILS on the
+                vulnerable code (demonstrating the defect) and PASSES after a real fix — no
+                runtime, fixtures or network required.
+              </p>
+              {generated ? (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline">{generated.generated_by}</Badge>
+                  </div>
+                  <pre className="p-3 bg-muted rounded text-xs overflow-x-auto max-h-72"><code>{generated.test_code}</code></pre>
+                  {runResult && (
+                    <div className={`rounded-lg border p-4 ${runResult.status === 'passed' ? 'border-green-500/40 bg-green-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
+                      <p className="text-sm font-medium mb-2">
+                        {runResult.status === 'passed' ? '✓ Test passed' : '✗ Test failed (defect present)'}
+                      </p>
+                      <pre className="text-xs overflow-x-auto max-h-40 whitespace-pre-wrap">
+                        {String(runResult.result?.summary ?? '')}
+                      </pre>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  No test generated yet for this finding.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Counterexample / proof-of-absence */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" /> Counterexample check (proof-of-absence)
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  counterexample.mutate(id, {
+                    onSuccess: (data) => setProof(data),
+                  });
+                }}
+                disabled={counterexample.isPending}
+              >
+                {counterexample.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="mr-2 h-4 w-4" />
+                )}
+                Validate
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Walks the source → sink path looking for a sanitizer (escaping, parameterization,
+                validation, type coercion). If one guards the sink, the finding cannot manifest on
+                that path — negative evidence against the claim.
+              </p>
+              {counterexample.isError && (
+                <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-2">
+                  {getApiErrorMessage(counterexample.error)}
+                </p>
+              )}
+              {proof && (
+                proof.counterexample ? (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+                    <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                      Counterexample found — the claim may not hold on this path
+                    </p>
+                    <p className="text-sm">{proof.counterexample.explanation}</p>
+                    <div className="grid gap-2 text-xs font-mono bg-background rounded p-3 border">
+                      <p className="text-green-600 dark:text-green-400">
+                        {proof.counterexample.sanitizer_line}: {proof.counterexample.sanitizer_snippet}
+                      </p>
+                      <p className="text-red-600 dark:text-red-400">
+                        {proof.counterexample.sink_line}: {proof.counterexample.sink_snippet}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-green-500/40 bg-green-500/5 p-4">
+                    <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                      No sanitizer on the path — the claim stands
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      No counterexample found between source and sink.
+                    </p>
+                  </div>
+                )
               )}
             </CardContent>
           </Card>

@@ -3,6 +3,7 @@ import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Toaster } from 'sonner';
+import { CookieConsent } from '@/components/cookie-consent';
 
 /* Font system — all self-hosted at build time (no runtime CDN requests).
  *  - Inter      : UI / body copy
@@ -56,6 +57,7 @@ export default function RootLayout({
       >
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <Providers>{children}</Providers>
+        <CookieConsent />
         <Toaster position="top-right" richColors />
       </body>
     </html>

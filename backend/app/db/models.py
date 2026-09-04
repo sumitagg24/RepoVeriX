@@ -285,6 +285,40 @@ class RepositoryInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     repository: Mapped[Repository] = relationship(back_populates="insight")
 
 
+class ChangeAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One recorded PR / change audit (base..head refs or a raw diff)."""
+
+    __tablename__ = "change_audits"
+
+    repository_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("repositories.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    mode: Mapped[str] = mapped_column(String(20), default="refs", nullable=False)  # refs | diff
+    base: Mapped[str | None] = mapped_column(String(200))
+    head: Mapped[str | None] = mapped_column(String(200))
+    risk_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    repository: Mapped[Repository] = relationship()
+
+
+class GeneratedTest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A regression test generated for a finding, with its execution outcome."""
+
+    __tablename__ = "generated_tests"
+
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("findings.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    language: Mapped[str] = mapped_column(String(30), default="python", nullable=False)
+    test_code: Mapped[str] = mapped_column(Text, nullable=False)
+    generated_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="generated", nullable=False)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+
+    finding: Mapped["Finding"] = relationship()
+
+
 class Scan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "scans"
 
