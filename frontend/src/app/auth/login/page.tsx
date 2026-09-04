@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { ShieldCheck, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { OAuthSignInButton } from '@/components/oauth-buttons';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { LogoMark } from '@/components/logo';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
@@ -61,7 +62,7 @@ function LoginContent() {
       <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20">
-            <ShieldCheck className="h-6 w-6" />
+            <LogoMark className="h-7 w-7" />
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
