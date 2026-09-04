@@ -123,26 +123,46 @@ def clear_source(repo_id: str, storage_root: Path | None = None) -> None:
     src.mkdir(parents=True, exist_ok=True)
 
 
+def git_clone_url(url: str, provider: str | None = None, token: str | None = None) -> str:
+    """Normalize a repository URL, optionally embedding a provider token.
+
+    Tokens are placed in the URL userinfo so ``git clone`` authenticates with
+    the remote. The stored ``source_url`` on the repository row never contains
+    the token — it is only injected at clone time.
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(str(url))
+    if parsed.scheme not in ("http", "https"):
+        raise AnalysisError("Invalid repository URL", code="invalid_url")
+    clean_path = parsed.path[:-4] if parsed.path.endswith(".git") else parsed.path
+    if token and provider == "gitlab":
+        userinfo = "oauth2:" + token
+    elif token and provider == "github":
+        userinfo = "x-access-token:" + token
+    else:
+        userinfo = parsed.username or ""
+    netloc = parsed.netloc
+    if userinfo:
+        netloc = f"{userinfo}@{netloc}"
+    return urlunparse((parsed.scheme, netloc, clean_path, "", "", ""))
+
+
 async def clone_github_repository(
     repo_id: str,
     url: str,
     branch: str = "main",
+    token: str | None = None,
+    provider: str = "github",
     storage_root: Path | None = None,
 ) -> Path:
-    """Shallow-clone a GitHub repository into ``source/``.
+    """Shallow-clone a git repository (GitHub/GitLab/generic) into ``source/``.
 
-    The URL is normalized to an https git URL; the repository content is never
-    executed here, only cloned.
+    The URL is normalized to an https git URL; repository content is never
+    executed here, only cloned. ``token`` is optional and authenticates the
+    clone for private repositories of the matching provider.
     """
-    from urllib.parse import urlparse
-
-    parsed = urlparse(str(url))
-    if parsed.scheme not in ("http", "https"):
-        raise AnalysisError("Invalid GitHub URL", code="invalid_url")
-
-    clean = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-    if clean.endswith(".git"):
-        clean = clean[:-4]
+    clean = git_clone_url(url, provider=provider, token=token)
 
     settings = get_settings()
     src = source_dir(repo_id, storage_root)
@@ -158,7 +178,7 @@ async def clone_github_repository(
         )
     except FileNotFoundError:
         raise AnalysisError(
-            "Git is not available on this host; cannot clone GitHub repositories",
+            "Git is not available on this host; cannot clone repositories",
             code="git_unavailable",
         ) from None
     except TimeoutError:
@@ -168,8 +188,9 @@ async def clone_github_repository(
         ) from None
 
     if not result.ok:
-        # Retry with the default branch if the requested one is missing
-        if "couldn't find remote ref" in result.stderr and branch != "main":
+        # The requested branch may not exist (e.g. a repo whose default is
+        # ``master``): retry without --branch so git picks the remote default.
+        if "couldn't find remote ref" in result.stderr or "Remote branch" in result.stderr:
             result = await run_command(
                 [settings.git_binary, "clone", "--depth", "1", clean, "."],
                 cwd=src,
@@ -186,3 +207,64 @@ async def clone_github_repository(
     if git_dir.exists():
         shutil.rmtree(git_dir, ignore_errors=True)  # keep the working copy small & hermetic
     return src
+
+
+async def download_archive(
+    repo_id: str,
+    url: str,
+    storage_root: Path | None = None,
+    *,
+    client=None,
+) -> Path:
+    """Download an archive from a hosted URL (S3 object, presigned URL, release
+    asset, codeload, ...) and extract it into ``source/`` using the same
+    hardened ZIP path as uploads.
+
+    ``client`` is an optional ``httpx.AsyncClient`` (tests inject a mock). The
+    download is capped by the configured repository size limits, so a hostile
+    URL cannot exhaust the host.
+    """
+    from urllib.parse import urlparse
+
+    import httpx
+
+    parsed = urlparse(str(url))
+    if parsed.scheme not in ("http", "https"):
+        raise AnalysisError("Invalid archive URL", code="invalid_url")
+
+    settings = get_settings()
+    max_bytes = settings.max_repo_size_mb * 1024 * 1024
+    dest = archive_path(repo_id, storage_root)
+    close = client is None
+    client = client or httpx.AsyncClient(
+        timeout=httpx.Timeout(settings.git_clone_timeout_seconds), follow_redirects=True
+    )
+    try:
+        async with client.stream("GET", url) as resp:
+            if resp.status_code >= 400:
+                raise AnalysisError(
+                    f"Download failed ({resp.status_code}) for {url[:120]}", code="download_failed"
+                )
+            length = resp.headers.get("content-length")
+            if length and int(length) > max_bytes:
+                raise AnalysisError(
+                    f"Archive exceeds the {settings.max_repo_size_mb}MB limit", code="repo_too_large"
+                )
+            total = 0
+            with dest.open("wb") as writer:
+                async for chunk in resp.aiter_bytes(1024 * 1024):
+                    total += len(chunk)
+                    if total > max_bytes:
+                        writer.close()
+                        dest.unlink(missing_ok=True)
+                        raise AnalysisError(
+                            f"Archive exceeds the {settings.max_repo_size_mb}MB limit",
+                            code="repo_too_large",
+                        )
+                    writer.write(chunk)
+    finally:
+        if close:
+            await client.aclose()
+    if not dest.exists() or dest.stat().st_size == 0:
+        raise AnalysisError("Downloaded archive is empty", code="download_failed")
+    return extract_archive(repo_id, storage_root)

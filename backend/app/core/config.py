@@ -64,6 +64,16 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-1.5-flash"
     openai_base_url: str | None = None
 
+    # --- OAuth (Google / GitHub / GitLab sign-in & repo import) ---
+    # Absolute URL of the frontend, used as the post-OAuth landing origin.
+    frontend_url: str = "http://localhost:3000"
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    github_oauth_client_id: str | None = None
+    github_oauth_client_secret: str | None = None
+    gitlab_oauth_client_id: str | None = None
+    gitlab_oauth_client_secret: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

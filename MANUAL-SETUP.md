@@ -88,7 +88,35 @@ before pointing anything public at it.
 
 ---
 
-## 3. Auth secret (required before any public exposure)
+## 3. OAuth apps (Google sign-in + GitHub/GitLab import)
+
+Three OAuth clients are supported. All are optional — email/password auth and
+URL/ZIP imports always work without them.
+
+| Provider | Purpose | Where to register | Redirect URI to add |
+|---|---|---|---|
+| **Google** | One-click sign in/up | console.cloud.google.com/apis/credentials (Web client) | `http://localhost:8000/api/v1/auth/oauth/google/callback` |
+| **GitHub** | Sign-in + browse & clone **private** repos | github.com/settings/developers | `…/api/v1/auth/oauth/github/callback` |
+| **GitLab** | Sign-in + browse & clone **private** projects | gitlab.com/-/user_settings/applications | `…/api/v1/auth/oauth/gitlab/callback` |
+
+Then set the env vars (see `.env.example`):
+
+```bash
+REPOVERIX_FRONTEND_URL=http://localhost:3000          # where OAuth lands
+REPOVERIX_GOOGLE_OAUTH_CLIENT_ID=…
+REPOVERIX_GOOGLE_OAUTH_CLIENT_SECRET=…
+REPOVERIX_GITHUB_OAUTH_CLIENT_ID=…
+REPOVERIX_GITHUB_OAUTH_CLIENT_SECRET=…
+REPOVERIX_GITLAB_OAUTH_CLIENT_ID=…
+REPOVERIX_GITLAB_OAUTH_CLIENT_SECRET=…
+```
+
+Scope requests: Google asks for `openid email profile`; GitHub for
+`read:user user:email repo` (needed to list/clone private repos); GitLab for
+`read_user read_api read_repository`. Tokens are stored in the `oauth_accounts`
+table — treat the database as a secret store.
+
+## 4. Auth secret (required before any public exposure)
 
 The JWT signing secret has a development default and **must** be replaced
 before users other than you can log in:
@@ -103,7 +131,7 @@ Also tune session length: `REPOVERIX_ACCESS_TOKEN_EXPIRE_MINUTES=1440` (1 day).
 
 ---
 
-## 4. Docker (needed for verification + sandboxed test runs)
+## 5. Docker (needed for verification + sandboxed test runs)
 
 "Verify Fix" copies the repo, applies the patch, and runs tests **inside a
 container**. That requires:
@@ -124,20 +152,30 @@ container**. That requires:
 
 ---
 
-## 5. GitHub repository ingestion
+## 6. Repository import sources
 
-- **Public repos**: works out of the box — the backend shallow-clones with
-  `git` (`--depth 1`), so the host needs `git` and network egress to
-  github.com.
-- **Private repos**: not supported yet — the clone code has no token/credential
-  plumbing. Either keep the audited repo public, upload it as a ZIP, or add a
-  `REPOVERIX_GITHUB_TOKEN` feature (clone URL becomes
-  `https://x-access-token:<token>@github.com/...`).
-- ZIP upload is the zero-dependency path and is fully supported in the UI.
+The UI's **Import repository** dialog supports five sources. What each needs:
+
+- **GitHub** — connect your account (OAuth, §3) to browse + import public and
+  **private** repos, or just paste a public URL.
+- **GitLab** — same: connect (OAuth) to browse + import, or paste a public URL
+  (gitlab.com or self-hosted instances).
+- **AWS S3 / archive link** — paste a public S3 object URL or a **presigned
+  S3 URL** (or any hosted `.zip`: release asset, codeload…). The backend
+  downloads it once with size caps and extracts it with the same hardening as
+  ZIP uploads. Registration happens immediately; the download runs at scan
+  time.
+- **ZIP upload** — upload from your computer (≤ 100 MB).
+- **Other git** — paste any https git URL: Bitbucket, Azure DevOps, Codeberg,
+  self-hosted.
+
+Host requirements: `git` + egress to the git host for clone sources; egress to
+bucket/archive hosts for S3-style links. The clone fallback handles repos whose
+default branch isn't `main`.
 
 ---
 
-## 6. Frontend → backend URL
+## 7. Frontend → backend URL
 
 The Next.js app talks to the API through one build-time variable:
 
@@ -153,7 +191,7 @@ the frontend origin: `REPOVERIX_CORS_ORIGINS=["https://repoverix.example.com"]`
 
 ---
 
-## 7. RepoVeriX-Bench (research experiments)
+## 8. RepoVeriX-Bench (research experiments)
 
 The bench harness is ready (`cd backend && python -m app.benchmark run`). To
 produce real numbers instead of `TBD`:
@@ -169,7 +207,7 @@ come from actual runs.
 
 ---
 
-## 8. Putting it online for real users
+## 9. Putting it online for real users
 
 GitHub cannot host the running app. Use the deploy kit (already committed):
 
@@ -187,13 +225,15 @@ installed, open ports 80/443.
 
 ---
 
-## 9. Before-you-ship checklist
+## 10. Before-you-ship checklist
 
 - [ ] `REPOVERIX_JWT_SECRET` replaced with a long random value
 - [ ] `REPOVERIX_DATABASE_URL` points at a Postgres instance with a strong password
 - [ ] At least one LLM key set (OpenAI recommended) and provider chosen
+- [ ] OAuth clients registered and redirect URIs added (Google for sign-in; GitHub/GitLab for private imports)
+- [ ] `REPOVERIX_FRONTEND_URL` matches the public frontend origin
 - [ ] Docker daemon reachable from the backend; `python:3.12-slim` pull works
 - [ ] `NEXT_PUBLIC_API_URL` = public backend origin; frontend rebuilt
 - [ ] `REPOVERIX_CORS_ORIGINS` includes the real frontend origin
-- [ ] Backend `git` installed and egress to github.com allowed (for GitHub repos)
-- [ ] Smoke test with a real account: signup → upload ZIP → scan → generate fix → verify
+- [ ] Backend `git` installed and egress to github.com allowed (for git imports)
+- [ ] Smoke test with a real account: signup (incl. Google) → import repo (GitHub URL, S3 link, ZIP) → scan → generate fix → verify

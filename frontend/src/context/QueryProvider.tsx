@@ -1,7 +1,6 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState, ReactNode } from 'react';
 
 export function QueryProvider({ children }: { children: ReactNode }) {
@@ -19,10 +18,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
       })
   );
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
-  );
+  // Note: the React Query devtools bubble is intentionally not mounted so the
+  // product UI stays pristine. Debug API traffic with the browser network tab.
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }

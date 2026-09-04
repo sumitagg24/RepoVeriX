@@ -9,6 +9,7 @@ from app.api.routes import (
     auth_router,
     dashboard_router,
     findings_router,
+    oauth_router,
     patches_router,
     repositories_router,
     scans_router,
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
 
     # API routes
     app.include_router(auth_router, prefix=settings.api_prefix)
+    app.include_router(oauth_router, prefix=settings.api_prefix)
     app.include_router(repositories_router, prefix=settings.api_prefix)
     app.include_router(scans_router, prefix=settings.api_prefix)
     app.include_router(findings_router, prefix=settings.api_prefix)

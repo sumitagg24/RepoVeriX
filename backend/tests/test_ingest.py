@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.analysis.discovery import discover_project
-from app.analysis.ingest import extract_archive, store_archive
+from app.analysis.ingest import download_archive, extract_archive, git_clone_url, store_archive
 from app.analysis.models import AnalysisError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "repos"
@@ -83,3 +83,65 @@ def test_discover_no_tests_project_warns(tmp_path):
     manifest = discover_project(tmp_path, "directory")
     assert manifest.has_tests is False
     assert any("test suite" in w for w in manifest.warnings)
+
+
+# --------------------------------------------------------------------------- clone / download
+
+
+def test_git_clone_url_embeds_provider_token_without_leaking_path():
+    url = git_clone_url("https://github.com/acme/private-repo.git", provider="github", token="ghp_abc")
+    assert url == "https://x-access-token:ghp_abc@github.com/acme/private-repo"
+
+    gitlab_url = git_clone_url("https://gitlab.com/acme/tools/proj", provider="gitlab", token="glpat-xyz")
+    assert gitlab_url == "https://oauth2:glpat-xyz@gitlab.com/acme/tools/proj"
+
+    plain = git_clone_url("https://bitbucket.org/acme/widgets.git")
+    assert plain == "https://bitbucket.org/acme/widgets"
+
+    import pytest as _pytest
+
+    with _pytest.raises(AnalysisError):
+        git_clone_url("file:///etc/passwd")
+
+
+async def test_download_archive_extracts_hosted_zip(tmp_path):
+    import httpx
+
+    good = _zip_bytes(
+        [
+            ("repo-root/README.md", b"hi"),
+            ("repo-root/app.py", b"print('hi')"),
+        ]
+    )
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "bucket.example.com"
+        return httpx.Response(200, content=good, headers={"content-type": "application/zip"})
+
+    repo_id = "archive-dl-test"
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        src = await download_archive(
+            repo_id, "https://bucket.example.com/releases/app.zip", storage_root=tmp_path, client=client
+        )
+    finally:
+        await client.aclose()
+    assert (src / "app.py").exists()
+    assert (tmp_path / repo_id / "archive.zip").exists()
+
+
+async def test_download_archive_rejects_http_error(tmp_path):
+    import httpx
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(AnalysisError) as exc:
+            await download_archive(
+                "bad-archive", "https://example.com/nope.zip", storage_root=tmp_path, client=client
+            )
+        assert exc.value.code == "download_failed"
+    finally:
+        await client.aclose()

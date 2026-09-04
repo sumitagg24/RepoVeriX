@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -25,3 +26,23 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_column(
+            conn,
+            "repositories",
+            "oauth_account_id",
+            "CHAR(32)" if "sqlite" in str(engine.url) else "UUID",
+        )
+
+
+async def _ensure_column(conn, table: str, column: str, column_ddl: str) -> None:
+    """Add a nullable column to a pre-existing table without a full migration.
+
+    ``create_all`` only creates missing tables; databases created before the
+    OAuth feature need ``oauth_account_id`` added in place. The statement is a
+    no-op when the column already exists.
+    """
+    try:
+        await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_ddl}"))
+    except Exception:
+        # duplicate-column (SQLite) / already-exists (PostgreSQL) — column present
+        pass
