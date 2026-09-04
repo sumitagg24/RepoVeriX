@@ -310,6 +310,42 @@ class HealthSnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     repository: Mapped[Repository] = relationship()
 
 
+class PullRequestAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One recorded GitHub pull-request audit (base..head diff, impact, findings).
+
+    ``review`` holds the full structured review (risk, factors, findings,
+    evidence, line comments). Findings are intentionally *not* persisted as
+    ``Finding`` rows — they are diff-scoped evidence, not repository findings.
+    """
+
+    __tablename__ = "pull_request_audits"
+    __table_args__ = (
+        UniqueConstraint("repository_id", "pr_number", name="uq_pr_audit_repo_pr"),
+    )
+
+    repository_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("repositories.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    pr_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    pr_title: Mapped[str | None] = mapped_column(String(500))
+    pr_url: Mapped[str | None] = mapped_column(String(2048))
+    author: Mapped[str | None] = mapped_column(String(200))
+    base_ref: Mapped[str | None] = mapped_column(String(200))
+    base_sha: Mapped[str | None] = mapped_column(String(64))
+    head_ref: Mapped[str | None] = mapped_column(String(200))
+    head_sha: Mapped[str | None] = mapped_column(String(64))
+    risk_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(20), default="low", nullable=False)
+    changed_files: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    findings: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    review: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    posted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+    repository: Mapped[Repository] = relationship()
+
+
 class ChangeAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One recorded PR / change audit (base..head refs or a raw diff)."""
 
@@ -325,6 +361,32 @@ class ChangeAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     repository: Mapped[Repository] = relationship()
+
+
+class ValidationRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One counterexample-based validation of a finding (research log).
+
+    Keeps the pre/post verdict and the full deterministic check output so
+    RepoVeriX experiments can compute verified/probable/rejected rates and
+    false-positive reduction (a candidate that flips to REJECTED is a
+    confirmed false positive).
+    """
+
+    __tablename__ = "validation_runs"
+
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("findings.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    claim: Mapped[str] = mapped_column(Text, nullable=False)
+    rule: Mapped[str | None] = mapped_column(String(100))
+    status_before: Mapped[str] = mapped_column(String(20), nullable=False)
+    status_after: Mapped[str] = mapped_column(String(20), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    explanation: Mapped[str | None] = mapped_column(Text)
+    checks: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    finding: Mapped["Finding"] = relationship()
 
 
 class GeneratedTest(UUIDPrimaryKeyMixin, TimestampMixin, Base):

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -452,6 +452,12 @@ export default function IntelligencePage() {
   const params = useParams();
   const router = useRouter();
   const repoId = params.id as string;
+  const searchParams = useSearchParams();
+  const initialTab = ['health', 'git', 'architecture', 'wiki', 'ask'].includes(
+    searchParams.get('tab') ?? ''
+  )
+    ? (searchParams.get('tab') as string)
+    : 'health';
   const { data: repository, isLoading: repoLoading } = useRepository(repoId);
   const { data, isLoading, isError, error, refresh } = useIntelligence(repoId);
 
@@ -524,7 +530,7 @@ export default function IntelligencePage() {
       )}
 
       {data && data.status === 'ready' && (
-        <Tabs defaultValue="health">
+        <Tabs key={initialTab} defaultValue={initialTab}>
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
             <TabsTrigger value="health">Health</TabsTrigger>
             <TabsTrigger value="git">Git</TabsTrigger>

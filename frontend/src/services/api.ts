@@ -1,5 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import type {
+  ProofOfFix,
+  RunTestResponse,
   User,
   TokenResponse,
   LoginRequest,
@@ -43,7 +45,11 @@ import type {
   SelfImprovementResult,
   VulnMiningResult,
   RiskModelResult,
-  LearningPatternsResult
+  LearningPatternsResult,
+  PullRequestAuditSummary,
+  PullRequestAuditDetail,
+  ChangeAuditMeta,
+  FindingValidationResult
 } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -223,11 +229,18 @@ export const repositoryService = {
 export const auditService = {
   changeAudit: async (
     repositoryId: string,
-    payload: { base?: string; head?: string; diff?: string }
+    payload: { base?: string; head?: string; diff?: string; commit?: string }
   ): Promise<ChangeAuditResult> => {
     const response = await api.post<ChangeAuditResult>(
       `/repositories/${repositoryId}/change-audit`,
       payload
+    );
+    return response.data;
+  },
+
+  changeAudits: async (repositoryId: string): Promise<ChangeAuditMeta[]> => {
+    const response = await api.get<ChangeAuditMeta[]>(
+      `/repositories/${repositoryId}/change-audits`
     );
     return response.data;
   },
@@ -253,9 +266,13 @@ export const auditService = {
     return response.data;
   },
 
-  regression: async (repositoryId: string): Promise<RegressionReport> => {
+  regression: async (
+    repositoryId: string,
+    params?: { from?: string; to?: string }
+  ): Promise<RegressionReport> => {
     const response = await api.get<RegressionReport>(
-      `/repositories/${repositoryId}/regression`
+      `/repositories/${repositoryId}/regression`,
+      { params }
     );
     return response.data;
   },
@@ -294,8 +311,23 @@ export const findingAuditService = {
     return response.data;
   },
 
-  runTest: async (testId: string): Promise<{ id: string; status: string; result: Record<string, unknown> }> => {
-    const response = await api.post(`/findings/generated-tests/${testId}/run`);
+  runTest: async (testId: string, patchId?: string): Promise<RunTestResponse> => {
+    const response = await api.post<RunTestResponse>(
+      `/findings/generated-tests/${testId}/run`,
+      patchId ? { patch_id: patchId } : undefined
+    );
+    return response.data;
+  },
+
+  proofOfFix: async (findingId: string): Promise<ProofOfFix> => {
+    const response = await api.get<ProofOfFix>(`/findings/${findingId}/proof-of-fix`);
+    return response.data;
+  },
+
+  validateFinding: async (findingId: string): Promise<FindingValidationResult> => {
+    const response = await api.post<FindingValidationResult>(
+      `/findings/${findingId}/validate`
+    );
     return response.data;
   },
 
@@ -509,6 +541,44 @@ export const billingService = {
 
   demoActivate: async (plan: string): Promise<CheckoutResult> => {
     const response = await api.post<CheckoutResult>(`/billing/demo/activate?plan=${plan}`);
+    return response.data;
+  },
+};
+
+export const prAuditService = {
+  analyze: async (repositoryId: string, prNumber: number): Promise<PullRequestAuditDetail> => {
+    const response = await api.post<PullRequestAuditDetail>(
+      `/repositories/${repositoryId}/pull-requests/analyze`,
+      { pr_number: prNumber }
+    );
+    return response.data;
+  },
+
+  list: async (params?: { repository_id?: string }): Promise<PullRequestAuditSummary[]> => {
+    const response = await api.get<PullRequestAuditSummary[]>('/pull-requests', { params });
+    return response.data;
+  },
+
+  get: async (auditId: string): Promise<PullRequestAuditDetail> => {
+    const response = await api.get<PullRequestAuditDetail>(`/pull-requests/${auditId}`);
+    return response.data;
+  },
+
+  listForRepository: async (repositoryId: string): Promise<PullRequestAuditSummary[]> => {
+    const response = await api.get<PullRequestAuditSummary[]>(
+      `/repositories/${repositoryId}/pull-requests`
+    );
+    return response.data;
+  },
+
+  postReview: async (repositoryId: string, auditId: string) => {
+    const response = await api.post<{
+      status: string;
+      audit_id: string;
+      review_id?: number;
+      html_url?: string;
+      comment_count: number;
+    }>(`/repositories/${repositoryId}/pull-requests/${auditId}/post`);
     return response.data;
   },
 };

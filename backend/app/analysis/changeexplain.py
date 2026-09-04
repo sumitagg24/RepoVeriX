@@ -10,19 +10,16 @@ from __future__ import annotations
 
 from typing import Any
 
-_RISK_LABELS = [
-    (0.0, 2.0, "low-risk"),
-    (2.0, 5.0, "moderate-risk"),
-    (5.0, 7.5, "high-risk"),
-    (7.5, 11.0, "very high-risk"),
-]
-
 
 def risk_label(score: float) -> str:
-    for lo, hi, label in _RISK_LABELS:
-        if lo <= score < hi:
-            return label
-    return "high-risk"
+    # bands mirror changes.risk_level_for but on prose labels
+    if score >= 75:
+        return "very high-risk"
+    if score >= 50:
+        return "high-risk"
+    if score >= 25:
+        return "moderate-risk"
+    return "low-risk"
 
 
 def build_explanation(audit: dict[str, Any]) -> dict[str, Any]:
@@ -75,10 +72,15 @@ def build_explanation(audit: dict[str, Any]) -> dict[str, Any]:
     why_risk = [
         f"size {components.get('size', 0)}",
         f"blast radius {components.get('blast_radius', 0)}",
-        f"risky files {components.get('risky_files', 0)}",
-        f"missing tests {components.get('missing_tests', 0)}",
-        f"missing companions {components.get('missing_companions', 0)}",
+        f"API surface {components.get('api_surface', 0)}",
+        f"missing tests {components.get('tests', 0)}",
+        f"missing companions {components.get('companions', 0)}",
+        f"security/auth {components.get('security', 0)}",
+        f"database {components.get('database', 0)}",
+        f"history/churn {components.get('history', 0)}",
     ]
+    if audit.get("risk_level"):
+        why_risk.append(f"level {audit['risk_level']}")
 
     return {
         "risk_score": risk,

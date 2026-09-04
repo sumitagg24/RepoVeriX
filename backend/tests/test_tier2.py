@@ -432,18 +432,22 @@ class TestChangeExplanation:
             "tests_to_run": ["tests/test_app.py"],
             "missing_companion_files": [],
             "untested_changed_files": [],
-            "risk_score": 3.1,
+            "risk_score": 32.0,
+            "risk_level": "medium",
             "risk_components": {
                 "size": 1.0,
                 "blast_radius": 1.2,
-                "risky_files": 0.0,
-                "missing_tests": 0.0,
-                "missing_companions": 0.0,
+                "api_surface": 0.0,
+                "tests": 0.0,
+                "companions": 0.0,
+                "security": 0.0,
+                "database": 0.0,
+                "history": 0.0,
             },
             "directives": ["may_break", "tests_to_run"],
         }
         result = changeexplain.build_explanation(audit)
-        assert result["risk_score"] == 3.1
+        assert result["risk_score"] == 32.0
         assert result["risk_label"] == "moderate-risk"
         assert "2 file(s)" in result["summary"]
         assert any("callers" in b for b in result["bullets"])

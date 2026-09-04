@@ -18,6 +18,7 @@ import {
   GitBranch,
   ScanSearch,
   Bug,
+  GitPullRequest,
   Settings,
   LogOut,
   ChevronDown,
@@ -36,6 +37,7 @@ import type { PlanName } from '@/types/api';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Repositories', href: '/repositories', icon: GitBranch },
+  { name: 'Pull Requests', href: '/pull-requests', icon: GitPullRequest },
   { name: 'Scans', href: '/scans', icon: ScanSearch },
   { name: 'Findings', href: '/findings', icon: Bug },
 ];

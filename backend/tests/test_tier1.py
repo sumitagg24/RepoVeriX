@@ -135,8 +135,11 @@ async def test_change_audit_refs(client, auth_headers, db_session, test_user, gi
     body = response.json()
     assert body["changed_files"] == ["app.py"]
     assert body["added_lines"] >= 3
-    assert 0 <= body["risk_score"] <= 10
+    assert 0 <= body["risk_score"] <= 100
+    assert body["risk_level"] in ("low", "medium", "high", "critical")
     assert "risk_components" in body
+    assert "risk_factors" in body
+    assert "risk_formula" in body
     # public() changed -> helper() callers include public() but no outside callers
     assert "directives" in body
     # the audit was persisted

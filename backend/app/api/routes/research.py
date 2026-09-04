@@ -368,3 +368,65 @@ async def learning_patterns(
             }
         )
     return crosslearn.learn_patterns(per_repo)
+
+
+# --------------------------------------------------------------------------- validation research log
+
+
+@learning_router.get("/validation-stats")
+async def validation_stats(
+    repository_id: uuid.UUID | None = None,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Research metrics from counterexample-based validation runs.
+
+    Reports how many candidate findings each validation pass examined, how
+    verdicts moved (before -> after), and the false-positive reduction — runs
+    whose claim was refuted (flipped to REJECTED) are confirmed false
+    positives of the original pipeline.
+    """
+    from app.db.models import Repository, Scan, ValidationRun
+
+    query = (
+        select(ValidationRun)
+        .join(Finding, Finding.id == ValidationRun.finding_id)
+        .join(Scan, Scan.id == Finding.scan_id)
+        .join(Repository, Repository.id == Scan.repository_id)
+        .where(Repository.owner_id == current_user.id)
+    )
+    if repository_id is not None:
+        query = query.where(Scan.repository_id == repository_id)
+    result = await db.execute(query.order_by(ValidationRun.created_at.desc()).limit(2000))
+    runs = list(result.scalars().all())
+
+    before_counts: dict[str, int] = {}
+    after_counts: dict[str, int] = {}
+    transitions: dict[str, int] = {}
+    by_rule: dict[str, dict[str, int]] = {}
+    for run in runs:
+        before_counts[run.status_before] = before_counts.get(run.status_before, 0) + 1
+        after_counts[run.status_after] = after_counts.get(run.status_after, 0) + 1
+        transition = f"{run.status_before} -> {run.status_after}"
+        transitions[transition] = transitions.get(transition, 0) + 1
+        rule = run.rule or "unknown"
+        bucket = by_rule.setdefault(rule, {})
+        bucket[run.status_after] = bucket.get(run.status_after, 0) + 1
+
+    # A candidate refuted by the validator is a confirmed false positive.
+    refuted = sum(1 for r in runs if r.status_before != "rejected" and r.status_after == "rejected")
+    candidates = len(runs)
+    return {
+        "candidates": candidates,
+        "before": before_counts,
+        "after": after_counts,
+        "transitions": dict(sorted(transitions.items(), key=lambda kv: -kv[1])),
+        "false_positive_reduction": refuted,
+        "fp_reduction_rate": round(refuted / candidates, 3) if candidates else 0.0,
+        "by_rule": by_rule,
+        "method": "deterministic counterexample battery (sanitizer / parameterization / authz / exceptions / tests)",
+        "note": (
+            "status_after is the validator verdict; before -> after REJECTED transitions are "
+            "confirmed false positives of the producing pipeline."
+        ),
+    }

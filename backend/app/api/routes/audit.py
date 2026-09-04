@@ -1,6 +1,8 @@
 """Audit & intelligence-graph routes (Tier-1 research features).
 
-- ``POST /repositories/{id}/change-audit``   PR audit + change-risk (refs or raw diff)
+- ``POST /repositories/{id}/change-audit``   change impact + risk (diff, refs, commit)
+- ``GET  /repositories/{id}/change-audits``  stored change-impact results
+- ``GET  /repositories/{id}/change-audits/{audit_id}``  one stored result
 - ``GET  /repositories/{id}/evidence-graph`` aggregate findings + evidence chains
 - ``GET  /repositories/{id}/attack-paths``   untrusted source -> sink paths
 - ``GET  /repositories/{id}/dependency-reachability``  which deps the code actually imports
@@ -45,6 +47,8 @@ class ChangeAuditRequest(BaseModel):
     base: str | None = Field(default=None, max_length=200)
     head: str | None = Field(default=None, max_length=200)
     diff: str | None = Field(default=None, max_length=2_000_000)
+    # Analyze a single commit: base is derived as ``commit~1``.
+    commit: str | None = Field(default=None, max_length=200)
 
 
 async def _load_repository(repository_id: uuid.UUID, db: AsyncSession, user) -> Repository:
@@ -118,13 +122,17 @@ async def change_audit(
         if not hunks:
             raise HTTPException(status_code=422, detail="Diff contains no file changes")
     else:
-        if not payload.base or not payload.head:
+        if payload.commit:
+            mode = "commit"
+            base, head = f"{payload.commit}~1", payload.commit
+        elif payload.base and payload.head:
+            mode = "refs"
+            base, head = payload.base, payload.head
+        else:
             raise HTTPException(
                 status_code=422,
-                detail="Provide base+head refs or a raw unified diff",
+                detail="Provide base+head refs, a single commit, or a raw unified diff",
             )
-        mode = "refs"
-        base, head = payload.base, payload.head
         try:
             hunks, _raw = await changes.git_diff(src, base, head)
         except ValueError as exc:
@@ -171,7 +179,61 @@ async def change_audit(
     )
     db.add(row)
     await db.commit()
+    await db.refresh(row)
+    audit["audit_id"] = str(row.id)
     return audit
+
+
+@router.get("/{repository_id}/change-audits")
+async def change_audits_list(
+    repository_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stored change-impact results for a repository (most recent first)."""
+    repository = await _load_repository(repository_id, db, current_user)
+    result = await db.execute(
+        select(ChangeAudit)
+        .where(ChangeAudit.repository_id == repository.id)
+        .order_by(ChangeAudit.created_at.desc())
+        .limit(100)
+    )
+    return [
+        {
+            "id": str(a.id),
+            "mode": a.mode,
+            "base": a.base,
+            "head": a.head,
+            "risk_score": a.risk_score,
+            "risk_level": (a.payload or {}).get("risk_level"),
+            "changed_file_count": len((a.payload or {}).get("changed_files", [])),
+            "created_at": a.created_at.isoformat(),
+        }
+        for a in result.scalars().all()
+    ]
+
+
+@router.get("/{repository_id}/change-audits/{audit_id}")
+async def change_audit_detail(
+    repository_id: uuid.UUID,
+    audit_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve one stored change-impact result (full payload)."""
+    repository = await _load_repository(repository_id, db, current_user)
+    result = await db.execute(
+        select(ChangeAudit).where(
+            ChangeAudit.id == audit_id,
+            ChangeAudit.repository_id == repository.id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Change audit not found")
+    payload = row.payload or {}
+    payload["audit_id"] = str(row.id)
+    return payload
 
 
 # --------------------------------------------------------------------------- change explanation
@@ -201,12 +263,15 @@ async def explain_change(
             raise HTTPException(status_code=422, detail="Diff contains no file changes")
         mode, base, head = "diff", None, None
     else:
-        if not payload.base or not payload.head:
+        if payload.commit:
+            mode, base, head = "commit", f"{payload.commit}~1", payload.commit
+        elif payload.base and payload.head:
+            mode, base, head = "refs", payload.base, payload.head
+        else:
             raise HTTPException(
                 status_code=422,
-                detail="Provide base+head refs or a raw unified diff",
+                detail="Provide base+head refs, a single commit, or a raw unified diff",
             )
-        mode, base, head = "refs", payload.base, payload.head
         try:
             hunks, _raw = await changes.git_diff(src, base, head)
         except ValueError as exc:
@@ -375,8 +440,9 @@ async def dependency_reachability(
     src = _working_copy(repository)
     parsed = _parse_working_copy(src)
 
-    # vulnerability counts from the latest completed scan's Dependency rows
+    # vulnerability info from the latest completed scan's Dependency rows
     vuln_counts: dict[str, int] = {}
+    vuln_details: dict[str, list[dict]] = {}
     scan_result = await db.execute(
         select(Scan)
         .where(Scan.repository_id == repository.id, Scan.status == ScanStatus.completed)
@@ -390,11 +456,31 @@ async def dependency_reachability(
         dep_result = await db.execute(select(Dependency).where(Dependency.scan_id == scan.id))
         for dep in dep_result.scalars().all():
             info = dep.vulnerability_info or {}
-            count = info.get("count") if isinstance(info, dict) else None
+            if not isinstance(info, dict):
+                continue
+            key = dep.name.lower().replace("_", "-").replace(".", "-")
+            count = info.get("count") if isinstance(info.get("count"), int) else None
+            raw_details = info.get("details") or info.get("vulnerabilities")
+            details = [d for d in (raw_details or []) if isinstance(d, dict)]
             if isinstance(count, int) and count > 0:
-                vuln_counts[dep.name.lower().replace("_", "-").replace(".", "-")] = count
+                vuln_counts[key] = count
+            if details:
+                vuln_details.setdefault(key, []).extend(
+                    {
+                        "id": d.get("id"),
+                        "cvss": d.get("cvss"),
+                        "summary": d.get("summary") or d.get("description"),
+                        "affected": d.get("affected") or d.get("vulnerable_version"),
+                    }
+                    for d in details
+                )
 
-    return depreach.analyze_reachability(src, parsed, vulnerability_counts=vuln_counts)
+    return depreach.analyze_reachability(
+        src,
+        parsed,
+        vulnerability_counts=vuln_counts,
+        vulnerability_details=vuln_details,
+    )
 
 
 # --------------------------------------------------------------------------- regression
@@ -433,7 +519,9 @@ async def regression_report(
     earlier = scans[2] if len(scans) > 2 else None
 
     async def findings_of(scan: Scan) -> list[Finding]:
-        result = await db.execute(select(Finding).where(Finding.scan_id == scan.id))
+        result = await db.execute(
+            select(Finding).options(selectinload(Finding.evidence)).where(Finding.scan_id == scan.id)
+        )
         return list(result.scalars().all())
 
     before_f, after_f = await findings_of(before), await findings_of(after)

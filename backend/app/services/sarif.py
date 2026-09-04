@@ -38,6 +38,11 @@ def build_sarif(findings: list[Finding], scan: Scan, source_root: Path | None) -
     results: list[dict] = []
 
     for finding in findings:
+        # REJECTED findings are not active security results — they stay out of
+        # the exported SARIF so downstream consumers (e.g. GitHub Code
+        # Scanning) never see them as live alerts.
+        if finding.status.value == "rejected":
+            continue
         rule_id = _rule_id(finding)
         rules.setdefault(
             rule_id,

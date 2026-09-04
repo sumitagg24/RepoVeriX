@@ -432,17 +432,21 @@ export interface ChangeAuditResult {
   missing_companion_files: string[];
   untested_changed_files: string[];
   risk_score: number;
-  risk_components: {
-    size: number;
-    blast_radius: number;
-    risky_files: number;
-    missing_tests: number;
-    missing_companions: number;
+  risk_level: string;
+  risk_components: Record<string, number>;
+  risk_factors?: RiskFactor[];
+  risk_formula?: string;
+  affected_apis?: { file: string; line: number; route: string }[];
+  security_context?: {
+    auth_and_security_symbols: { name: string; file: string; line_start: number; line_end: number }[];
+    database_symbols: { name: string; file: string; line_start: number; line_end: number }[];
+    unhealthy_changed_files: string[];
   };
   directives: string[];
-  mode: 'refs' | 'diff';
+  mode: 'refs' | 'diff' | 'commit';
   base: string | null;
   head: string | null;
+  audit_id?: string;
 }
 
 export interface GraphNode {
@@ -470,19 +474,43 @@ export interface EvidenceGraph {
   edges: GraphEdge[];
 }
 
+export interface AttackPathStep {
+  function: string;
+  file: string;
+  line: number;
+}
+
 export interface AttackPath {
   source: string;
   source_kind: string;
   sink: string;
   sink_kind: string;
   file: string;
-  steps: { function: string; file: string; line: number }[];
+  steps: AttackPathStep[];
+  entry_point?: { type: string; label?: string };
+  sink_call?: string;
+  sink_category?: string;
+  impact?: string;
+  status?: string;
+  risk_score?: number;
+  risk_level?: string;
+  note?: string;
 }
 
 export interface AttackPaths {
   source_count: number;
   path_count: number;
+  verified_count?: number;
+  probable_count?: number;
+  by_risk_level?: Record<string, number>;
   paths: AttackPath[];
+}
+
+export interface DependencyVulnerability {
+  id?: string | null;
+  cvss?: number | string | null;
+  summary?: string | null;
+  affected?: string | null;
 }
 
 export interface DependencyRow {
@@ -494,6 +522,11 @@ export interface DependencyRow {
   importers: string[];
   known_vulnerabilities: number;
   triage: string;
+  reachability_status?: 'DIRECTLY_REACHABLE' | 'INDIRECTLY_REACHABLE' | 'NOT_REACHABLE' | 'UNKNOWN';
+  reachability_evidence?: string[];
+  top_level?: boolean;
+  recommendation?: string;
+  vulnerabilities?: DependencyVulnerability[];
 }
 
 export interface DependencyReachability {
@@ -501,6 +534,7 @@ export interface DependencyReachability {
   reachable_count: number;
   unreachable_count: number;
   vulnerable_reachable: number;
+  status_counts?: Record<string, number>;
 }
 
 export interface RegressionFinding {
@@ -515,13 +549,23 @@ export interface RegressionFinding {
 export interface RegressionReport {
   total_before: number;
   total_after: number;
+  summary?: {
+    new: number;
+    resolved: number;
+    still_present: number;
+    reintroduced: number;
+    severity_changed: number;
+    status_changed: number;
+  };
   new: string[];
   resolved: string[];
   still_present: string[];
   reintroduced: string[];
+  moved?: { external_id: string; title: string; file_path: string; line_before?: number | null; line_after?: number | null; reason?: string }[];
   changed_status: { external_id: string; title: string; file_path: string; status_before: string; status_after: string }[];
   changed_severity: { external_id: string; title: string; file_path: string; severity_before: string; severity_after: string }[];
   confidence_deltas: { external_id: string; title: string; file_path: string; confidence_before: number; confidence_after: number }[];
+  items?: RegressionItem[];
   from_scan: string;
   to_scan: string;
   from_scan_created: string;
@@ -559,6 +603,97 @@ export interface GeneratedTest {
   result: Record<string, unknown> | null;
 }
 
+export interface RunTestResponse {
+  id: string;
+  status: string;
+  result: {
+    outcome?: string;
+    outcome_detail?: string;
+    patch_applied?: boolean;
+    patched_files?: string[];
+    summary?: string;
+    passed?: boolean;
+  } | null;
+  patch?: { patch_id?: string; patch_status?: string } | null;
+  proof_of_fix?: {
+    verdict: string;
+    baseline_outcome?: string;
+    patched_outcome?: string;
+    explanation?: string;
+  } | null;
+}
+
+export interface ProofCheck {
+  key: string;
+  label: string;
+  passed: boolean | null;
+  detail?: string;
+}
+
+export interface ProofRun {
+  id: string;
+  status: string;
+  decision: string | null;
+  patch_applied: boolean | null;
+  deps_installed: boolean | null;
+  tests_passed: boolean | null;
+  static_passed: boolean | null;
+  finding_still_detected: boolean | null;
+  started_at: string | null;
+  finished_at: string | null;
+  log_excerpt?: string;
+  test_count: number;
+}
+
+export interface ProofOfFixPatch {
+  patch_id: string;
+  patch_status: string;
+  generated_by: string;
+  changed_files: string[];
+  changed_line_count: number;
+  decision: string | null;
+  state?: string;
+  decision_reason?: string;
+  checks: ProofCheck[];
+  runs: ProofRun[];
+}
+
+export interface ProofEvidenceNode {
+  kind: string;
+  description: string;
+  file: string | null;
+  line: number | null;
+  snippet?: string | null;
+}
+
+export interface ProofOfFix {
+  finding_id: string;
+  external_id: string;
+  title: string;
+  severity: string;
+  status: string;
+  confidence: number;
+  file_path: string;
+  function_name: string | null;
+  line_start: number | null;
+  base_version: string | null;
+  evidence_before: ProofEvidenceNode[];
+  reproduction: {
+    test_id: string;
+    generated_by: string;
+    outcome: string | null;
+    outcome_detail: string | null;
+    patch_applied?: boolean;
+    patched_files?: string[];
+    summary?: string;
+  } | null;
+  decision: string | null;
+  decision_reason: string;
+  checks: ProofCheck[];
+  patches: ProofOfFixPatch[];
+  recorded_at: string;
+}
+
 export interface CounterexampleProof {
   found: boolean;
   sanitizer: string;
@@ -573,6 +708,50 @@ export interface CounterexampleProof {
 export interface CounterexampleResult {
   finding_id: string;
   counterexample: CounterexampleProof | null;
+}
+
+export interface ValidationCheck {
+  key: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface ValidationEvidence {
+  kind: string;
+  label: string;
+  detail: string;
+  sanitizer?: string;
+  sanitizer_line?: number;
+}
+
+export interface FindingValidationResult {
+  validation_run_id: string;
+  claim: string;
+  rule?: string | null;
+  original_status: string;
+  original_confidence: number;
+  final_status: string;
+  confidence: number;
+  explanation: string;
+  checks: ValidationCheck[];
+  supporting_evidence: ValidationEvidence[];
+  contradicting_evidence: ValidationEvidence[];
+  counterexample: CounterexampleProof | null;
+  source_nodes?: { kind: string; file_path?: string | null; line_start?: number | null; description: string }[];
+  sink_nodes?: { kind: string; file_path?: string | null; line_start?: number | null; description: string }[];
+}
+
+export interface ValidationStats {
+  candidates: number;
+  before: Record<string, number>;
+  after: Record<string, number>;
+  transitions: Record<string, number>;
+  false_positive_reduction: number;
+  fp_reduction_rate: number;
+  by_rule: Record<string, Record<string, number>>;
+  method?: string;
+  note?: string;
 }
 
 // --------------------------------------------------------------------------- Tier 2
@@ -797,4 +976,179 @@ export interface LearningPatternsResult {
   repositories_with_verified_findings?: string[];
   message?: string;
   method?: string;
+}
+
+// --------------------------------------------------------------------------- PR auditor / impact / regression v2
+
+export interface RiskFactor {
+  key: string;
+  label: string;
+  weight: number;
+  value: number;
+  contribution: number;
+}
+
+export interface PullRequestAuditSummary {
+  id: string;
+  repository_id: string;
+  repository_name?: string;
+  pr_number: number;
+  pr_title?: string;
+  pr_url?: string;
+  author?: string;
+  base_ref?: string;
+  base_sha?: string;
+  head_ref?: string;
+  head_sha?: string;
+  risk_score: number;
+  risk_level: string;
+  changed_files: string[];
+  finding_count: number;
+  comment_count: number;
+  posted: boolean;
+  posted_at?: string | null;
+  created_at: string;
+}
+
+export interface PrAuditFinding {
+  external_id: string;
+  title: string;
+  category: string;
+  severity: string;
+  status: string;
+  confidence: number;
+  file_path: string;
+  function_name?: string | null;
+  line_start?: number | null;
+  line_end?: number | null;
+  description: string;
+  recommendation?: string;
+  rule?: string | null;
+  evidence: {
+    kind: string;
+    file_path?: string | null;
+    line_start?: number | null;
+    snippet?: string | null;
+    description: string;
+  }[];
+}
+
+export interface PrAuditComment {
+  path: string;
+  line: number;
+  body: string;
+}
+
+export interface PrRegressionRisk {
+  external_id: string;
+  title: string;
+  category: string;
+  severity: string;
+  status: string;
+  file_path: string;
+  line_start?: number | null;
+  line_end?: number | null;
+  line_touched: boolean;
+  note: string;
+}
+
+export interface PullRequestAuditDetail {
+  pr: {
+    number: number;
+    title?: string;
+    author?: string;
+    state?: string;
+    html_url?: string;
+    base_ref: string;
+    base_sha: string;
+    head_ref: string;
+    head_sha: string;
+  };
+  risk_score: number;
+  risk_level: string;
+  risk_components: Record<string, number>;
+  risk_factors: RiskFactor[];
+  risk_formula?: string;
+  summary?: string;
+  summary_lines?: string[];
+  stats: {
+    files: number;
+    added_lines: number;
+    removed_lines: number;
+    findings: number;
+    verified_findings: number;
+    probable_findings: number;
+    comments: number;
+    regression_risks: number;
+  };
+  changed_files: string[];
+  changed_symbols?: { name: string; kind?: string; file: string; line_start?: number; line_end?: number }[];
+  blast_radius: {
+    caller_files: Record<string, number>;
+    importing_files: string[];
+    caller_count: number;
+  };
+  affected_apis?: { file: string; line: number; route: string }[];
+  security_context?: {
+    auth_and_security_symbols: { name: string; file: string; line_start: number; line_end: number }[];
+    database_symbols: { name: string; file: string; line_start: number; line_end: number }[];
+    unhealthy_changed_files: string[];
+  };
+  tests_to_run: string[];
+  missing_companion_files: string[];
+  findings: PrAuditFinding[];
+  regression_risks: PrRegressionRisk[];
+  comments: PrAuditComment[];
+  directives: string[];
+  audit_id: string;
+  repository_id?: string;
+  repository_name?: string;
+  posted?: boolean;
+  posted_at?: string | null;
+}
+
+export interface ChangeAuditMeta {
+  id: string;
+  mode: string;
+  base: string | null;
+  head: string | null;
+  risk_score: number;
+  risk_level?: string | null;
+  changed_file_count: number;
+  created_at: string;
+}
+
+// Regression v2 rows
+
+export interface RegressionEvidenceRow {
+  kind: string;
+  file_path?: string | null;
+  line_start?: number | null;
+  snippet?: string | null;
+  description?: string;
+}
+
+export interface RegressionItem {
+  state: 'still_present' | 'severity_changed' | 'resolved' | 'new' | 'reintroduced';
+  external_id: string;
+  title: string;
+  category: string;
+  severity: string;
+  status: string;
+  confidence: number;
+  file_path: string;
+  line_start?: number | null;
+  line_end?: number | null;
+  function_name?: string | null;
+  rule?: string | null;
+  source?: string;
+  evidence?: RegressionEvidenceRow[];
+  before?: {
+    severity: string;
+    status: string;
+    confidence: number;
+    file_path: string;
+    line_start?: number | null;
+    evidence?: RegressionEvidenceRow[];
+  };
 }

@@ -17,6 +17,7 @@ import {
   useRegression,
 } from '@/hooks/useAudit';
 import type { AttackPath, ChangeExplanation } from '@/types/api';
+import { RiskGauge } from '@/components/audit/risk-gauge';
 import {
   AlertTriangle,
   ArrowRight,
@@ -33,44 +34,15 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-function RiskGauge({ score }: { score: number }) {
-  const color =
-    score >= 7 ? 'text-red-500' : score >= 4 ? 'text-amber-500' : 'text-green-500';
-  const stroke =
-    score >= 7 ? '#ef4444' : score >= 4 ? '#eab308' : '#22c55e';
-  const circumference = 2 * Math.PI * 44;
-  const offset = circumference - (score / 10) * circumference;
-  return (
-    <div className="relative h-28 w-28">
-      <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-        <circle cx="50" cy="50" r="44" fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
-        <circle
-          cx="50"
-          cy="50"
-          r="44"
-          fill="none"
-          stroke={stroke}
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={cn('text-2xl font-bold', color)}>{score.toFixed(1)}</span>
-        <span className="text-[10px] text-muted-foreground">/ 10 risk</span>
-      </div>
-    </div>
-  );
-}
-
 function ExplanationCard({ explanation }: { explanation: ChangeExplanation }) {
   const riskColor =
-    explanation.risk_score >= 7
+    explanation.risk_score >= 75
       ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-      : explanation.risk_score >= 4
-        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-        : 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
+      : explanation.risk_score >= 50
+        ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+        : explanation.risk_score >= 25
+          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+          : 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
@@ -80,7 +52,7 @@ function ExplanationCard({ explanation }: { explanation: ChangeExplanation }) {
           </CardTitle>
         </div>
         <Badge variant="outline" className={riskColor}>
-          {explanation.risk_label} · {explanation.risk_score.toFixed(1)}/10
+          {explanation.risk_label} · {explanation.risk_score.toFixed(0)}/100
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -128,14 +100,54 @@ const DIRECTIVE_LABELS: Record<string, string> = {
   missing_cochanges: 'Missing companion files',
   missing_tests: 'Missing tests',
   tests_to_run: 'Tests to run',
+  security_sensitive: 'Security-sensitive code',
+  api_surface: 'API surface changed',
+};
+
+const RISK_STYLES: Record<string, string> = {
+  CRITICAL: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+  HIGH: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
+  MEDIUM: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  LOW: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
+};
+
+const REACH_STYLES: Record<string, string> = {
+  DIRECTLY_REACHABLE: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
+  INDIRECTLY_REACHABLE: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+  UNKNOWN: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  NOT_REACHABLE: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
 };
 
 function AttackPathCard({ path, index }: { path: AttackPath; index: number }) {
+  const status = path.status ?? 'VERIFIED';
+  const riskLevel = path.risk_level ?? '';
   return (
     <div className="rounded-lg border p-4">
       <div className="flex flex-wrap items-center gap-2 text-sm mb-3">
         <Badge variant="outline">Path {index + 1}</Badge>
-        <span className="font-mono text-xs">{path.file}</span>
+        {typeof path.risk_score === 'number' && (
+          <Badge variant="outline" className={RISK_STYLES[riskLevel] ?? ''}>
+            {riskLevel} risk · {path.risk_score}/100
+          </Badge>
+        )}
+        <Badge
+          variant="outline"
+          className={
+            status === 'VERIFIED'
+              ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
+              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+          }
+        >
+          {status}
+        </Badge>
+        {path.entry_point?.type && (
+          <Badge variant="outline" className="bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20">
+            {path.entry_point.type} entry
+          </Badge>
+        )}
+        {path.sink_category && (
+          <Badge variant="outline">{path.sink_category} sink</Badge>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
@@ -155,6 +167,7 @@ function AttackPathCard({ path, index }: { path: AttackPath; index: number }) {
           {path.sink}
         </Badge>
       </div>
+      {path.note && <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{path.note}</p>}
     </div>
   );
 }
@@ -162,6 +175,9 @@ function AttackPathCard({ path, index }: { path: AttackPath; index: number }) {
 const TRIAGE_STYLES: Record<string, string> = {
   'reachable-vulnerable': 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
   'vulnerable-unreachable': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  'vulnerable-unknown': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  'indirectly-reachable': 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+  'not-reachable': 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
   unreachable: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
   reachable: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
 };
@@ -189,6 +205,15 @@ export default function AuditPage() {
     return Object.entries(audit.risk_components)
       .map(([key, value]) => ({ key, value, pct: total > 0 ? (value / total) * 100 : 0 }))
       .sort((a, b) => b.value - a.value);
+  }, [audit]);
+
+  const auditContext = useMemo(() => {
+    if (!audit) return null;
+    return {
+      apis: audit.affected_apis ?? [],
+      authSymbols: audit.security_context?.auth_and_security_symbols ?? [],
+      dbSymbols: audit.security_context?.database_symbols ?? [],
+    };
   }, [audit]);
 
   const runAudit = () => {
@@ -327,8 +352,13 @@ export default function AuditPage() {
                       <ShieldAlert className="h-4 w-4" /> Risk score
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="flex items-center justify-center">
-                    <RiskGauge score={audit.risk_score} />
+                  <CardContent className="flex flex-col items-center justify-center gap-3">
+                    <RiskGauge score={audit.risk_score} level={audit.risk_level} />
+                    {audit.risk_formula && (
+                      <p className="text-[11px] text-muted-foreground font-mono leading-relaxed text-center max-w-[240px]">
+                        {audit.risk_formula}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="lg:col-span-2">
@@ -336,22 +366,48 @@ export default function AuditPage() {
                     <CardTitle>Risk components</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {riskComponents?.map((c) => (
-                      <div key={c.key}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="capitalize text-muted-foreground">
-                            {c.key.replace('_', ' ')}
-                          </span>
-                          <span className="font-mono">{c.value.toFixed(2)}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary"
-                            style={{ width: `${Math.max(2, c.pct)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                    {(audit.risk_factors ?? []).length > 0
+                      ? audit.risk_factors?.map((f) => (
+                          <div key={f.key}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-muted-foreground">{f.label}</span>
+                              <span className="font-mono">
+                                {f.contribution.toFixed(1)}
+                                <span className="text-muted-foreground text-xs"> / w{f.weight}</span>
+                              </span>
+                            </div>
+                            <div className="h-2 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${Math.max(2, (f.contribution / Math.max(1, f.weight)) * 100)}%`,
+                                  background:
+                                    f.contribution >= f.weight * 0.6
+                                      ? '#ef4444'
+                                      : f.contribution >= f.weight * 0.3
+                                        ? '#eab308'
+                                        : '#22c55e',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))
+                      : riskComponents?.map((c) => (
+                          <div key={c.key}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="capitalize text-muted-foreground">
+                                {c.key.replace('_', ' ')}
+                              </span>
+                              <span className="font-mono">{c.value.toFixed(2)}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary"
+                                style={{ width: `${Math.max(2, c.pct)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
                     <div className="pt-2 flex flex-wrap gap-2">
                       {audit.directives.map((d) => (
                         <Badge key={d} variant="outline">
@@ -427,6 +483,59 @@ export default function AuditPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {auditContext &&
+                (auditContext.apis.length > 0 ||
+                  auditContext.authSymbols.length > 0 ||
+                  auditContext.dbSymbols.length > 0) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                        <ShieldAlert className="h-4 w-4" /> Security, API and database context
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {auditContext.apis.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            API endpoint registrations in changed files ({auditContext.apis.length})
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {auditContext.apis.map((a, i) => (
+                              <Badge key={i} variant="outline" className="font-mono text-[10px]">
+                                {a.file}:{a.line}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {auditContext.authSymbols.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Auth / security-sensitive symbols</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {auditContext.authSymbols.map((s, i) => (
+                              <Badge key={i} variant="outline" className="font-mono text-[10px]">
+                                {s.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {auditContext.dbSymbols.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Database-touching code</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {auditContext.dbSymbols.map((s, i) => (
+                              <Badge key={i} variant="outline" className="font-mono text-[10px]">
+                                {s.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
               <div className="grid gap-4 lg:grid-cols-2">
                 {audit.tests_to_run.length > 0 && (
@@ -593,7 +702,7 @@ export default function AuditPage() {
               <CardContent className="p-0">
                 <div className="divide-y">
                   {depReach.data?.dependencies.map((dep) => (
-                    <div key={dep.name} className="flex flex-col sm:flex-row sm:items-center gap-2 p-4">
+                    <div key={dep.name} className="flex flex-col sm:flex-row sm:items-start gap-2 p-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-sm font-medium">{dep.name}</span>
@@ -605,11 +714,33 @@ export default function AuditPage() {
                               {dep.known_vulnerabilities} known vuln{dep.known_vulnerabilities > 1 ? 's' : ''}
                             </Badge>
                           )}
+                          {dep.reachability_status && (
+                            <Badge
+                              variant="outline"
+                              className={REACH_STYLES[dep.reachability_status] ?? ''}
+                            >
+                              {dep.reachability_status.replace(/_/g, ' ')}
+                            </Badge>
+                          )}
                         </div>
                         {dep.importers.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
-                            {dep.importers.join(', ')}
+                            imports: {dep.importers.join(', ')}
                           </p>
+                        )}
+                        {dep.vulnerabilities && dep.vulnerabilities.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {dep.vulnerabilities.map((vuln, vi) => (
+                              <p key={vi} className="text-xs text-red-600 dark:text-red-400">
+                                {vuln.id && <span className="font-mono">{vuln.id} · </span>}
+                                {typeof vuln.cvss === 'number' && <span>CVSS {vuln.cvss} · </span>}
+                                {vuln.summary ?? ''}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        {dep.recommendation && (
+                          <p className="text-xs text-muted-foreground mt-1 italic">{dep.recommendation}</p>
                         )}
                       </div>
                       <Badge variant="outline" className={TRIAGE_STYLES[dep.triage] ?? ''}>
@@ -625,6 +756,13 @@ export default function AuditPage() {
 
         {/* ---------------- Regression ---------------- */}
         <TabsContent value="regression" className="space-y-4">
+          <div className="flex items-center justify-end">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/repositories/${id}/regression`}>
+                <GitCompare className="mr-2 h-4 w-4" /> Full scan comparison
+              </Link>
+            </Button>
+          </div>
           {regression.isLoading ? (
             <Card>
               <CardContent className="flex items-center justify-center py-12 text-muted-foreground">
