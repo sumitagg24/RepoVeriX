@@ -44,6 +44,36 @@ class Settings(BaseSettings):
     # allows package downloads during dependency installation
     sandbox_network: str = "bridge"
 
+    # --- rate limiting (see app/core/ratelimit.py) ---
+    # Master switch. Keep disabled while running the test suite unless a test
+    # explicitly exercises throttling.
+    rate_limit_enabled: bool = True
+    # Trust ``X-Forwarded-For`` for the client IP (set True behind a reverse
+    # proxy that overwrites the header; keep False when the API is public-facing
+    # directly).
+    trust_proxy_headers: bool = False
+
+    # Authentication endpoints (login / signup / oauth): allowed attempts per
+    # window, applied to BOTH the client IP and the account (email) key. When
+    # the limit is exceeded the client is locked out with an exponential
+    # backoff that starts at ``auth_backoff_base_seconds`` and doubles per
+    # repeated violation, capped at ``auth_backoff_max_seconds``.
+    auth_rate_limit_attempts: int = 8
+    auth_rate_limit_window_seconds: int = 300
+    auth_backoff_base_seconds: int = 30
+    auth_backoff_max_seconds: int = 3600
+
+    # Moderate tier for unauthenticated public endpoints (e.g. OAuth
+    # entrypoints, provider listing) per client IP.
+    public_rate_limit_per_minute: int = 120
+
+    # Loose tier per authenticated user across all API calls.
+    user_rate_limit_per_minute: int = 600
+
+    # Expensive / resource-heavy authenticated actions (scan creation, uploads,
+    # LLM fix generation, sandbox verification) per user per minute.
+    user_action_rate_limit_per_minute: int = 15
+
     # --- repository ingestion limits (untrusted content) ---
     max_repo_size_mb: int = 100
     max_file_size_kb: int = 1024
@@ -52,6 +82,9 @@ class Settings(BaseSettings):
     max_output_log_chars: int = 200000
     git_clone_timeout_seconds: int = 300
     git_binary: str = "git"
+
+    # Uploaded archive payload cap in bytes (checked while streaming to disk).
+    max_upload_bytes: int = 110 * 1024 * 1024
 
     # --- LLM providers ---
     llm_timeout_seconds: int = 120

@@ -9,6 +9,9 @@ from collections.abc import AsyncGenerator
 # with an isolated location before any ``get_settings()`` call caches defaults.
 os.environ.setdefault("REPOVERIX_REPOSITORY_STORAGE_DIR", tempfile.mkdtemp(prefix="repoverix-tests-"))
 os.environ.setdefault("REPOVERIX_JWT_SECRET", "test-secret-key-that-is-long-enough-32chars")
+# Most tests exercise endpoints in bulk from one client IP; keep the limiter
+# off by default. tests/test_ratelimit.py re-enables it with tight settings.
+os.environ.setdefault("REPOVERIX_RATE_LIMIT_ENABLED", "false")
 
 import pytest
 import pytest_asyncio

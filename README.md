@@ -189,7 +189,9 @@ experiment matrix on a broader benchmark.
 `docs/implementation-plan.md`
 
 **Operator checklist** (API keys, database, Docker, auth secret, deployment
-prereqs): **[MANUAL-SETUP.md](MANUAL-SETUP.md)**
+prereqs): **[MANUAL-SETUP.md](MANUAL-SETUP.md)** ·
+**Hardening notes** (rate limits, validation, secrets, audits, uploads):
+**[SECURITY.md](SECURITY.md)**
 
 ## License
 
