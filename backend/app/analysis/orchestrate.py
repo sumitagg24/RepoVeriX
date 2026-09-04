@@ -69,6 +69,7 @@ from app.db.models import (
     File,
     Finding,
     FindingSource,
+    OAuthAccount,
     Repository,
     RunStatus,
     Scan,
@@ -201,7 +202,7 @@ async def _execute_pipeline(db: AsyncSession, ctx: StageContext) -> None:
         ctx,
         AnalysisStage.ingestion,
         "repository",
-        lambda: _ingest_repository(ctx),
+        lambda: _ingest_repository(db, ctx),
         essential=True,
     )
     _check_cancelled(ctx)
@@ -336,11 +337,25 @@ def _check_cancelled(ctx: StageContext) -> None:
 # --------------------------------------------------------------------------- stage 1: ingestion
 
 
-async def _ingest_repository(ctx: StageContext) -> dict[str, Any]:
+async def _ingest_repository(db: AsyncSession, ctx: StageContext) -> dict[str, Any]:
     repo = ctx.repository
     repo_id = str(repo.id)
-    if repo.source_type == SourceType.github:
-        src = await ingest.clone_github_repository(repo_id, repo.source_url or "", repo.default_branch)
+
+    if repo.source_type.is_git_clone:
+        token = None
+        if repo.source_type in (SourceType.github, SourceType.gitlab) and repo.oauth_account_id:
+            account = await db.get(OAuthAccount, repo.oauth_account_id)
+            if account is not None:
+                token = account.access_token
+        src = await ingest.clone_github_repository(
+            repo_id,
+            repo.source_url or "",
+            repo.default_branch,
+            token=token,
+            provider=repo.source_type.value,
+        )
+    elif repo.source_type == SourceType.archive:
+        src = await ingest.download_archive(repo_id, repo.source_url or "")
     else:
         src = ingest.extract_archive(repo_id)
 

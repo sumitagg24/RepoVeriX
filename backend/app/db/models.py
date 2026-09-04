@@ -33,7 +33,18 @@ from app.db.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
 # --------------------------------------------------------------------------- enums
 class SourceType(str, enum.Enum):
     github = "github"
+    gitlab = "gitlab"
+    git = "git"
+    archive = "archive"
     zip = "zip"
+
+    @property
+    def is_git_clone(self) -> bool:
+        return self in (SourceType.github, SourceType.gitlab, SourceType.git)
+
+    @property
+    def is_archive(self) -> bool:
+        return self in (SourceType.archive, SourceType.zip)
 
 
 class ScanStatus(str, enum.Enum):
@@ -163,6 +174,34 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     repositories: Mapped[list["Repository"]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"
     )
+    oauth_accounts: Mapped[list["OAuthAccount"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class OAuthAccount(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A user's connected third-party account (Google/GitHub/GitLab).
+
+    Access tokens are stored so scans can clone repositories the user granted
+    access to. Treat the database as a secret store: restrict access and keep
+    ``REPOVERIX_JWT_SECRET`` strong (tokens are not logged anywhere).
+    """
+
+    __tablename__ = "oauth_accounts"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_oauth_user_provider"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_email: Mapped[str | None] = mapped_column(String(320))
+    provider_name: Mapped[str | None] = mapped_column(String(200))
+    access_token: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token: Mapped[str | None] = mapped_column(Text)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(back_populates="oauth_accounts")
 
 
 class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -178,8 +217,12 @@ class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     storage_path: Mapped[str | None] = mapped_column(String(1024))
     primary_languages: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="registered", nullable=False)
+    oauth_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("oauth_accounts.id", ondelete="SET NULL"), nullable=True
+    )
 
     owner: Mapped[User] = relationship(back_populates="repositories")
+    oauth_account: Mapped[OAuthAccount | None] = relationship(foreign_keys=[oauth_account_id])
     scans: Mapped[list["Scan"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
 
 

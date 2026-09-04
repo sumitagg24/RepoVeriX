@@ -1,11 +1,15 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import type { 
-  User, 
-  TokenResponse, 
-  LoginRequest, 
+import type {
+  User,
+  TokenResponse,
+  LoginRequest,
   SignupRequest,
   Repository,
   RepositoryCreate,
+  ArchiveImport,
+  OAuthImport,
+  OAuthProviders,
+  ProviderRepository,
   Scan,
   ScanCreate,
   ScanDetail,
@@ -94,8 +98,8 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       setAccessToken(null);
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth/')) {
+        window.location.href = '/auth/login';
       }
     }
     return Promise.reject(error);
@@ -117,6 +121,32 @@ export const authService = {
     const response = await api.get<User>('/auth/me');
     return response.data;
   },
+
+  oauthProviders: async (): Promise<OAuthProviders> => {
+    const response = await api.get<OAuthProviders>('/auth/oauth/providers');
+    return response.data;
+  },
+
+  oauthRepos: async (provider: string): Promise<ProviderRepository[]> => {
+    const response = await api.get<{ provider: string; repositories: ProviderRepository[] }>(
+      `/auth/oauth/${provider}/repos`
+    );
+    return response.data.repositories;
+  },
+
+  oauthDisconnect: async (provider: string): Promise<void> => {
+    await api.delete(`/auth/oauth/${provider}`);
+  },
+
+  oauthConnections: async (): Promise<
+    { provider: string; provider_email: string | null; provider_name: string | null; connected_at: string }[]
+  > => {
+    const response = await api.get('/auth/oauth/connections');
+    return response.data;
+  },
+
+  oauthLoginUrl: (provider: string, next = '/dashboard'): string =>
+    `${API_URL}${API_PREFIX}/auth/oauth/${provider}/login?next=${encodeURIComponent(next)}`,
 };
 
 export const repositoryService = {
@@ -144,6 +174,16 @@ export const repositoryService = {
     formData.append('name', name);
     formData.append('file', file);
     const response = await api.post<Repository>('/repositories/zip', formData);
+    return response.data;
+  },
+
+  createFromArchive: async (data: ArchiveImport): Promise<Repository> => {
+    const response = await api.post<Repository>('/repositories/archive', data);
+    return response.data;
+  },
+
+  createFromOAuth: async (data: OAuthImport): Promise<Repository> => {
+    const response = await api.post<Repository>('/repositories/oauth', data);
     return response.data;
   },
 };

@@ -25,7 +25,32 @@ export interface LoginRequest {
   password: string;
 }
 
-export type SourceType = 'github' | 'zip';
+export type SourceType = 'github' | 'gitlab' | 'git' | 'archive' | 'zip';
+
+export type OAuthProviderName = 'google' | 'github' | 'gitlab';
+
+export interface OAuthProviderInfo {
+  configured: boolean;
+  display_name: string;
+  supports_repo_import: boolean;
+  supports_signin: boolean;
+}
+
+export interface OAuthProviders {
+  google: OAuthProviderInfo;
+  github: OAuthProviderInfo;
+  gitlab: OAuthProviderInfo;
+}
+
+export interface ProviderRepository {
+  id: string;
+  name: string;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  default_branch: string;
+  private: boolean;
+}
 
 export interface Repository {
   id: UUID;
@@ -45,6 +70,19 @@ export interface RepositoryCreate {
   name: string;
   source_type: SourceType;
   source_url?: string;
+  default_branch?: string;
+}
+
+export interface ArchiveImport {
+  url: string;
+  name?: string;
+  default_branch?: string;
+}
+
+export interface OAuthImport {
+  provider: 'github' | 'gitlab';
+  repo_path: string;
+  name?: string;
   default_branch?: string;
 }
 

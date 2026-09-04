@@ -2,6 +2,7 @@
 
 import shutil
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
@@ -10,8 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.analysis.ingest import repository_dir
 from app.analysis.models import AnalysisError
 from app.api.dependencies import get_current_user, get_db
-from app.db.models import Repository, SourceType
-from app.schemas.repository import RepositoryCreate, RepositoryRead
+from app.db.models import OAuthAccount, Repository, SourceType
+from app.schemas.repository import (
+    ArchiveImportRequest,
+    OAuthImportRequest,
+    RepositoryCreate,
+    RepositoryRead,
+)
 
 MAX_UPLOAD_BYTES = 110 * 1024 * 1024  # a little above the ingestion limit
 
@@ -32,6 +38,86 @@ async def create_repository(
         source_url=str(payload.source_url) if payload.source_url else None,
         default_branch=payload.default_branch,
         status="registered",
+    )
+    db.add(repository)
+    await db.commit()
+    await db.refresh(repository)
+    return repository
+
+
+@router.post("/archive", response_model=RepositoryRead, status_code=status.HTTP_201_CREATED)
+async def create_repository_from_archive(
+    payload: ArchiveImportRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Register a repository from a hosted archive URL.
+
+    The archive is downloaded and extracted (with the same hardening as ZIP
+    uploads) when the first scan runs. Works for public AWS S3 objects,
+    presigned S3 URLs, GitHub codeload/release assets and any other direct
+    ``.zip`` URL.
+    """
+    # Content is validated as a ZIP at scan time by the hardened extractor;
+    # the URL itself may be a codeload-style link without a .zip suffix.
+    name = payload.name or Path(str(payload.url)).stem[:200] or "archive-repo"
+    repository = Repository(
+        owner_id=current_user.id,
+        name=name.strip(),
+        source_type=SourceType.archive,
+        source_url=str(payload.url),
+        default_branch=payload.default_branch,
+        status="registered",
+    )
+    db.add(repository)
+    await db.commit()
+    await db.refresh(repository)
+    return repository
+
+
+@router.post("/oauth", response_model=RepositoryRead, status_code=status.HTTP_201_CREATED)
+async def create_repository_from_oauth(
+    payload: OAuthImportRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Register a repository through a connected GitHub/GitLab account.
+
+    The connection's access token authenticates the scan-time clone, so private
+    repositories the user granted access to can be audited. Only the clean URL
+    is stored on the repository row — never the token.
+    """
+    result = await db.execute(
+        select(OAuthAccount).where(
+            OAuthAccount.user_id == current_user.id,
+            OAuthAccount.provider == payload.provider,
+        )
+    )
+    account = result.scalar_one_or_none()
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Connect your {payload.provider} account first (OAuth)",
+        )
+
+    host = "gitlab.com" if payload.provider == "gitlab" else "github.com"
+    path = payload.repo_path.strip().strip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    if not path or "/" not in path:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="repo_path must look like 'owner/repository'",
+        )
+    name = payload.name or path.rsplit("/", 1)[-1]
+    repository = Repository(
+        owner_id=current_user.id,
+        name=name.strip()[:200],
+        source_type=SourceType(payload.provider),
+        source_url=f"https://{host}/{path}",
+        default_branch=payload.default_branch,
+        status="registered",
+        oauth_account_id=account.id,
     )
     db.add(repository)
     await db.commit()

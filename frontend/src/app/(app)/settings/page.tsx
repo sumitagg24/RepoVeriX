@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { User, Shield, Key, Bell, Globe, Trash2, Loader2 } from 'lucide-react';
+import { User, Shield, Key, Bell, Globe, Trash2, Loader2, Link2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { SettingsConnections } from '@/components/settings-connections';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -80,7 +81,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="profile">
             <User className="mr-2 h-4 w-4" />
             Profile
@@ -88,6 +89,10 @@ export default function SettingsPage() {
           <TabsTrigger value="security">
             <Shield className="mr-2 h-4 w-4" />
             Security
+          </TabsTrigger>
+          <TabsTrigger value="connections">
+            <Link2 className="mr-2 h-4 w-4" />
+            Connections
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="mr-2 h-4 w-4" />
@@ -248,6 +253,20 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Danger Zone Tab */}
+        <TabsContent value="connections">
+          <Card>
+            <CardHeader>
+              <CardTitle>Connected accounts</CardTitle>
+              <CardDescription>
+                Google for one-click sign-in; GitHub and GitLab for private repository imports.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SettingsConnections />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="danger">
           <Card className="border-destructive/20">
             <CardHeader>
