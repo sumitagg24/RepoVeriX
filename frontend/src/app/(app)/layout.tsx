@@ -23,10 +23,10 @@ import {
   ChevronDown,
   Menu,
   X,
-  ShieldCheck,
   Plus,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Logo } from '@/components/logo';
 import { useAuth } from '@/context/AuthContext';
 
 const navigation = [
@@ -72,13 +72,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {/* Brand */}
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setSidebarOpen(false)}>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <ShieldCheck className="h-5 w-5" />
-            </span>
-            <span className="leading-tight">
-              <span className="block font-display text-[17px] font-semibold tracking-tight">RepoVeriX</span>
-              <span className="block text-[11px] text-muted-foreground">audit · repair · verify</span>
-            </span>
+            <Logo withTagline />
           </Link>
           <button className="lg:hidden p-1.5 rounded-lg hover:bg-sidebar-accent" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />

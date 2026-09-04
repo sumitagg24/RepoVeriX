@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Warm ivory rounded-square tile -->
+  <rect width="64" height="64" rx="14" fill="#faf7f2"/>
+  <!-- Clay hexagonal seal -->
+  <path
+    d="M32 6.5 L47.6 12.7 L63.2 32 L47.6 51.3 L16.4 51.3 L0.8 32 L16.4 12.7 Z"
+    fill="none"
+    stroke="#c4552f"
+    stroke-width="4.5"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+    transform="translate(0,0) scale(0.968) translate(1,1)"
+  />
+  <!-- The X monogram -->
+  <path
+    d="M20.1 20.1 L43.9 43.9"
+    stroke="#c4552f"
+    stroke-width="5"
+    stroke-linecap="round"
+  />
+  <path
+    d="M43.9 20.1 L20.1 43.9"
+    stroke="#c4552f"
+    stroke-width="5"
+    stroke-linecap="round"
+  />
+</svg>
