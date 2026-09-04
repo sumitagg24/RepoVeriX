@@ -62,36 +62,49 @@ jobs:
     name: Deploy to server (optional)
     runs-on: ubuntu-latest
     needs: images
-    if: secrets.DEPLOY_HOST != '' && secrets.DEPLOY_SSH_KEY != ''
+    if: github.ref == 'refs/heads/main'
     environment: production
+    # Secrets cannot be read in job-level if conditions; map them here and
+    # gate individual steps instead. Undefined secrets resolve to ''.
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOY_ENV: ${{ secrets.DEPLOY_ENV }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up SSH
+        if: env.DEPLOY_HOST != '' && env.DEPLOY_SSH_KEY != ''
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Sync repository to server
+        if: env.DEPLOY_HOST != '' && env.DEPLOY_SSH_KEY != ''
         run: |
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             --exclude ".git" --exclude "frontend/node_modules" --exclude "backend/.venv" \
             --exclude "backend/data" \
-            ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/"
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
 
       - name: Write environment file
+        if: env.DEPLOY_HOST != '' && env.DEPLOY_SSH_KEY != '' && env.DEPLOY_ENV != ''
         run: |
-          if [ -n "${{ secrets.DEPLOY_ENV }}" ]; then
-            echo "${{ secrets.DEPLOY_ENV }}" | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-              "cat > ${{ secrets.DEPLOY_PATH }}/.env"
-          fi
+          echo "$DEPLOY_ENV" | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$DEPLOY_USER@$DEPLOY_HOST" "cat > $DEPLOY_PATH/.env"
 
       - name: Pull and restart the stack
+        if: env.DEPLOY_HOST != '' && env.DEPLOY_SSH_KEY != ''
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "cd ${{ secrets.DEPLOY_PATH }} && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --remove-orphans"
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd $DEPLOY_PATH && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --remove-orphans"
+
+      - name: Skipped — no deploy secrets configured
+        if: env.DEPLOY_HOST == '' || env.DEPLOY_SSH_KEY == ''
+        run: echo "Deploy secrets (DEPLOY_HOST/DEPLOY_SSH_KEY) not set; images were published to GHCR but no server deploy was attempted. See DEPLOY.md."
