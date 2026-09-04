@@ -8,7 +8,23 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useScan } from '@/hooks/useScans';
 import { useFindings } from '@/hooks/useFindings';
-import { Search, Loader2, CheckCircle, AlertTriangle, Clock, X, Terminal, Bug, ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { useDedup } from '@/hooks/useAudit';
+import { scanAuditService } from '@/services/api';
+import {
+  Search,
+  Loader2,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
+  X,
+  Terminal,
+  Bug,
+  ArrowUpRight,
+  Download,
+  Layers,
+} from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +47,8 @@ export default function ScanDetailPage() {
   const id = params.id as string;
   const { data: scan, isLoading: scanLoading } = useScan(id);
   const { data: findings, isLoading: findingsLoading } = useFindings({ scan_id: id, limit: 20 });
+  const dedup = useDedup(scan?.status === 'completed' ? id : '');
+  const [sarifBusy, setSarifBusy] = useState(false);
 
   if (scanLoading) {
     return (
@@ -93,6 +111,35 @@ export default function ScanDetailPage() {
             <Button variant="outline">
               <Loader2 className="mr-2 h-4 w-4" />
               Retry
+            </Button>
+          )}
+          {scan.status === 'completed' && (
+            <Button
+              variant="outline"
+              disabled={sarifBusy}
+              onClick={async () => {
+                setSarifBusy(true);
+                try {
+                  const doc = await scanAuditService.sarif(scan.id);
+                  const blob = new Blob([JSON.stringify(doc, null, 2)], {
+                    type: 'application/sarif+json',
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `repoverix-${scan.configuration}-${scan.id.slice(0, 8)}.sarif.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success('SARIF report downloaded');
+                } catch (e) {
+                  toast.error('SARIF export failed');
+                } finally {
+                  setSarifBusy(false);
+                }
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export SARIF
             </Button>
           )}
         </div>
@@ -166,10 +213,11 @@ export default function ScanDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="findings">Findings ({findings?.length || 0})</TabsTrigger>
           <TabsTrigger value="runs">Analysis Runs ({scan.analysis_runs?.length || 0})</TabsTrigger>
+          <TabsTrigger value="dedup">Duplicates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -381,6 +429,62 @@ export default function ScanDetailPage() {
                         )}
                       </div>
                     ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="dedup">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Layers className="h-4 w-4" /> Duplicate-finding clusters
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dedup.isLoading ? (
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Grouping findings…
+                </div>
+              ) : dedup.isError || !dedup.data ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">
+                  Deduplication needs a completed scan with findings.
+                </p>
+              ) : dedup.data.cluster_count === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">
+                  No duplicate clusters — every finding is unique.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {dedup.data.cluster_count} cluster(s) covering {dedup.data.duplicated_findings} of{' '}
+                    {dedup.data.total_findings} findings — same location, multiple tools/rules.
+                  </p>
+                  {dedup.data.clusters.map((cluster, i) => (
+                    <div key={i} className="rounded-lg border p-4">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <Badge variant="outline">{cluster.size} findings</Badge>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {cluster.file_path}:{cluster.line_start ?? '?'}
+                        </Badge>
+                        <Link
+                          href={`/findings/${cluster.primary_finding_id}`}
+                          className="text-sm font-medium hover:text-primary ml-auto"
+                        >
+                          {cluster.primary_title} <ArrowUpRight className="ml-0.5 h-3.5 w-3.5 inline" />
+                        </Link>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {cluster.members.map((m) => (
+                          <div key={m.id} className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-1.5 text-xs">
+                            <span className="font-medium">{m.title}</span>
+                            {m.rule && <code className="text-muted-foreground">{m.rule}</code>}
+                            <Badge variant="outline">{m.severity}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

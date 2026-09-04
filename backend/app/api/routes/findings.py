@@ -7,14 +7,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.analysis import ingest
+from app.analysis import counterexamples, ingest, testgen
 from app.analysis.llm import LLMUsage, build_llm_provider
 from app.analysis.models import AnalysisError
 from app.analysis.repair import generate_repair
 from app.api.dependencies import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.ratelimit import check_action, enforce
-from app.db.models import Finding, Patch, PatchStatus, Repository, Scan
+from app.db.models import Finding, GeneratedTest, Patch, PatchStatus, Repository, Scan
 from app.schemas.finding import FindingDetail, FindingRead
 from app.schemas.verification import PatchRead
 
@@ -147,6 +147,180 @@ async def generate_fix(
     await db.commit()
     await db.refresh(patch)
     return patch
+
+
+@router.post("/{finding_id}/generate-test")
+async def generate_test(
+    finding_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a regression test for a finding (deterministic contract test,
+    or an LLM behavioral test when a provider is configured)."""
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "generate_test"))
+
+    result = await db.execute(
+        select(Finding)
+        .options(
+            selectinload(Finding.evidence),
+            selectinload(Finding.scan).selectinload(Scan.repository),
+        )
+        .join(Scan)
+        .join(Repository)
+        .where(Finding.id == finding_id, Repository.owner_id == current_user.id)
+    )
+    finding = result.scalar_one_or_none()
+    if finding is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+
+    repository = finding.scan.repository
+    src = ingest.source_dir(str(repository.id))
+    if not src.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Repository source is not available; run a scan first",
+        )
+
+    provider = build_llm_provider(get_settings())
+    usage = LLMUsage()
+    try:
+        generated = await testgen.generate_test(
+            finding, src, provider=provider, usage=usage
+        )
+    except AnalysisError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=exc.message,
+        ) from exc
+
+    languages = finding.scan.repository.primary_languages
+    row = GeneratedTest(
+        finding_id=finding.id,
+        language=languages[0] if languages else "python",
+        test_code=generated["code"],
+        generated_by=generated["generated_by"],
+        status="generated",
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return {
+        "id": str(row.id),
+        "finding_id": str(row.finding_id),
+        "language": row.language,
+        "test_code": row.test_code,
+        "generated_by": row.generated_by,
+        "status": row.status,
+        "result": row.result,
+    }
+
+
+@router.post("/generated-tests/{test_id}/run")
+async def run_generated_test(
+    test_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Execute a generated test against an isolated copy of the working copy."""
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "run_test"))
+
+    result = await db.execute(
+        select(GeneratedTest)
+        .options(
+            selectinload(GeneratedTest.finding)
+            .selectinload(Finding.scan)
+            .selectinload(Scan.repository)
+        )
+        .join(Finding)
+        .join(Scan)
+        .join(Repository)
+        .where(GeneratedTest.id == test_id, Repository.owner_id == current_user.id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found")
+
+    repository = row.finding.scan.repository
+    src = ingest.source_dir(str(repository.id))
+    if not src.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Repository source is not available; run a scan first",
+        )
+
+    filename = f"test_gen_{repository.id.hex[:8]}.py"
+    outcome = await testgen.run_generated_test(
+        src,
+        filename,
+        row.test_code,
+        timeout_seconds=get_settings().sandbox_timeout_seconds,
+    )
+    row.status = "passed" if outcome["passed"] else "failed"
+    row.result = outcome
+    await db.commit()
+    return {
+        "id": str(row.id),
+        "status": row.status,
+        "result": outcome,
+    }
+
+
+@router.post("/{finding_id}/validate-counterexample")
+async def validate_counterexample(
+    finding_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Proof-of-absence check: is the finding's sink path guarded by a sanitizer?
+
+    Returns the counterexample proof when found (the claim does not hold on
+    that path) or ``null`` when no sanitizer guards the sink."""
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "counterexample"))
+
+    result = await db.execute(
+        select(Finding)
+        .options(
+            selectinload(Finding.evidence),
+            selectinload(Finding.scan).selectinload(Scan.repository),
+        )
+        .join(Scan)
+        .join(Repository)
+        .where(Finding.id == finding_id, Repository.owner_id == current_user.id)
+    )
+    finding = result.scalar_one_or_none()
+    if finding is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+
+    repository = finding.scan.repository
+    src = ingest.source_dir(str(repository.id))
+    if not src.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Repository source is not available; run a scan first",
+        )
+    full = src / finding.file_path
+    if not full.is_file():
+        raise HTTPException(status_code=404, detail="Finding source file not found")
+
+    from app.analysis.parsing import parse_source
+
+    language = "python" if finding.file_path.endswith(".py") else "javascript"
+    pf = parse_source(full.read_text(encoding="utf-8", errors="replace"), language, finding.file_path)
+    source_lines = [
+        e.line_start or 0
+        for e in finding.evidence
+        if e.kind.value in counterexamples._SOURCE_KINDS
+    ]
+    sink_lines = [
+        e.line_start or 0
+        for e in finding.evidence
+        if e.kind.value in counterexamples._SINK_KINDS
+    ]
+    proof = counterexamples.validate_counterexample(pf, source_lines, sink_lines)
+    return {"finding_id": str(finding.id), "counterexample": proof}
 
 
 @router.get("/scan/{scan_id}/summary")

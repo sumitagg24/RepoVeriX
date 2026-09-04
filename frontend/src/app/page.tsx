@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo, LogoMark } from '@/components/logo';
+import { HeroRepoForm } from '@/components/hero-repo-form';
 import {
   ArrowRight,
   GitBranch,
@@ -13,29 +14,23 @@ import {
   Cloud,
   UploadCloud,
   Check,
+  Activity,
+  GitCompare,
+  Network,
+  BookOpen,
+  ShieldCheck,
+  FileJson,
+  GraduationCap,
+  Workflow,
+  Star,
+  TerminalSquare,
 } from 'lucide-react';
 
-const steps = [
-  {
-    icon: GitBranch,
-    title: 'Import',
-    body: 'Pull code from GitHub, GitLab, an S3 archive link, or a zip — public or private.',
-  },
-  {
-    icon: ScanSearch,
-    title: 'Analyze',
-    body: 'Static analysis, symbol graphs and LLM reasoning converge on candidate findings.',
-  },
-  {
-    icon: FlaskConical,
-    title: 'Validate',
-    body: 'An evidence engine marks each finding verified, probable or rejected.',
-  },
-  {
-    icon: Hammer,
-    title: 'Repair & verify',
-    body: 'Generate a patch, then run it through tests in an isolated container. Only passing fixes are certified.',
-  },
+const navLinks = [
+  { name: 'Product', href: '#product' },
+  { name: 'Pricing', href: '#pricing' },
+  { name: 'Docs', href: 'https://github.com/sumitagg24/RepoVeriX' },
+  { name: 'Research', href: '#research' },
 ];
 
 const sources = [
@@ -44,6 +39,86 @@ const sources = [
   { icon: Cloud, label: 'AWS S3', note: 'object or presigned link' },
   { icon: UploadCloud, label: 'ZIP upload', note: 'from your computer' },
   { icon: GitBranch, label: 'Any git host', note: 'Bitbucket, Azure, self-hosted' },
+];
+
+const capabilities = [
+  {
+    icon: Activity,
+    title: 'Code health that shows its work',
+    body: 'Every file gets a deterministic 1–10 score across defect risk, maintainability and performance — computed from 12 detectors, then drilled down to the exact line and a concrete next step.',
+    bullets: ['Cyclomatic complexity & god classes', 'Duplicate-code clone detection', 'Ranked, actionable refactor plans'],
+  },
+  {
+    icon: GitCompare,
+    title: 'Change risk before the diff',
+    body: 'Audit any branch or pasted diff: risk score from size, blast radius, health and history — with the callers your change may break and the tests you should run.',
+    bullets: ['Blast-radius analysis over the call graph', 'Missing companion files from git history', 'PR-style directives: tests, co-changes, risky files'],
+  },
+  {
+    icon: Network,
+    title: 'Attack paths & evidence graphs',
+    body: 'Trace untrusted input from source function to sink through the call graph, then check the claim: counterexample validation proves when a sanitizer blocks the path.',
+    bullets: ['Source → transformation → sink chains', 'Proof-of-absence (counterexample) checks', 'Queryable evidence graph per scan'],
+  },
+  {
+    icon: GitBranch,
+    title: 'Git intelligence',
+    body: 'Hotspots where defects actually hide, ownership and bus factor, co-change coupling — computed from real commit history, not vibes.',
+    bullets: ['Recency-decayed churn × bug-fix signals', 'Per-file ownership → bus factor', 'Co-change pairs for safer edits'],
+  },
+  {
+    icon: BookOpen,
+    title: 'Auto-wiki & architecture',
+    body: 'Structural documentation generated from symbols, imports and call relationships — with a layered architecture diagram and an LLM prose upgrade when you want it.',
+    bullets: ['Per-file symbol & import inventory', 'Layered module diagram, no library needed', 'AI prose mode that degrades gracefully'],
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Verified automated repair',
+    body: 'The LLM proposes, the verifier decides. Candidate patches run your tests, static checks and a re-analysis in an isolated sandbox before a fix is certified.',
+    bullets: ['Tests + static analysis + re-analysis', 'VERIFIED FIX / REJECTED verdicts', 'Regression tests generated per finding'],
+  },
+];
+
+const workflows = [
+  {
+    icon: TerminalSquare,
+    title: 'For auditors',
+    body: 'Import a repository, get findings with evidence chains, confidence and counterexample checks — then export SARIF straight into GitHub Code Scanning or VS Code.',
+  },
+  {
+    icon: Workflow,
+    title: 'For CI & PR review',
+    body: 'Run change audits on every pull request: risk score, blast radius, missing tests and companion files — deterministic evidence your reviewers can trust.',
+  },
+  {
+    icon: GraduationCap,
+    title: 'For researchers',
+    body: 'Four experiment configurations (static-only, LLM-only, hybrid, full RepoVeriX), a benchmark dataset and evaluation scripts for precision, recall and patch correctness.',
+  },
+];
+
+const faqs = [
+  {
+    q: 'How is RepoVeriX different from a code scanner?',
+    a: 'Scanners emit findings; RepoVeriX grounds them. Each finding carries an evidence chain (source → transformation → sink), a counterexample check, and a confidence derived from evidence — then repairs are certified by actually running your tests in a sandbox.',
+  },
+  {
+    q: 'Does it need an LLM API key to work?',
+    a: 'No. Deterministic layers — static analysis, code health, git intelligence, attack paths, evidence validation — run without any LLM. LLM reasoning, wiki prose and LLM-generated tests activate when you configure a provider.',
+  },
+  {
+    q: 'Which platforms can I import from?',
+    a: 'GitHub and GitLab (connect with OAuth or paste a URL), any git host, a direct archive URL (including S3 presigned links), or a ZIP upload. Archives are scanned for traversal, symlink and zip-bomb attacks.',
+  },
+  {
+    q: 'Can I run it myself?',
+    a: 'Yes — RepoVeriX is open source and self-hostable with Docker Compose. The same codebase runs the hosted product.',
+  },
+  {
+    q: 'Are patches ever applied to my code automatically?',
+    a: 'Never. Patches are generated as reviewable diffs and only applied inside an isolated verification copy where tests and static checks run first.',
+  },
 ];
 
 export default function HomePage() {
@@ -55,13 +130,46 @@ export default function HomePage() {
           <Link href="/" aria-label="RepoVeriX home">
             <Logo />
           </Link>
+          <div className="hidden items-center gap-1 md:flex">
+            {navLinks.map((link) =>
+              link.href.startsWith('#') ? (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {link.name}
+                </a>
+              ) : (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  target={link.href.startsWith('http') ? '_blank' : undefined}
+                  rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {link.name}
+                </Link>
+              )
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <ThemeToggle className="border bg-card shadow-sm ring-1 ring-border hover:bg-card/80" />
+            <a
+              href="https://github.com/sumitagg24/RepoVeriX"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:inline-flex"
+            >
+              <Star className="h-4 w-4" />
+              <Github className="h-4 w-4" />
+              Star
+            </a>
             <Link href="/auth/login">
               <Button variant="ghost">Sign in</Button>
             </Link>
             <Link href="/auth/signup">
-              <Button className="shadow-sm">Get started</Button>
+              <Button className="shadow-sm">Start free</Button>
             </Link>
           </div>
         </div>
@@ -71,105 +179,111 @@ export default function HomePage() {
       <section className="relative overflow-hidden">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(55%_80%_at_50%_0%,hsl(var(--primary)/0.12),transparent)]"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-[radial-gradient(55%_80%_at_50%_0%,hsl(var(--primary)/0.12),transparent)]"
         />
-        <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 sm:px-6 lg:pt-28">
+        <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              Evidence-grounded auditing · verified automated repair
+              Open source · Evidence-grounded · Verified repairs
             </span>
-            <h1 className="mt-6 text-balance text-5xl font-semibold tracking-tight sm:text-6xl">
-              AI proposes the fix.
+            <h1 className="mt-6 text-balance font-display text-5xl font-semibold tracking-tight sm:text-6xl">
+              Repository intelligence
               <br />
-              <span className="italic text-primary">Proof decides.</span>
+              that <span className="italic text-primary">shows its work</span>.
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              RepoVeriX audits repositories with deterministic analysis and LLM reasoning, grounds
-              every finding in evidence, and certifies repairs by running your tests in a sandbox —
-              before anything is called fixed.
+              Audit code with deterministic analysis and LLM reasoning, ground every finding in an
+              evidence chain, and certify repairs by running your tests in a sandbox — before
+              anything is called fixed.
             </p>
-            <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link href="/auth/signup" className="group">
-                <Button size="lg" className="gap-2 px-7 shadow-md">
-                  Start auditing free
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </Button>
-              </Link>
-              <Link href="https://github.com/sumitagg24/RepoVeriX" target="_blank" rel="noopener noreferrer">
-                <Button size="lg" variant="outline" className="px-7">
-                  View on GitHub
-                </Button>
-              </Link>
-            </div>
-          </div>
 
-          {/* Source strip */}
-          <div className="mx-auto mt-16 max-w-4xl rounded-2xl border bg-card/70 p-4 shadow-sm backdrop-blur">
-            <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Import from anywhere
+            {/* URL input */}
+            <HeroRepoForm />
+            <p className="mt-3 text-xs text-muted-foreground">
+              Browse by pasting a URL, or sign in to audit public and private repositories with
+              full history.
             </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              {sources.map((s, i) => (
-                <div
-                  key={s.label}
-                  className="group flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/60 px-2 py-2.5 text-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-sm"
-                  style={{ transitionDelay: `${i * 20}ms` }}
-                >
-                  <s.icon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
-                  <span className="truncate font-medium">{s.label}</span>
-                </div>
-              ))}
+
+            {/* Source strip */}
+            <div className="mx-auto mt-12 max-w-4xl rounded-2xl border bg-card/70 p-4 shadow-sm backdrop-blur">
+              <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Import from anywhere
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {sources.map((s, i) => (
+                  <div
+                    key={s.label}
+                    className="group flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/60 px-2 py-2.5 text-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-sm"
+                    style={{ transitionDelay: `${i * 20}ms` }}
+                  >
+                    <s.icon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                    <span className="truncate font-medium">{s.label}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                {sources.map((s) => s.note).join('  ·  ')}
+              </p>
             </div>
-            <p className="mt-3 text-center text-xs text-muted-foreground">{sources.map((s) => s.note).join('  ·  ')}</p>
           </div>
         </div>
       </section>
 
-      {/* Pipeline */}
-      <section className="border-t border-border/60 bg-card/40">
+      {/* One index, many outcomes */}
+      <section id="product" className="border-t border-border/60 bg-card/40">
         <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-          <h2 className="text-center font-display text-4xl font-semibold tracking-tight text-balance">
-            From repository to certified repair
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-            One continuous pipeline — no hand-waving, every claim backed by evidence or an
-            execution log.
-          </p>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step, i) => (
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-medium text-primary">One codebase index</p>
+            <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
+              One index. Six practical outcomes.
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              RepoVeriX connects source structure, git history, health signals, evidence and tests
+              once — then the same index powers code health, change risk, attack paths, docs and
+              verified repair.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {capabilities.map((cap, i) => (
               <div
-                key={step.title}
-                className="group relative rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5"
+                key={cap.title}
+                className="group flex flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5"
+                style={{ transitionDelay: `${i * 40}ms` }}
               >
-                <span className="absolute right-5 top-4 font-display text-3xl text-border transition-colors duration-300 group-hover:text-primary/25">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
                 <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
-                  <step.icon className="h-5 w-5" />
+                  <cap.icon className="h-5 w-5" />
                 </span>
-                <h3 className="text-lg font-semibold">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+                <h3 className="text-lg font-semibold">{cap.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{cap.body}</p>
+                <ul className="mt-4 space-y-1.5 border-t border-border/60 pt-4 text-sm">
+                  {cap.bullets.map((b) => (
+                    <li key={b} className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Why */}
+      {/* Evidence you can inspect */}
       <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div>
-            <p className="text-sm font-medium text-primary">The RepoVeriX difference</p>
+            <p className="text-sm font-medium text-primary">Evidence you can inspect</p>
             <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
               A scanner tells you what&apos;s wrong. RepoVeriX shows you the proof — and proves the fix.
             </h2>
             <div className="mt-8 space-y-4">
               {[
-                ['Evidence chains', 'Every finding links source input → transformation → sink with real code excerpts.'],
+                ['Evidence chains', 'Every finding links source input → transformation → sink with real code excerpts and line numbers.'],
                 ['Confidence, not vibes', 'VERIFIED / PROBABLE / REJECTED is computed from evidence and validation, not model bravado.'],
+                ['Counterexample checks', 'Proof-of-absence: if a sanitizer guards the sink, the claim is flagged — with the exact lines.'],
                 ['Sandboxed repair verification', 'Patches run your tests and static checks in an isolated container before a fix is certified.'],
-                ['Four research configurations', 'Compare static-only, LLM-only, hybrid and full RepoVeriX pipelines.'],
               ].map(([title, body]) => (
                 <div key={title} className="flex gap-3">
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -182,9 +296,17 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+            <Link href="/auth/signup" className="group mt-8 inline-block">
+              <Button size="lg" className="gap-2 px-7 shadow-md">
+                Run a real scan free
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </Button>
+            </Link>
           </div>
           <div className="rounded-2xl border bg-card p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Live verdict</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Live verdict
+            </p>
             <div className="mt-4 space-y-3 font-mono text-[13px]">
               <div className="rounded-lg bg-muted/60 p-3 text-foreground/80">
                 <span className="text-muted-foreground">$ </span>repoverix verify \
@@ -205,7 +327,10 @@ export default function HomePage() {
                   <Check className="h-3.5 w-3.5" /> RVX-SQLI-001 no longer detected
                 </p>
                 <p className="mt-2 font-sans text-sm font-semibold text-foreground">
-                  Result: <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">VERIFIED REPAIR</span>
+                  Result:{' '}
+                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                    VERIFIED REPAIR
+                  </span>
                 </p>
               </div>
             </div>
@@ -213,8 +338,135 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing */}
+      {/* Workflows */}
       <section className="border-t border-border/60 bg-card/40">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-medium text-primary">Fit your workflow</p>
+            <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
+              From index to everyday work
+            </h2>
+          </div>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {workflows.map((w, i) => (
+              <div
+                key={w.title}
+                className="group flex flex-col rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5"
+                style={{ transitionDelay: `${i * 60}ms` }}
+              >
+                <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+                  <w.icon className="h-5 w-5" />
+                </span>
+                <h3 className="text-lg font-semibold">{w.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{w.body}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* SARIF / CI strip */}
+          <div className="mt-12 flex flex-col items-center justify-between gap-6 rounded-2xl border bg-card p-8 shadow-sm sm:flex-row">
+            <div className="flex items-start gap-4">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-500/10 text-green-600 dark:text-green-400">
+                <FileJson className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold">Drops into the tools you already use</h3>
+                <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                  Export findings as SARIF 2.1.0 and feed GitHub Code Scanning or VS Code. Run
+                  change audits from your CI and gate merges on deterministic risk evidence.
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://github.com/sumitagg24/RepoVeriX"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0"
+            >
+              <Button variant="outline" className="gap-2">
+                <Github className="h-4 w-4" /> Read the docs
+              </Button>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Research */}
+      <section id="research" className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <div className="grid items-center gap-12 lg:grid-cols-2">
+          <div>
+            <p className="text-sm font-medium text-primary">Built for research</p>
+            <h2 className="mt-2 font-display text-4xl font-semibold tracking-tight text-balance">
+              RepoVeriX-Bench: measure, don&apos;t claim.
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              The research claim is not &quot;an LLM finds bugs&quot; — it is that LLM reasoning
+              combined with deterministic evidence and automated verification measurably beats
+              either alone. RepoVeriX ships the harness to prove it:
+            </p>
+            <ul className="mt-6 space-y-3 text-sm">
+              {[
+                'A benchmark dataset of repositories with known defects and ground truth',
+                'Four experiment configurations: static-only, LLM-only, hybrid, full RepoVeriX',
+                'Evaluation scripts for precision, recall, F1, false-positive rate and patch correctness',
+                'No fabricated numbers — every published result comes from a real run',
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Check className="h-3 w-3" />
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-2xl border bg-card p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Experiment matrix
+            </p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="pb-2 pr-4 font-semibold">Configuration</th>
+                    <th className="pb-2 pr-4 font-semibold">Static</th>
+                    <th className="pb-2 pr-4 font-semibold">LLM</th>
+                    <th className="pb-2 font-semibold">Evidence graph</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {[
+                    ['Static only', '✓', '—', '—'],
+                    ['LLM only', '—', '✓', '—'],
+                    ['Static + LLM', '✓', '✓', '—'],
+                    ['RepoVeriX', '✓', '✓', '✓'],
+                  ].map((row) => (
+                    <tr key={row[0]}>
+                      <td className="py-2.5 pr-4 font-medium">{row[0]}</td>
+                      {row.slice(1).map((cell, ci) => (
+                        <td key={ci} className="py-2.5 pr-4">
+                          {cell === '✓' ? (
+                            <span className="text-green-600 dark:text-green-400">✓</span>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Metrics: precision · recall · F1 · false-positive rate · patch correctness ·
+              verification success · tokens &amp; cost.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="border-t border-border/60 bg-card/40">
         <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
           <p className="text-center text-sm font-medium text-primary">Plans & pricing</p>
           <h2 className="mt-2 text-center font-display text-4xl font-semibold tracking-tight text-balance">
@@ -237,7 +489,7 @@ export default function HomePage() {
                 name: 'Pro',
                 price: 29,
                 tagline: 'For developers who audit code every week.',
-                features: ['20 repositories', '60 scans / month', 'Full LLM reasoning', 'Unlimited findings & evidence', 'Sandboxed verified repairs', 'PDF / Markdown reports'],
+                features: ['20 repositories', '60 scans / month', 'Full LLM reasoning', 'Unlimited findings & evidence', 'Sandboxed verified repairs', 'Change audit & SARIF export'],
                 cta: 'Go Pro',
                 highlight: true,
               },
@@ -297,6 +549,29 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* FAQ */}
+      <section className="mx-auto max-w-3xl px-4 py-20 sm:px-6">
+        <h2 className="text-center font-display text-4xl font-semibold tracking-tight">
+          Questions, answered
+        </h2>
+        <div className="mt-10 space-y-3">
+          {faqs.map((f) => (
+            <details
+              key={f.q}
+              className="group rounded-2xl border bg-card px-6 py-4 shadow-sm open:shadow-md"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium [&::-webkit-details-marker]:hidden">
+                {f.q}
+                <span className="text-muted-foreground transition-transform duration-300 group-open:rotate-45">
+                  +
+                </span>
+              </summary>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6">
@@ -319,15 +594,80 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="border-t border-border/60 py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground sm:flex-row sm:px-6">
-          <div className="flex items-center gap-2">
-            <LogoMark className="h-4 w-4 text-primary" />
-            <span className="font-display font-semibold text-foreground">RepoVeriX</span>
-            <span className="hidden sm:inline">·</span>
-            <span className="hidden sm:inline">Evidence-grounded repository auditing</span>
+      <footer className="border-t border-border/60 py-12">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex flex-col justify-between gap-10 md:flex-row">
+            <div className="max-w-sm">
+              <Logo />
+              <p className="mt-4 text-sm text-muted-foreground">
+                Evidence-grounded repository auditing and verified automated repair. Built as a
+                research prototype with a real benchmark harness.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-10 sm:grid-cols-4">
+              {[
+                {
+                  title: 'Product',
+                  links: [
+                    ['Features', '#product'],
+                    ['Pricing', '#pricing'],
+                    ['Research', '#research'],
+                    ['Start free', '/auth/signup'],
+                  ],
+                },
+                {
+                  title: 'Resources',
+                  links: [
+                    ['GitHub', 'https://github.com/sumitagg24/RepoVeriX'],
+                    ['Docs', 'https://github.com/sumitagg24/RepoVeriX'],
+                    ['Sign in', '/auth/login'],
+                  ],
+                },
+                {
+                  title: 'Integrations',
+                  links: [
+                    ['GitHub OAuth', '/auth/signup'],
+                    ['GitLab OAuth', '/auth/signup'],
+                    ['Google sign-in', '/auth/signup'],
+                    ['SARIF export', '/auth/signup'],
+                  ],
+                },
+                {
+                  title: 'Company',
+                  links: [
+                    ['Privacy', '/privacy'],
+                    ['Terms', '/terms'],
+                    ['Settings', '/settings'],
+                  ],
+                },
+              ].map((col) => (
+                <div key={col.title}>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {col.title}
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {col.links.map(([label, href]) => (
+                      <li key={label}>
+                        <Link
+                          href={href}
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          {label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
-          <p>B.Tech Minor Project · Research prototype</p>
+          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
+            <div className="flex items-center gap-2">
+              <LogoMark className="h-4 w-4 text-primary" />
+              <span>© 2026 RepoVeriX · Open source · Research prototype</span>
+            </div>
+            <p>Deterministic evidence · LLM reasoning · Sandbox verification</p>
+          </div>
         </div>
       </footer>
     </main>

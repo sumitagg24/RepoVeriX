@@ -158,6 +158,77 @@ async def get_scan_report(
     )
 
 
+@router.get("/{scan_id}/sarif")
+async def get_scan_sarif(
+    scan_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export the scan's findings as SARIF 2.1.0 (GitHub Code Scanning, VS Code…)."""
+    from app.analysis import ingest
+    from app.services.sarif import build_sarif
+
+    scan_result = await db.execute(
+        select(Scan)
+        .options(selectinload(Scan.repository))
+        .join(Repository)
+        .where(Scan.id == scan_id, Repository.owner_id == current_user.id)
+    )
+    scan = scan_result.scalar_one_or_none()
+    if scan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+
+    result = await db.execute(
+        select(Finding)
+        .options(selectinload(Finding.evidence))
+        .where(Finding.scan_id == scan.id)
+    )
+    findings = list(result.scalars().all())
+
+    src = ingest.source_dir(str(scan.repository.id))
+    source_root = src if src.exists() else None
+    document = build_sarif(findings, scan, source_root)
+    filename = f"repoverix-{scan_id}.sarif"
+    return Response(
+        content=json.dumps(document, indent=2, default=str),
+        media_type="application/sarif+json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{scan_id}/dedup")
+async def get_scan_dedup(
+    scan_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Duplicate-finding clusters within one scan (same location, multiple tools)."""
+    from app.analysis import regression
+
+    scan_result = await db.execute(
+        select(Scan)
+        .join(Repository)
+        .where(Scan.id == scan_id, Repository.owner_id == current_user.id)
+    )
+    if scan_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+
+    result = await db.execute(
+        select(Finding)
+        .options(selectinload(Finding.evidence))
+        .where(Finding.scan_id == scan_id)
+    )
+    findings = list(result.scalars().all())
+    clusters = regression.dedup_clusters(findings)
+    return {
+        "scan_id": str(scan_id),
+        "total_findings": len(findings),
+        "cluster_count": len(clusters),
+        "duplicated_findings": sum(c["size"] for c in clusters),
+        "clusters": clusters,
+    }
+
+
 @router.post("/{scan_id}/cancel", response_model=ScanRead)
 async def cancel_scan(
     scan_id: uuid.UUID,

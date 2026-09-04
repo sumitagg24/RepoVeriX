@@ -408,3 +408,169 @@ export interface WikiProseResult {
   provider: string;
   usage: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------- Tier-1 audit features
+
+export interface ChangedSymbol {
+  name: string;
+  kind: string;
+  line_start: number;
+  line_end: number;
+}
+
+export interface ChangeAuditResult {
+  changed_files: string[];
+  added_lines: number;
+  removed_lines: number;
+  changed_symbols: ChangedSymbol[];
+  blast_radius: {
+    caller_files: Record<string, number>;
+    importing_files: string[];
+    caller_count: number;
+  };
+  tests_to_run: string[];
+  missing_companion_files: string[];
+  untested_changed_files: string[];
+  risk_score: number;
+  risk_components: {
+    size: number;
+    blast_radius: number;
+    risky_files: number;
+    missing_tests: number;
+    missing_companions: number;
+  };
+  directives: string[];
+  mode: 'refs' | 'diff';
+  base: string | null;
+  head: string | null;
+}
+
+export interface GraphNode {
+  id: string;
+  kind: 'finding' | 'evidence' | 'file';
+  label: string;
+  file?: string;
+  line?: number;
+  severity?: string;
+  status?: string;
+  subkind?: string;
+}
+
+export interface GraphEdge {
+  from: string;
+  to: string;
+  kind: string;
+}
+
+export interface EvidenceGraph {
+  scan_id: string;
+  configuration: string;
+  finding_count: number;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface AttackPath {
+  source: string;
+  source_kind: string;
+  sink: string;
+  sink_kind: string;
+  file: string;
+  steps: { function: string; file: string; line: number }[];
+}
+
+export interface AttackPaths {
+  source_count: number;
+  path_count: number;
+  paths: AttackPath[];
+}
+
+export interface DependencyRow {
+  name: string;
+  version: string | null;
+  ecosystem: string | null;
+  reachable: boolean;
+  importer_count: number;
+  importers: string[];
+  known_vulnerabilities: number;
+  triage: string;
+}
+
+export interface DependencyReachability {
+  dependencies: DependencyRow[];
+  reachable_count: number;
+  unreachable_count: number;
+  vulnerable_reachable: number;
+}
+
+export interface RegressionFinding {
+  external_id: string;
+  title: string;
+  file_path: string;
+  severity: string;
+  status?: string;
+  confidence?: number;
+}
+
+export interface RegressionReport {
+  total_before: number;
+  total_after: number;
+  new: string[];
+  resolved: string[];
+  still_present: string[];
+  reintroduced: string[];
+  changed_status: { external_id: string; title: string; file_path: string; status_before: string; status_after: string }[];
+  changed_severity: { external_id: string; title: string; file_path: string; severity_before: string; severity_after: string }[];
+  confidence_deltas: { external_id: string; title: string; file_path: string; confidence_before: number; confidence_after: number }[];
+  from_scan: string;
+  to_scan: string;
+  from_scan_created: string;
+  to_scan_created: string;
+  previous_scan: string | null;
+  new_findings: RegressionFinding[];
+  reintroduced_findings: RegressionFinding[];
+}
+
+export interface DedupCluster {
+  file_path: string;
+  line_start: number | null;
+  size: number;
+  primary_finding_id: string;
+  primary_title: string;
+  primary_severity: string;
+  members: { id: string; title: string; rule: string | null; severity: string; status: string }[];
+}
+
+export interface DedupReport {
+  scan_id: string;
+  total_findings: number;
+  cluster_count: number;
+  duplicated_findings: number;
+  clusters: DedupCluster[];
+}
+
+export interface GeneratedTest {
+  id: string;
+  finding_id: string;
+  language: string;
+  test_code: string;
+  generated_by: string;
+  status: string;
+  result: Record<string, unknown> | null;
+}
+
+export interface CounterexampleProof {
+  found: boolean;
+  sanitizer: string;
+  sanitizer_line: number;
+  sanitizer_snippet: string;
+  sink_line: number;
+  sink_snippet: string;
+  flow: { identifier: string; sanitized_at: number }[];
+  explanation: string;
+}
+
+export interface CounterexampleResult {
+  finding_id: string;
+  counterexample: CounterexampleProof | null;
+}

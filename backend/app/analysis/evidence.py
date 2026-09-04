@@ -393,6 +393,13 @@ def finalize_candidate(
         node.order_index = i
 
     rule = static_finding.rule if static_finding else "unknown"
+    # attach the rule id to the first evidence node so downstream consumers
+    # (SARIF ruleId, generated-test contracts, dedup member rules) can read it
+    if evidence and not any((n.extra or {}).get("rule") for n in evidence):
+        first = evidence[0]
+        first.extra = dict(first.extra or {})
+        first.extra["rule"] = rule
+
     external_id = _external_id(f"{rule}|{candidate.file_path}|{candidate.line_start}")
 
     spec = FindingSpec(
