@@ -113,13 +113,18 @@ class DockerRunner:
         host = str(workdir.resolve())
         # bind-mount path (Docker Desktop on Windows accepts the drive path)
         shell = f"cd /workspace && {test_command}"
+        # Emit a JUnit report inside the bind-mounted workspace so individual
+        # test results can be parsed and persisted (same as LocalRunner).
+        junit_flag = ""
+        if test_command.startswith("python") and "pytest" in test_command:
+            junit_flag = " --junitxml=/workspace/junit.xml"
         if test_command.startswith("python"):
             # pytest may not be present in the base image
             install = (
                 "python -m pip install -q --disable-pip-version-check pytest "
                 "|| echo '[verify] pip install of pytest failed'"
             )
-            shell = f"cd /workspace && {install} && {test_command}"
+            shell = f"cd /workspace && {install} && {test_command}{junit_flag}"
         elif test_command.startswith("npm"):
             install = "npm install --silent --no-audit --no-fund || echo '[verify] npm install failed'"
             shell = f"cd /workspace && {install} && {test_command}"
@@ -161,7 +166,8 @@ class DockerRunner:
             return TestRunResult(error=f"Test run timed out after {timeout_seconds}s")
 
         output = (result.stdout + result.stderr)[-MAX_LOG_CHARS:]
-        return _interpret_test_output(output, result.returncode)
+        tests = _parse_junit(workdir / "junit.xml") if "pytest" in test_command else []
+        return _interpret_test_output(output, result.returncode, tests=tests)
 
 
 class LocalRunner:
@@ -234,12 +240,14 @@ def _parse_junit(path: Path) -> list[dict[str, Any]]:
     return out
 
 
-def _interpret_test_output(output: str, returncode: int) -> TestRunResult:
+def _interpret_test_output(
+    output: str, returncode: int, tests: list[dict[str, Any]] | None = None
+) -> TestRunResult:
     passed = returncode == 0
     return TestRunResult(
         tests_passed=passed,
         summary=output[-4000:],
-        tests=[],
+        tests=tests or [],
     )
 
 

@@ -188,6 +188,9 @@ experiment matrix on a broader benchmark.
 `docs/api.md` · `docs/experiments.md` · `docs/development.md` ·
 `docs/implementation-plan.md`
 
+**Operator checklist** (API keys, database, Docker, auth secret, deployment
+prereqs): **[MANUAL-SETUP.md](MANUAL-SETUP.md)**
+
 ## License
 
 See `LICENSE`.
