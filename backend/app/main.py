@@ -17,6 +17,8 @@ from app.api.routes import (
     learning_router,
     oauth_router,
     patches_router,
+    pr_list_router,
+    pullrequests_router,
     repositories_router,
     research_router,
     scans_router,
@@ -125,6 +127,8 @@ def create_app() -> FastAPI:
     app.include_router(scans_router, prefix=settings.api_prefix)
     app.include_router(findings_router, prefix=settings.api_prefix)
     app.include_router(patches_router, prefix=settings.api_prefix)
+    app.include_router(pullrequests_router, prefix=settings.api_prefix)
+    app.include_router(pr_list_router, prefix=settings.api_prefix)
     app.include_router(billing_router, prefix=settings.api_prefix)
     app.include_router(intelligence_router, prefix=settings.api_prefix)
     app.include_router(research_router, prefix=settings.api_prefix)

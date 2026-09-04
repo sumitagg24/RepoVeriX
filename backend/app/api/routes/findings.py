@@ -1,7 +1,9 @@
 """Finding and evidence routes."""
 
 import json
+import re
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -9,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.analysis import counterexamples, findingchat, impact, ingest, testgen
+from app.analysis import counterexamples, findingchat, impact, ingest, prooffix, testgen, validation
 from app.analysis.ingest import source_dir
 from app.analysis.knowledge import KnowledgeGraph
 from app.analysis.llm import LLMUsage, build_llm_provider, complete_json, load_prompt
@@ -18,9 +20,54 @@ from app.analysis.repair import generate_repair
 from app.api.dependencies import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.ratelimit import check_action, enforce
-from app.db.models import Finding, GeneratedTest, Patch, PatchStatus, Repository, Scan, ScanStatus
+from app.db.models import (
+    Finding,
+    GeneratedTest,
+    Patch,
+    PatchStatus,
+    Repository,
+    Scan,
+    ScanStatus,
+    ValidationRun,
+    VerificationRun,
+)
 from app.schemas.finding import FindingDetail, FindingRead
 from app.schemas.verification import PatchRead
+
+_TEST_PATH_RE = re.compile(r"(^|/)(test_|tests?/|.*\.(test|spec)\.)", re.IGNORECASE)
+
+
+def _find_test_references(src, needle: str) -> list[dict]:
+    """Bounded scan of test files for references to the suspected function."""
+    if not needle:
+        return []
+    from app.analysis.discovery import walk_repo_files
+
+    token = needle.split(":")[-1].strip()
+    if len(token) < 3:
+        return []
+    refs: list[dict] = []
+    try:
+        files_raw, _ = walk_repo_files(src)
+    except Exception:
+        return []
+    count = 0
+    for full in files_raw:
+        rel = str(full).replace("\\", "/")
+        if not _TEST_PATH_RE.search(rel):
+            continue
+        try:
+            lines = full.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            continue
+        for i, line in enumerate(lines, start=1):
+            if re.search(rf"\b{re.escape(token)}\b", line):
+                refs.append({"file": rel, "line": i})
+                count += 1
+                if count >= 8:
+                    return refs
+    return refs
+
 
 router = APIRouter(prefix="/findings", tags=["findings"])
 
@@ -220,13 +267,23 @@ async def generate_test(
     }
 
 
+class RunTestRequest(BaseModel):
+    patch_id: uuid.UUID | None = Field(default=None)
+
+
 @router.post("/generated-tests/{test_id}/run")
 async def run_generated_test(
     test_id: uuid.UUID,
+    payload: RunTestRequest | None = None,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Execute a generated test against an isolated copy of the working copy."""
+    """Execute a generated test against an isolated copy of the working copy.
+
+    Pass ``{"patch_id": ...}`` to run the same test against the *patched*
+    version; combining that with a prior vulnerable-version run yields the
+    Proof-of-Fix verdict (original FAIL -> patched PASS).
+    """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "run_test"))
 
@@ -255,19 +312,64 @@ async def run_generated_test(
         )
 
     filename = f"test_gen_{repository.id.hex[:8]}.py"
+    patch_diff: str | None = None
+    patch_meta: dict | None = None
+    if payload is not None and payload.patch_id is not None:
+        patch_result = await db.execute(
+            select(Patch).where(
+                Patch.id == payload.patch_id,
+                Patch.finding_id == row.finding_id,
+            )
+        )
+        patch_row = patch_result.scalar_one_or_none()
+        if patch_row is None:
+            raise HTTPException(status_code=404, detail="Patch not found for this finding")
+        patch_diff = patch_row.diff
+        patch_meta = {
+            "patch_id": str(patch_row.id),
+            "patch_status": patch_row.status.value
+            if isinstance(patch_row.status, PatchStatus)
+            else patch_row.status,
+        }
+
+    previous = dict(row.result) if isinstance(row.result, dict) else None
     outcome = await testgen.run_generated_test(
         src,
         filename,
         row.test_code,
         timeout_seconds=get_settings().sandbox_timeout_seconds,
+        patch_diff=patch_diff,
     )
     row.status = "passed" if outcome["passed"] else "failed"
     row.result = outcome
     await db.commit()
+
+    proof_of_fix: dict | None = None
+    if patch_diff and outcome.get("patch_applied"):
+        baseline_outcome = (previous or {}).get("outcome") if previous else None
+        if baseline_outcome == "TEST_REPRODUCES_BUG" and outcome.get("outcome") == "TEST_DOES_NOT_REPRODUCE":
+            proof_of_fix = {
+                "verdict": "VERIFIED_FIX_PROOF",
+                "baseline_outcome": "TEST_REPRODUCES_BUG",
+                "patched_outcome": "TEST_DOES_NOT_REPRODUCE",
+                "explanation": (
+                    "The reproduction test failed on the vulnerable version and passes "
+                    "with the patch applied — original FAIL, patched PASS."
+                ),
+            }
+        elif previous and baseline_outcome is not None:
+            proof_of_fix = {
+                "verdict": "NO_PROOF",
+                "baseline_outcome": baseline_outcome,
+                "patched_outcome": outcome.get("outcome"),
+                "explanation": "Baseline and patched runs did not both confirm the fix.",
+            }
     return {
         "id": str(row.id),
         "status": row.status,
         "result": outcome,
+        "patch": patch_meta,
+        "proof_of_fix": proof_of_fix,
     }
 
 
@@ -325,6 +427,74 @@ async def validate_counterexample(
     ]
     proof = counterexamples.validate_counterexample(pf, source_lines, sink_lines)
     return {"finding_id": str(finding.id), "counterexample": proof}
+
+
+@router.post("/{finding_id}/validate")
+async def validate_finding(
+    finding_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the full counterexample-based validation battery on a finding.
+
+    Deterministic checks (claim chain, sanitizer guards, parameterization,
+    authorization, exception handling, tests) produce an auditable verdict
+    and every run is logged for research metrics.
+    """
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "counterexample"))
+
+    result = await db.execute(
+        select(Finding)
+        .options(
+            selectinload(Finding.evidence),
+            selectinload(Finding.scan).selectinload(Scan.repository),
+        )
+        .join(Scan)
+        .join(Repository)
+        .where(Finding.id == finding_id, Repository.owner_id == current_user.id)
+    )
+    finding = result.scalar_one_or_none()
+    if finding is None:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    repository = finding.scan.repository
+    src = ingest.source_dir(str(repository.id))
+    if not src.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Repository source is not available; run a scan first",
+        )
+    full = src / finding.file_path
+    if not full.is_file():
+        raise HTTPException(status_code=404, detail="Finding source file not found")
+
+    from app.analysis.parsing import parse_source
+
+    language = "python" if finding.file_path.endswith(".py") else "javascript"
+    pf = parse_source(full.read_text(encoding="utf-8", errors="replace"), language, finding.file_path)
+    verdict = validation.validate_finding(
+        finding,
+        pf,
+        test_references=_find_test_references(src, finding.function_name or finding.title),
+    )
+
+    run = ValidationRun(
+        finding_id=finding.id,
+        claim=verdict["claim"],
+        rule=verdict.get("rule"),
+        status_before=verdict["original_status"],
+        status_after=verdict["final_status"],
+        confidence=verdict["confidence"],
+        explanation=verdict["explanation"],
+        checks=verdict["checks"],
+        result=verdict,
+    )
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    verdict["validation_run_id"] = str(run.id)
+    return verdict
 
 
 @router.get("/scan/{scan_id}/summary")
@@ -564,3 +734,95 @@ async def chat_about_finding(
             "usage": usage.to_dict(),
         }
     return result
+
+
+@router.get("/{finding_id}/proof-of-fix")
+async def proof_of_fix(
+    finding_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Consolidated Proof-of-Fix record for a finding.
+
+    Decision is derived deterministically from recorded verification runs and
+    reproduction-test outcomes — never from the LLM's self-assessment.
+    """
+    result = await db.execute(
+        select(Finding)
+        .options(
+            selectinload(Finding.evidence),
+            selectinload(Finding.patches)
+            .selectinload(Patch.verification_runs)
+            .selectinload(VerificationRun.test_results),
+        )
+        .join(Scan)
+        .join(Repository)
+        .where(Finding.id == finding_id, Repository.owner_id == current_user.id)
+    )
+    finding = result.scalar_one_or_none()
+    if finding is None:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    test_result = await db.execute(
+        select(GeneratedTest)
+        .where(GeneratedTest.finding_id == finding.id)
+        .order_by(GeneratedTest.created_at.desc())
+        .limit(1)
+    )
+    reproduction = prooffix.reproduction_summary(test_result.scalar_one_or_none())
+
+    patches = [
+        prooffix.proof_for_patch(patch, reproduction)
+        for patch in sorted(finding.patches, key=lambda p: p.created_at)
+    ]
+
+    # aggregate decision: any verified fix wins; else a rejection beats nothing;
+    # otherwise report the state honestly (partial / unverifiable / none).
+    decisions = [p["decision"] for p in patches]
+    if "VERIFIED_FIX" in decisions:
+        overall = {
+            "decision": "VERIFIED_FIX",
+            "reason": "At least one candidate patch passed all validation checks on actual execution.",
+        }
+        winner = next((p for p in patches if p["decision"] == "VERIFIED_FIX"), None)
+        checks = (winner or {}).get("checks", [])
+    elif "REJECTED_FIX" in decisions:
+        overall = {
+            "decision": "REJECTED_FIX",
+            "reason": "Every validated patch failed at least one recorded check.",
+        }
+        checks = []
+    elif decisions:
+        has_partial = "PARTIALLY_VERIFIED" in decisions
+        overall = {
+            "decision": "PARTIALLY_VERIFIED" if has_partial else "UNVERIFIABLE",
+            "reason": (
+                "Validation could not fully complete; recorded evidence shows no counter-evidence."
+                if has_partial
+                else "No validation run produced usable evidence (environment or runner unavailable)."
+            ),
+        }
+        checks = []
+    else:
+        overall = {"decision": None, "reason": "No candidate patch has been validated yet."}
+        checks = []
+
+    return {
+        "finding_id": str(finding.id),
+        "external_id": finding.external_id,
+        "title": finding.title,
+        "severity": finding.severity.value if hasattr(finding.severity, "value") else str(finding.severity),
+        "status": finding.status.value if hasattr(finding.status, "value") else str(finding.status),
+        "confidence": finding.confidence,
+        "file_path": finding.file_path,
+        "function_name": finding.function_name,
+        "line_start": finding.line_start,
+        "base_version": None,  # only meaningful for git sources; recorded when a commit is available
+        "evidence_before": prooffix.evidence_before(finding),
+        "reproduction": reproduction,
+        "decision": overall["decision"],
+        "decision_reason": overall["reason"],
+        "checks": checks,
+        "patches": patches,
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }

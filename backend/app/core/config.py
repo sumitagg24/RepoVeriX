@@ -132,6 +132,19 @@ class Settings(BaseSettings):
     gitlab_oauth_client_id: str | None = None
     gitlab_oauth_client_secret: str | None = None
 
+    # --- GitHub pull-request auditing ---
+    # Optional server-level token for public-repo PR metadata/API calls when a
+    # user has not connected their own GitHub account (never required — a
+    # connected account's token is used first). Tokens are never logged or
+    # exposed to the frontend.
+    github_token: str | None = None
+    # Base URL for the GitHub REST API (kept configurable so tests can point at
+    # a stub server instead of api.github.com).
+    github_api_base_url: str = "https://api.github.com"
+    github_api_timeout_seconds: int = 60
+    # PR audits fetch the pull ref into the clone and analyze a detached worktree.
+    pr_worktree_dir: str = "./data/pr-worktrees"
+
 
 @lru_cache
 def get_settings() -> Settings:

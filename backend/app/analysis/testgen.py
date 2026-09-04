@@ -135,6 +135,30 @@ async def llm_test(finding: Finding, source_root: Path, provider, usage: LLMUsag
     return filename, code
 
 
+def _classify_outcome(passed: bool, returncode: int, tests: list[dict]) -> tuple[str, str]:
+    """Map a run onto the reproduction-test taxonomy.
+
+    TEST_REPRODUCES_BUG      the test failed on an assertion -> the suspected
+                             defect was demonstrated on this code.
+    TEST_DOES_NOT_REPRODUCE  the test passed -> the defect is not present here.
+    TEST_FAILED_TO_EXECUTE   the environment prevented meaningful execution
+                             (infrastructure / collection error), which is NOT
+                             evidence about the defect either way.
+    """
+    if passed:
+        return "TEST_DOES_NOT_REPRODUCE", "test passed — suspected defect not present on this code"
+    if not tests:
+        return (
+            "TEST_FAILED_TO_EXECUTE",
+            "no test results — infrastructure or collection failure, not a defect signal",
+        )
+    failures = [t for t in tests if t["outcome"] == "failed"]
+    errors = [t for t in tests if t["outcome"] == "error"]
+    if failures and not errors:
+        return "TEST_REPRODUCES_BUG", f"test assertion failed ({len(failures)} test(s)) — defect demonstrated"
+    return "TEST_FAILED_TO_EXECUTE", "test errored during setup/collection — not a defect signal"
+
+
 async def run_generated_test(
     source_root: Path,
     test_filename: str,
@@ -142,8 +166,15 @@ async def run_generated_test(
     *,
     runner=None,
     timeout_seconds: int = 300,
+    patch_diff: str | None = None,
 ) -> dict:
-    """Copy the working copy, drop the test in, and execute it in isolation."""
+    """Copy the working copy, drop the test in, and execute it in isolation.
+
+    When ``patch_diff`` is given it is applied to the isolated copy *before*
+    the run, so the same reproduction test can be executed against the patched
+    version (the Proof-of-Fix half of the comparison).
+    """
+    from app.analysis.patchops import PatchError, apply_patch_to_directory
     from app.analysis.process import run_command
     from app.analysis.verify import DockerRunner, LocalRunner, _parse_junit
 
@@ -159,7 +190,32 @@ async def run_generated_test(
         tests_dir.mkdir(exist_ok=True)
         (tests_dir / test_filename).write_text(test_code, encoding="utf-8")
 
-        runner_instance = runner or DockerRunner()
+        patched_files: list[str] = []
+        if patch_diff:
+            try:
+                patched_files = apply_patch_to_directory(src, patch_diff)
+            except PatchError as exc:
+                return {
+                    "runner": "patch",
+                    "passed": False,
+                    "patch_applied": False,
+                    "patch_error": exc.message,
+                    "outcome": "TEST_FAILED_TO_EXECUTE",
+                    "outcome_detail": f"candidate patch could not be applied: {exc.message}",
+                    "summary": exc.message[:2000],
+                    "tests": [],
+                }
+
+        if runner is None:
+            docker_runner = DockerRunner()
+            if await docker_runner._docker_available():
+                runner_instance = docker_runner
+            else:
+                # Docker absent -> controlled subprocess sandbox with the same
+                # decision logic (see docs/verification.md).
+                runner_instance = LocalRunner()
+        else:
+            runner_instance = runner
         if isinstance(runner_instance, LocalRunner):
             result = await run_command(
                 [
@@ -176,9 +232,14 @@ async def run_generated_test(
             )
             tests = _parse_junit(src / "junit.xml")
             passed = result.returncode == 0
+            outcome, outcome_detail = _classify_outcome(passed, result.returncode, tests)
             return {
                 "runner": "local-test",
                 "passed": passed,
+                "patch_applied": bool(patched_files),
+                "patched_files": patched_files,
+                "outcome": outcome,
+                "outcome_detail": outcome_detail,
                 "summary": (result.stdout + result.stderr)[-4000:],
                 "tests": tests,
             }
@@ -217,11 +278,25 @@ async def run_generated_test(
         try:
             result = await run_command(args, timeout_seconds=timeout_seconds)
         except (FileNotFoundError, TimeoutError) as exc:
-            return {"runner": "docker", "passed": False, "summary": str(exc)[:2000], "tests": []}
+            return {
+                "runner": "docker",
+                "passed": False,
+                "patch_applied": bool(patched_files),
+                "patched_files": patched_files,
+                "outcome": "TEST_FAILED_TO_EXECUTE",
+                "outcome_detail": f"sandbox could not execute the test: {str(exc)[:300]}",
+                "summary": str(exc)[:2000],
+                "tests": [],
+            }
         tests = _parse_junit(src / "junit.xml")
+        outcome, outcome_detail = _classify_outcome(result.returncode == 0, result.returncode, tests)
         return {
             "runner": "docker",
             "passed": result.returncode == 0,
+            "patch_applied": bool(patched_files),
+            "patched_files": patched_files,
+            "outcome": outcome,
+            "outcome_detail": outcome_detail,
             "summary": (result.stdout + result.stderr)[-4000:],
             "tests": tests,
         }

@@ -8,6 +8,8 @@ from app.api.routes.findings import router as findings_router
 from app.api.routes.intelligence import router as intelligence_router
 from app.api.routes.oauth import router as oauth_router
 from app.api.routes.patches import router as patches_router
+from app.api.routes.pullrequests import list_router as pr_list_router
+from app.api.routes.pullrequests import router as pullrequests_router
 from app.api.routes.repositories import router as repositories_router
 from app.api.routes.research import learning_router
 from app.api.routes.research import router as research_router
@@ -23,6 +25,8 @@ __all__ = [
     "scans_router",
     "findings_router",
     "patches_router",
+    "pullrequests_router",
+    "pr_list_router",
     "dashboard_router",
     "oauth_router",
     "intelligence_router",

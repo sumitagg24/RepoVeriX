@@ -69,15 +69,31 @@ export function useGeneratedTest() {
     onError: (error: unknown) => toast.error(errorDetail(error)),
   });
   const run = useMutation({
-    mutationFn: (testId: string) => findingAuditService.runTest(testId),
+    mutationFn: ({ testId, patchId }: { testId: string; patchId?: string }) =>
+      findingAuditService.runTest(testId, patchId),
     onError: (error: unknown) => toast.error(errorDetail(error)),
   });
   return { generate, run };
 }
 
+export function useProofOfFix(findingId: string | undefined) {
+  return useQuery({
+    queryKey: ['proof-of-fix', findingId],
+    queryFn: () => findingAuditService.proofOfFix(findingId as string),
+    enabled: Boolean(findingId),
+  });
+}
+
 export function useCounterexample() {
   return useMutation({
     mutationFn: (findingId: string) => findingAuditService.validateCounterexample(findingId),
+    onError: (error: unknown) => toast.error(errorDetail(error)),
+  });
+}
+
+export function useValidateFinding() {
+  return useMutation({
+    mutationFn: (findingId: string) => findingAuditService.validateFinding(findingId),
     onError: (error: unknown) => toast.error(errorDetail(error)),
   });
 }

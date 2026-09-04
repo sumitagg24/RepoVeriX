@@ -10,9 +10,10 @@ import { VerificationSection } from '@/components/patch-verification';
 import { ImpactPanel } from '@/components/findings/impact-panel';
 import { FindingChat } from '@/components/findings/finding-chat';
 import { PatchQualityBadge } from '@/components/findings/patch-quality-badge';
+import { ProofOfFixPanel } from '@/components/findings/proof-of-fix';
 import { useFinding, useGenerateFix } from '@/hooks/useFindings';
 import { usePatches } from '@/hooks/usePatches';
-import { useGeneratedTest, useCounterexample } from '@/hooks/useAudit';
+import { useGeneratedTest, useCounterexample, useValidateFinding } from '@/hooks/useAudit';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useState } from 'react';
 import {
@@ -38,6 +39,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import type { RunTestResponse } from '@/types/api';
 
 const severityColors: Record<string, string> = {
   critical: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
@@ -78,9 +80,34 @@ export default function FindingDetailPage() {
   const generateFix = useGenerateFix();
   const { generate: generateTest, run: runTest } = useGeneratedTest();
   const counterexample = useCounterexample();
+  const validateFinding = useValidateFinding();
   const [generated, setGenerated] = useState<{ id: string; test_code: string; generated_by: string } | null>(null);
-  const [runResult, setRunResult] = useState<{ status: string; result: Record<string, unknown> } | null>(null);
+  const [runResult, setRunResult] = useState<RunTestResponse | null>(null);
+  const fixPatch = (patches ?? []).find((p) => ['verified', 'applied', 'candidate'].includes(p.status));
+
+  const executeTest = (patchId?: string) => {
+    if (!generated) return;
+    runTest.mutate(
+      { testId: generated.id, patchId },
+      {
+        onSuccess: (data: RunTestResponse) => {
+          setRunResult(data);
+          if (data.proof_of_fix?.verdict === 'VERIFIED_FIX_PROOF') {
+            toast.success('Verified fix proof — test fails on vulnerable code, passes with the patch');
+          } else if (data.result?.outcome === 'TEST_REPRODUCES_BUG') {
+            toast.success('Test reproduced the defect (fails on this code, as expected for a vulnerable finding)');
+          } else if (data.result?.outcome === 'TEST_DOES_NOT_REPRODUCE') {
+            toast.success('Test passed — defect not present on this code');
+          } else if (data.result?.outcome === 'TEST_FAILED_TO_EXECUTE') {
+            toast.error('Test failed to execute — infrastructure issue, not a defect signal');
+          }
+        },
+      }
+    );
+  };
+
   const [proof, setProof] = useState<{ counterexample: import('@/types/api').CounterexampleProof | null } | null>(null);
+  const [validation, setValidation] = useState<import('@/types/api').FindingValidationResult | null>(null);
 
   if (findingLoading) {
     return (
@@ -370,7 +397,8 @@ export default function FindingDetailPage() {
           <FindingChat findingId={id} />
         </TabsContent>
 
-        <TabsContent value="patches">
+        <TabsContent value="patches" className="space-y-4">
+          <ProofOfFixPanel findingId={id} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Candidate Patches</CardTitle>
@@ -474,28 +502,33 @@ export default function FindingDetailPage() {
               </CardTitle>
               <div className="flex items-center gap-2">
                 {generated && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      runTest.mutate(generated.id, {
-                        onSuccess: (data) => {
-                          setRunResult(data);
-                          toast.success(
-                            data.status === 'passed' ? 'Test passed — defect not present' : 'Test failed — defect demonstrated'
-                          );
-                        },
-                      });
-                    }}
-                    disabled={runTest.isPending}
-                  >
-                    {runTest.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <FlaskConical className="mr-2 h-4 w-4" />
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => executeTest()}
+                      disabled={runTest.isPending}
+                    >
+                      {runTest.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <FlaskConical className="mr-2 h-4 w-4" />
+                      )}
+                      Run test
+                    </Button>
+                    {fixPatch && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => executeTest(fixPatch.id)}
+                        disabled={runTest.isPending}
+                        title="Run this reproduction test against the generated fix (Proof-of-Fix)"
+                      >
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Run against fix
+                      </Button>
                     )}
-                    Run test
-                  </Button>
+                  </>
                 )}
                 <Button
                   size="sm"
@@ -531,16 +564,44 @@ export default function FindingDetailPage() {
                     <Badge variant="outline">{generated.generated_by}</Badge>
                   </div>
                   <pre className="p-3 bg-muted rounded text-xs overflow-x-auto max-h-72"><code>{generated.test_code}</code></pre>
-                  {runResult && (
-                    <div className={`rounded-lg border p-4 ${runResult.status === 'passed' ? 'border-green-500/40 bg-green-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
-                      <p className="text-sm font-medium mb-2">
-                        {runResult.status === 'passed' ? '✓ Test passed' : '✗ Test failed (defect present)'}
-                      </p>
-                      <pre className="text-xs overflow-x-auto max-h-40 whitespace-pre-wrap">
-                        {String(runResult.result?.summary ?? '')}
-                      </pre>
-                    </div>
-                  )}
+                  {runResult && (() => {
+                    const outcome = runResult.result?.outcome;
+                    const color =
+                      outcome === 'TEST_DOES_NOT_REPRODUCE'
+                        ? 'border-green-500/40 bg-green-500/5'
+                        : outcome === 'TEST_FAILED_TO_EXECUTE'
+                          ? 'border-amber-500/40 bg-amber-500/5'
+                          : 'border-red-500/40 bg-red-500/5';
+                    return (
+                      <div className={`rounded-lg border p-4 ${color}`}>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="text-sm font-medium">
+                            {outcome === 'TEST_DOES_NOT_REPRODUCE' && '✓ Test passed — defect not present'}
+                            {outcome === 'TEST_REPRODUCES_BUG' && '✗ Test reproduced the defect (failed on vulnerable code)'}
+                            {outcome === 'TEST_FAILED_TO_EXECUTE' && '⚠ Test failed to execute (not a defect signal)'}
+                            {!outcome && (runResult.status === 'passed' ? '✓ Test passed' : '✗ Test failed')}
+                          </span>
+                          {runResult.result?.patch_applied && (
+                            <Badge variant="outline">ran against fix{runResult.result.patched_files?.length ? ` (${runResult.result.patched_files.join(', ')})` : ''}</Badge>
+                          )}
+                          {runResult.proof_of_fix?.verdict === 'VERIFIED_FIX_PROOF' && (
+                            <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                              VERIFIED FIX PROOF
+                            </Badge>
+                          )}
+                        </div>
+                        {runResult.proof_of_fix?.explanation && (
+                          <p className="text-xs text-muted-foreground mb-2">{runResult.proof_of_fix.explanation}</p>
+                        )}
+                        {runResult.result?.outcome_detail && (
+                          <p className="text-xs text-muted-foreground mb-2">{runResult.result.outcome_detail}</p>
+                        )}
+                        <pre className="text-xs overflow-x-auto max-h-40 whitespace-pre-wrap">
+                          {String(runResult.result?.summary ?? '')}
+                        </pre>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -611,6 +672,120 @@ export default function FindingDetailPage() {
                     </p>
                   </div>
                 )
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Full validation battery (counterexample-based) */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-4 w-4" /> Validation battery
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  validateFinding.mutate(id, { onSuccess: setValidation });
+                }}
+                disabled={validateFinding.isPending}
+              >
+                {validateFinding.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Clipboard className="mr-2 h-4 w-4" />
+                )}
+                Run validation
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                The validator opposes the claim: it checks the source → sink chain, sanitizer and
+                parameterization guards, authorization, exception handling, deterministic rules and
+                test references — then decides VERIFIED / PROBABLE / REJECTED with confidence. Every
+                run is logged for research metrics (false-positive reduction).
+              </p>
+              {validateFinding.isError && (
+                <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-2">
+                  {getApiErrorMessage(validateFinding.error)}
+                </p>
+              )}
+              {validation && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={
+                          validation.final_status === 'verified'
+                            ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
+                            : validation.final_status === 'rejected'
+                              ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        }
+                      >
+                        {validation.final_status.toUpperCase()}
+                      </Badge>
+                      <span className="text-sm font-medium">
+                        {Math.round(validation.confidence * 100)}% confidence
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        before: {validation.original_status}
+                      </span>
+                    </div>
+                    <p className="text-sm">{validation.explanation}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{validation.claim}</p>
+                    {validation.rule && (
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {validation.rule}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border divide-y">
+                    {validation.checks.map((check) => (
+                      <div key={check.key} className="flex items-start gap-2.5 px-4 py-2.5">
+                        {check.passed ? (
+                          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                        ) : (
+                          <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{check.label}</p>
+                          <p className="text-xs text-muted-foreground">{check.detail}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {validation.contradicting_evidence.length > 0 && (
+                    <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-red-600 dark:text-red-400">
+                        Contradicting evidence
+                      </p>
+                      {validation.contradicting_evidence.map((c, i) => (
+                        <p key={i} className="text-xs text-muted-foreground">
+                          • {c.label}: {c.detail}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {validation.supporting_evidence.length > 0 && (
+                    <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-green-600 dark:text-green-400">
+                        Supporting evidence
+                      </p>
+                      {validation.supporting_evidence.map((s, i) => (
+                        <p key={i} className="text-xs text-muted-foreground">
+                          • {s.label}: {s.detail}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">
+                    Validation run {validation.validation_run_id.slice(0, 8)} — recorded for research metrics.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
