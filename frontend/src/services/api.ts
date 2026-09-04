@@ -21,7 +21,9 @@ import type {
   DashboardSummary,
   FindingSummary,
   BillingOverview,
-  CheckoutResult
+  CheckoutResult,
+  RepositoryIntelligence,
+  WikiProseResult
 } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -287,6 +289,22 @@ export const patchService = {
 export const dashboardService = {
   getSummary: async (): Promise<DashboardSummary> => {
     const response = await api.get<DashboardSummary>('/dashboard/summary');
+    return response.data;
+  },
+};
+
+export const intelligenceService = {
+  get: async (repositoryId: string, refresh = false): Promise<RepositoryIntelligence> => {
+    const response = await api.get<RepositoryIntelligence>(
+      `/repositories/${repositoryId}/intelligence${refresh ? '?refresh=1' : ''}`
+    );
+    return response.data;
+  },
+
+  wikiProse: async (repositoryId: string, path: string): Promise<WikiProseResult> => {
+    const response = await api.post<WikiProseResult>(
+      `/repositories/${repositoryId}/intelligence/wiki/${encodeURIComponent(path)}/prose`
+    );
     return response.data;
   },
 };

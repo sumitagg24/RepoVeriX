@@ -292,3 +292,119 @@ export interface CheckoutResult {
   url: string;
   demo: boolean;
 }
+
+export interface FileHealthIssue {
+  lens: 'defect_risk' | 'maintainability' | 'performance';
+  detector: string;
+  title: string;
+  detail: string;
+}
+
+export interface FileHealth {
+  path: string;
+  language: string;
+  lines: number;
+  symbols: number;
+  score: number;
+  lenses: { defect_risk: number; maintainability: number; performance: number };
+  issues: FileHealthIssue[];
+}
+
+export interface HealthReport {
+  detector_count: number;
+  files_scored: number;
+  average_score: number | null;
+  distribution: Record<'1-3' | '4-6' | '7-8' | '9-10', number>;
+  files: FileHealth[];
+  worst_files: string[];
+  refactor_targets: { path: string; score: number; lenses: FileHealth['lenses']; issues: FileHealthIssue[] }[];
+}
+
+export interface GitFileStats {
+  path: string;
+  churn: number;
+  commits: number;
+  bug_fixes: number;
+  hotspot_score: number;
+  bus_factor: number;
+  top_author: string;
+  top_author_share: number;
+  last_touched: string;
+}
+
+export interface GitInsights {
+  available: boolean;
+  reason?: string;
+  commits_analyzed?: number;
+  authors?: number;
+  top_authors?: { name: string; commits: number }[];
+  commits_last_30d?: number;
+  files?: GitFileStats[];
+  hotspots?: GitFileStats[];
+  co_change?: { files: [string, string]; co_changes: number }[];
+  bus_factor_worst?: GitFileStats[];
+}
+
+export interface WikiSymbol {
+  name: string;
+  kind: string;
+  line_start: number;
+  line_end: number;
+  params?: string | null;
+}
+
+export interface WikiPage {
+  path: string;
+  language: string;
+  title: string;
+  docstring: string | null;
+  summary: string;
+  symbols: WikiSymbol[];
+  imports: string[];
+  top_calls: { callee: string; calls: number }[];
+  lines: number;
+}
+
+export interface WikiReport {
+  files: number;
+  total_parseable: number;
+  pages: WikiPage[];
+}
+
+export interface ArchitectureNode {
+  id: string;
+  label: string;
+  files: number;
+  symbols: number;
+  imports: number;
+  layer: number;
+}
+
+export interface ArchitectureEdge {
+  from: string;
+  to: string;
+  weight: number;
+}
+
+export interface ArchitectureGraph {
+  nodes: ArchitectureNode[];
+  edges: ArchitectureEdge[];
+}
+
+export interface RepositoryIntelligence {
+  status: string;
+  generated_at: string | null;
+  error: string | null;
+  health: HealthReport;
+  git: GitInsights;
+  wiki: WikiReport;
+  architecture: ArchitectureGraph;
+}
+
+export interface WikiProseResult {
+  file_path: string;
+  content: string;
+  model: string | null;
+  provider: string;
+  usage: Record<string, unknown>;
+}

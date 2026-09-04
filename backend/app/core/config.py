@@ -32,6 +32,17 @@ class Settings(BaseSettings):
 
     repository_storage_dir: str = "./data/repositories"
 
+    # --- repository intelligence (code health, git analytics, wiki) ---
+    # Deterministic analysis passes over the working copy, computed on demand
+    # and cached in the ``repository_insights`` table. Bounds keep the pass
+    # fast on large repositories.
+    intel_max_files: int = 300
+    intel_wiki_max_files: int = 120
+    # How much git history to retain for clones (hotspots/ownership/co-change).
+    # The clone is deepened to this window after a shallow fetch; archives and
+    # zip uploads have no history and degrade gracefully.
+    git_history_months: int = 12
+
     llm_provider: str = "openai"
     llm_model: str = "gpt-4o-mini"
     openai_api_key: str | None = None

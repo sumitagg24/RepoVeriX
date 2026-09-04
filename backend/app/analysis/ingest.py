@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import shutil
 import zipfile
+from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 
 from app.analysis.models import AnalysisError
@@ -203,10 +204,42 @@ async def clone_github_repository(
             code="clone_failed",
         )
 
-    git_dir = src / ".git"
-    if git_dir.exists():
-        shutil.rmtree(git_dir, ignore_errors=True)  # keep the working copy small & hermetic
+    # Keep .git: repository intelligence (hotspots, ownership, co-change)
+    # needs history. The shallow clone is deepened to a bounded window so the
+    # working copy stays small. `.git` is ignored by every analysis walk.
+    await deepen_history(src, branch)
     return src
+
+
+async def deepen_history(src: Path, branch: str | None = None, months: int | None = None) -> None:
+    """Best-effort bounded deepening of a shallow clone.
+
+    Extends the shallow history to ``months`` of commits (falling back to a
+    200-commit window). Failures degrade gracefully: the clone still works,
+    git analytics just see the shallow window. Never raises.
+    """
+    if not (src / ".git").exists():
+        return
+    settings = get_settings()
+    window = months or settings.git_history_months
+    if window <= 0:
+        return
+    since = (datetime.now(UTC) - timedelta(days=window * 30)).strftime("%Y-%m-%d")
+    timeout = min(settings.git_clone_timeout_seconds, 120)
+    candidates: list[list[str]] = [
+        [settings.git_binary, "fetch", "--shallow-since", since, "origin"],
+        [settings.git_binary, "fetch", "--depth", "200", "origin"],
+    ]
+    if branch:
+        candidates = [c + [branch] for c in candidates]
+    for argv in candidates:
+        try:
+            result = await run_command(argv, cwd=src, timeout_seconds=timeout)
+        except TimeoutError:
+            continue
+        if result.ok:
+            return
+    # Even a failed deepen leaves the depth-1 clone fully usable.
 
 
 async def download_archive(

@@ -255,6 +255,34 @@ class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     owner: Mapped[User] = relationship(back_populates="repositories")
     oauth_account: Mapped[OAuthAccount | None] = relationship(foreign_keys=[oauth_account_id])
     scans: Mapped[list["Scan"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    insight: Mapped["RepositoryInsight | None"] = relationship(
+        back_populates="repository", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class RepositoryInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Cached repository-intelligence snapshot (code health, git analytics,
+    file wiki, architecture) computed deterministically from the working copy.
+
+    ``health`` / ``git`` / ``wiki`` / ``architecture`` are plain JSON payloads
+    served verbatim by the API; ``status`` records the last compute outcome.
+    """
+
+    __tablename__ = "repository_insights"
+
+    repository_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("repositories.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False)
+    commit_sha: Mapped[str | None] = mapped_column(String(64))
+    health: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    git: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    wiki: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    architecture: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    repository: Mapped[Repository] = relationship(back_populates="insight")
 
 
 class Scan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
