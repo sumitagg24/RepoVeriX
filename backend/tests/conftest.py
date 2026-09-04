@@ -70,20 +70,32 @@ async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_db():
         yield db_session
 
-    from app.api.dependencies import get_db as get_db_dep
-    from app.api.dependencies import get_scan_scheduler as get_scheduler_dep
+    from app.api.dependencies import (
+        get_db as get_db_dep,
+    )
+    from app.api.dependencies import (
+        get_scan_scheduler as get_scheduler_dep,
+    )
+    from app.api.dependencies import (
+        get_verification_scheduler as get_verify_scheduler_dep,
+    )
 
     app.dependency_overrides[get_db_dep] = override_get_db
 
-    # Never spawn real background scans during HTTP tests; tests exercise the
-    # orchestrator directly against their own in-memory engine.
-    def _noop_schedule(scan_id):
+    # Never spawn real background scans or Docker verification during HTTP
+    # tests; tests exercise the orchestrator/verifier directly against their
+    # own in-memory engine.
+    def _noop_schedule(item_id):
         return None
 
     async def _override_scheduler():
         return _noop_schedule
 
+    async def _override_verify_scheduler():
+        return _noop_schedule
+
     app.dependency_overrides[get_scheduler_dep] = _override_scheduler
+    app.dependency_overrides[get_verify_scheduler_dep] = _override_verify_scheduler
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac

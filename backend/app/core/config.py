@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     sandbox_cpu_limit: float = 1.0
     sandbox_memory_limit: str = "1g"
     sandbox_timeout_seconds: int = 600
+    # "none" disables container networking (pip/npm installs then fail); "bridge"
+    # allows package downloads during dependency installation
+    sandbox_network: str = "bridge"
 
     # --- repository ingestion limits (untrusted content) ---
     max_repo_size_mb: int = 100
