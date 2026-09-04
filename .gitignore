@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Runtime data (repository storage, logs, local databases)
+data/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Tooling metadata
+.freebuff/
+
+# Nginx local artifacts
+nginx/ssl/

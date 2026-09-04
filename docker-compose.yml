@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: repoverix-postgres
+    environment:
+      POSTGRES_USER: repoverix
+      POSTGRES_PASSWORD: repoverix
+      POSTGRES_DB: repoverix
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U repoverix -d repoverix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - repoverix-network
+
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: repoverix-backend
+    environment:
+      - REPOVERIX_DATABASE_URL=postgresql+asyncpg://repoverix:repoverix@postgres:5432/repoverix
+      - REPOVERIX_DEBUG=true
+      - REPOVERIX_JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - REPOVERIX_CORS_ORIGINS=["http://localhost:3000","http://localhost:80","http://frontend:3000"]
+      - REPOVERIX_REPOSITORY_STORAGE_DIR=/data/repositories
+      - REPOVERIX_LLM_PROVIDER=openai
+      - REPOVERIX_LLM_MODEL=gpt-4o-mini
+      - REPOVERIX_OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - REPOVERIX_ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - REPOVERIX_SANDBOX_CPU_LIMIT=1.0
+      - REPOVERIX_SANDBOX_MEMORY_LIMIT=1g
+      - REPOVERIX_SANDBOX_TIMEOUT_SECONDS=600
+    volumes:
+      - repoverix_repos:/data/repositories
+      - repoverix_logs:/app/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - repoverix-network
+    restart: unless-stopped
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    container_name: repoverix-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - repoverix-network
+    restart: unless-stopped
+
+  # Nginx Gateway
+  nginx:
+    image: nginx:alpine
+    container_name: repoverix-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - repoverix-network
+    restart: unless-stopped
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: repoverix-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - repoverix-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  repoverix_repos:
+  repoverix_logs:
+  redis_data:
+
+networks:
+  repoverix-network:
+    driver: bridge
