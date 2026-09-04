@@ -7,9 +7,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.analysis import ingest
+from app.analysis.llm import LLMUsage, build_llm_provider
+from app.analysis.models import AnalysisError
+from app.analysis.repair import generate_repair
 from app.api.dependencies import get_current_user, get_db
-from app.db.models import Finding, Repository, Scan
+from app.core.config import get_settings
+from app.db.models import Finding, Patch, PatchStatus, Repository, Scan
 from app.schemas.finding import FindingDetail, FindingRead
+from app.schemas.verification import PatchRead
 
 router = APIRouter(prefix="/findings", tags=["findings"])
 
@@ -66,6 +72,73 @@ async def get_finding(
     if finding is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
     return finding
+
+
+@router.post("/{finding_id}/generate-fix", response_model=PatchRead)
+async def generate_fix(
+    finding_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a candidate patch for a finding (deterministic template or LLM).
+
+    The patch is stored as a candidate; it is never applied to the original
+    repository. Verification happens later against an isolated copy.
+    """
+    result = await db.execute(
+        select(Finding)
+        .options(
+            selectinload(Finding.evidence),
+            selectinload(Finding.scan),
+            selectinload(Finding.scan).selectinload(Scan.repository),
+        )
+        .join(Scan)
+        .join(Repository)
+        .where(
+            Finding.id == finding_id,
+            Repository.owner_id == current_user.id,
+        )
+    )
+    finding = result.scalar_one_or_none()
+    if finding is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+
+    repository = finding.scan.repository
+    src = ingest.source_dir(str(repository.id))
+    if not src.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Repository source is not available; run a scan on this repository first",
+        )
+
+    provider = build_llm_provider(get_settings())
+    usage = LLMUsage()
+    try:
+        repair = await generate_repair(
+            finding,
+            source_root=src,
+            provider=provider,
+            usage=usage,
+            graph=None,
+            parsed_files={},
+        )
+    except AnalysisError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=exc.message,
+        ) from exc
+
+    patch = Patch(
+        finding_id=finding.id,
+        diff=repair.diff,
+        explanation=repair.description,
+        generated_by=repair.generated_by,
+        status=PatchStatus.candidate,
+    )
+    db.add(patch)
+    await db.commit()
+    await db.refresh(patch)
+    return patch
 
 
 @router.get("/scan/{scan_id}/summary")

@@ -15,51 +15,61 @@ from typing import Any
 
 logger = logging.getLogger("repoverix.scans")
 
-_tasks: dict[uuid.UUID, asyncio.Task] = {}
-_cancel_events: dict[uuid.UUID, asyncio.Event] = {}
+_tasks: dict[str, asyncio.Task] = {}
+_cancel_events: dict[str, asyncio.Event] = {}
 
 
-def request_cancel(scan_id: uuid.UUID) -> bool:
-    """Request cancellation of a running scan; returns False if not tracked."""
-    event = _cancel_events.get(scan_id)
+def request_cancel(scan_id: uuid.UUID | str) -> bool:
+    """Request cancellation of a running task; returns False if not tracked."""
+    event = _cancel_events.get(str(scan_id))
     if event is None:
         return False
     event.set()
     return True
 
 
-def is_cancelled(scan_id: uuid.UUID) -> bool:
-    return _cancel_events.get(scan_id) is not None and _cancel_events[scan_id].is_set()
+def is_cancelled(scan_id: uuid.UUID | str) -> bool:
+    return _cancel_events.get(str(scan_id)) is not None and _cancel_events[str(scan_id)].is_set()
+
+
+def schedule(name: str, coro_factory: Any) -> asyncio.Task:
+    """Schedule ``coro_factory()`` (an awaitable factory) in the background loop."""
+    loop = asyncio.get_running_loop()
+    _cancel_events[name] = asyncio.Event()
+
+    async def _run() -> None:
+        try:
+            await coro_factory()
+        except asyncio.CancelledError:
+            logger.warning("background task cancelled name=%s", name)
+        except Exception as exc:  # pragma: no cover - last-resort guard
+            logger.exception("unhandled background task error name=%s: %s", name, exc)
+        finally:
+            _tasks.pop(name, None)
+            _cancel_events.pop(name, None)
+
+    task = loop.create_task(_run())
+    _tasks[name] = task
+    return task
 
 
 def schedule_scan(scan_id: uuid.UUID, runner: Any) -> None:
     """Schedule ``runner(scan_id)`` in the background event loop."""
-    loop = asyncio.get_running_loop()
-    _cancel_events[scan_id] = asyncio.Event()
-
-    async def _run() -> None:
-        try:
-            await runner(scan_id)
-        except asyncio.CancelledError:
-            logger.warning("scan task cancelled scan_id=%s", scan_id)
-        except Exception as exc:  # pragma: no cover - last-resort guard
-            logger.exception("unhandled scan task error scan_id=%s: %s", scan_id, exc)
-        finally:
-            _tasks.pop(scan_id, None)
-            _cancel_events.pop(scan_id, None)
-
-    task = loop.create_task(_run())
-    _tasks[scan_id] = task
+    schedule(str(scan_id), lambda: _scan_runner(scan_id, runner))
 
 
-def cancel_scan_task(scan_id: uuid.UUID) -> bool:
+async def _scan_runner(scan_id: uuid.UUID, runner: Any) -> None:
+    await runner(scan_id)
+
+
+def cancel_scan_task(scan_id: uuid.UUID | str) -> bool:
     """Force-cancel a background task (used on shutdown or hard cancel)."""
-    task = _tasks.get(scan_id)
+    task = _tasks.get(str(scan_id))
     if task is None:
         return False
     task.cancel()
     return True
 
 
-def active_scan_ids() -> list[str]:
-    return [str(sid) for sid in _tasks]
+def active_task_names() -> list[str]:
+    return list(_tasks)

@@ -77,3 +77,23 @@ async def get_scan_scheduler() -> Callable[[uuid.UUID], None]:
         scan_runtime.schedule_scan(scan_id, lambda sid: run_scan(SessionLocal, sid))
 
     return _schedule
+
+
+async def get_verification_scheduler() -> Callable[[uuid.UUID], None]:
+    """Return the function that starts a verification run in the background.
+
+    Same pattern as ``get_scan_scheduler`` so tests can substitute a stub and a
+    future job queue can replace the in-process scheduler without touching
+    routes. Verification runs inside a Docker sandbox by default.
+    """
+    from app.analysis import runtime as scan_runtime
+    from app.analysis.verify import run_verification
+    from app.db.database import SessionLocal
+
+    def _schedule(verification_id: uuid.UUID) -> None:
+        scan_runtime.schedule(
+            str(verification_id),
+            lambda: run_verification(SessionLocal, verification_id),
+        )
+
+    return _schedule

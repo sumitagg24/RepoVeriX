@@ -1,14 +1,15 @@
 """Patch and verification routes."""
 
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.dependencies import get_current_user, get_db
-from app.db.models import Finding, Patch, Repository, Scan, VerificationRun
+from app.api.dependencies import get_current_user, get_db, get_verification_scheduler
+from app.db.models import Finding, Patch, Repository, Scan, VerificationRun, VerificationStatus
 from app.schemas.verification import PatchRead, VerificationRunDetail, VerificationRunRead
 
 router = APIRouter(prefix="/patches", tags=["patches"])
@@ -92,6 +93,59 @@ async def list_verification_runs(
         .order_by(VerificationRun.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+@router.post("/{patch_id}/verify", response_model=VerificationRunRead, status_code=status.HTTP_201_CREATED)
+async def verify_patch(
+    patch_id: uuid.UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    scheduler=Depends(get_verification_scheduler),
+):
+    """Create a verification run for a candidate patch and schedule it.
+
+    Execution happens inside an isolated sandbox (Docker in production); the
+    original repository is never modified.
+    """
+    result = await db.execute(
+        select(Patch)
+        .options(selectinload(Patch.finding))
+        .join(Finding)
+        .join(Scan)
+        .join(Repository)
+        .where(
+            Patch.id == patch_id,
+            Repository.owner_id == current_user.id,
+        )
+    )
+    patch = result.scalar_one_or_none()
+    if patch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patch not found")
+
+    active = await db.execute(
+        select(VerificationRun).where(
+            VerificationRun.patch_id == patch_id,
+            VerificationRun.status.in_(
+                [VerificationStatus.pending, VerificationStatus.running]
+            ),
+        )
+    )
+    if active.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A verification run for this patch is already pending or running",
+        )
+
+    run = VerificationRun(
+        patch_id=patch_id,
+        status=VerificationStatus.pending,
+        started_at=datetime.now(UTC),
+    )
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    scheduler(run.id)
+    return run
 
 
 @router.get("/verification/{verification_id}", response_model=VerificationRunDetail)
