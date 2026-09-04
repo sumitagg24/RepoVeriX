@@ -1,0 +1,97 @@
+# RepoVeriX — production stack (PostgreSQL + backend + frontend)
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Point the browser at http://localhost:3000 and the API at http://localhost:8000.
+#
+# Production notes:
+#   * Always set REPOVERIX_JWT_SECRET (see DEPLOY.md for how to generate one).
+#   * If the frontend is served from a real domain, rebuild it with
+#     NEXT_PUBLIC_API_URL=https://<your-api-domain> and add that frontend origin
+#     to REPOVERIX_CORS_ORIGINS (JSON list) below.
+#   * Patch verification runs the patched repository inside Docker. On a real
+#     host that means mounting the Docker socket into the backend container
+#     (uncomment the lines at the bottom). Without it, verification reports an
+#     honest runner error instead of "verified".
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-repoverix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-repoverix}
+      POSTGRES_DB: ${POSTGRES_DB:-repoverix}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-repoverix} -d ${POSTGRES_DB:-repoverix}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - repoverix
+
+  backend:
+    build:
+      context: ./backend
+    image: ghcr.io/sumitagg24/repoverix-backend:latest
+    restart: unless-stopped
+    environment:
+      REPOVERIX_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-repoverix}:${POSTGRES_PASSWORD:-repoverix}@postgres:5432/${POSTGRES_DB:-repoverix}
+      REPOVERIX_AUTO_CREATE_TABLES: "true"
+      # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+      REPOVERIX_JWT_SECRET: ${REPOVERIX_JWT_SECRET:-change-me-in-production}
+      # JSON list of allowed browser origins (the frontend origin).
+      REPOVERIX_CORS_ORIGINS: '["http://localhost:3000", "http://127.0.0.1:3000"]'
+      REPOVERIX_REPOSITORY_STORAGE_DIR: /data/repositories
+      # Optional LLM providers — unset by default; see .env.example for names.
+      REPOVERIX_LLM_PROVIDER: ${REPOVERIX_LLM_PROVIDER:-openai}
+      REPOVERIX_OPENAI_API_KEY: ${REPOVERIX_OPENAI_API_KEY:-}
+      REPOVERIX_ANTHROPIC_API_KEY: ${REPOVERIX_ANTHROPIC_API_KEY:-}
+      REPOVERIX_GEMINI_API_KEY: ${REPOVERIX_GEMINI_API_KEY:-}
+      # Resource limits for the patch-verification sandbox.
+      REPOVERIX_SANDBOX_CPU_LIMIT: ${REPOVERIX_SANDBOX_CPU_LIMIT:-1.0}
+      REPOVERIX_SANDBOX_MEMORY_LIMIT: ${REPOVERIX_SANDBOX_MEMORY_LIMIT:-1g}
+      REPOVERIX_SANDBOX_TIMEOUT_SECONDS: ${REPOVERIX_SANDBOX_TIMEOUT_SECONDS:-600}
+    volumes:
+      - repoverix-data:/data/repositories
+      # Only needed if you want in-Docker patch verification on this host.
+      # WARNING: mounting the socket gives the backend root-equivalent control
+      # of the Docker daemon. Only do this on a host dedicated to RepoVeriX,
+      # and also uncomment `user: root` below (the image's non-root user
+      # cannot otherwise talk to the daemon).
+      # - /var/run/docker.sock:/var/run/docker.sock
+    # user: root
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - repoverix
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Public URL of the backend, from the *browser's* point of view.
+        # Change this to your deployed API domain.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: ghcr.io/sumitagg24/repoverix-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - repoverix
+
+volumes:
+  pgdata:
+  repoverix-data:
+
+networks:
+  repoverix:
+    driver: bridge

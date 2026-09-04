@@ -99,7 +99,11 @@ npm run dev                 # http://localhost:3000
 API docs: http://localhost:8000/docs · health: `/health`.
 
 Full docker-compose (PostgreSQL + backend + frontend) is available in
-`docker-compose.yml`.
+`docker-compose.yml` (local dev) and `docker-compose.prod.yml` (production
+stack). CI runs on every push; a successful push to `main` also publishes
+Docker images to GHCR and, once the deploy secrets are configured, ships the
+stack to your server. See **[DEPLOY.md](DEPLOY.md)** for the full deployment
+guide.
 
 ## Running an audit
 
