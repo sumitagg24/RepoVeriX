@@ -38,6 +38,26 @@ class Settings(BaseSettings):
     sandbox_memory_limit: str = "1g"
     sandbox_timeout_seconds: int = 600
 
+    # --- repository ingestion limits (untrusted content) ---
+    max_repo_size_mb: int = 100
+    max_file_size_kb: int = 1024
+    max_files: int = 5000
+    max_symbols: int = 20000
+    max_output_log_chars: int = 200000
+    git_clone_timeout_seconds: int = 300
+    git_binary: str = "git"
+
+    # --- LLM providers ---
+    llm_timeout_seconds: int = 120
+    llm_max_retries: int = 2
+    llm_temperature: float = 0.0
+    llm_max_candidates_per_scan: int = 60
+    llm_max_context_chars: int = 24000
+    anthropic_model: str = "claude-3-5-haiku-latest"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-1.5-flash"
+    openai_base_url: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

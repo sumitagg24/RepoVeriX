@@ -54,7 +54,9 @@ class TestPatches:
         assert any(p["generated_by"] == "llm" for p in data)
 
     @pytest.mark.asyncio
-    async def test_list_patches_filter_by_finding(self, client: AsyncClient, auth_headers, test_scan, db_session):
+    async def test_list_patches_filter_by_finding(
+        self, client: AsyncClient, auth_headers, test_scan, db_session
+    ):
         """Test listing patches filtered by finding."""
         from app.db.models import (
             Finding,
@@ -160,6 +162,7 @@ class TestPatches:
     async def test_get_patch_not_found(self, client: AsyncClient, auth_headers):
         """Test getting nonexistent patch returns 404."""
         import uuid
+
         response = await client.get(f"/api/v1/patches/{uuid.uuid4()}", headers=auth_headers)
         assert response.status_code == 404
 

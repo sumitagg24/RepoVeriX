@@ -8,7 +8,9 @@ class TestDashboard:
     """Test dashboard and summary endpoints."""
 
     @pytest.mark.asyncio
-    async def test_get_dashboard_summary(self, client: AsyncClient, auth_headers, test_user, test_repository, test_scan, db_session):
+    async def test_get_dashboard_summary(
+        self, client: AsyncClient, auth_headers, test_user, test_repository, test_scan, db_session
+    ):
         """Test getting dashboard summary."""
         from app.db.models import Finding, FindingCategory, FindingSource, FindingStatus, Severity
 
@@ -55,7 +57,9 @@ class TestDashboard:
         assert data["findings"]["total"] == 0
 
     @pytest.mark.asyncio
-    async def test_dashboard_isolation(self, client: AsyncClient, auth_headers, test_user, test_repository, test_scan, db_session):
+    async def test_dashboard_isolation(
+        self, client: AsyncClient, auth_headers, test_user, test_repository, test_scan, db_session
+    ):
         """Test dashboard only shows current user's data."""
         from app.core.security import hash_password
         from app.db.models import (

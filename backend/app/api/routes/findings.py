@@ -23,16 +23,11 @@ async def list_findings(
     status: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List findings with optional filters."""
-    query = (
-        select(Finding)
-        .join(Scan)
-        .join(Repository)
-        .where(Repository.owner_id == current_user.id)
-    )
+    query = select(Finding).join(Scan).join(Repository).where(Repository.owner_id == current_user.id)
 
     if scan_id:
         query = query.where(Finding.scan_id == scan_id)
@@ -53,7 +48,7 @@ async def list_findings(
 @router.get("/{finding_id}", response_model=FindingDetail)
 async def get_finding(
     finding_id: uuid.UUID,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single finding with its evidence and patches."""
@@ -76,7 +71,7 @@ async def get_finding(
 @router.get("/scan/{scan_id}/summary")
 async def get_scan_findings_summary(
     scan_id: uuid.UUID,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get aggregated finding counts for a scan."""
@@ -96,9 +91,7 @@ async def get_scan_findings_summary(
     from app.db.models import FindingCategory, FindingStatus, Severity
 
     # Total count
-    total_result = await db.execute(
-        select(func.count(Finding.id)).where(Finding.scan_id == scan_id)
-    )
+    total_result = await db.execute(select(func.count(Finding.id)).where(Finding.scan_id == scan_id))
     total = total_result.scalar() or 0
 
     # By category

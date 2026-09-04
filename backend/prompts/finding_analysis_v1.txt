@@ -1,0 +1,45 @@
+You are evaluating ONE candidate issue that deterministic analysis raised in the repository below.
+
+CONTEXT STARTS
+Repository language: {language}
+Configuration: {configuration}
+
+Candidate issue (raised by {source}):
+- Title: {title}
+- Rule: {rule}
+- File: {file_path}
+- Lines: {line_start}-{line_end}
+- Function: {function_name}
+- Message: {message}
+
+The affected code is:
+```{language}
+{code_snippet}
+```
+
+Repository context relevant to this candidate (callers, callees, imports, related code):
+{repo_context}
+
+Static evidence available:
+{static_evidence}
+CONTEXT ENDS
+
+Your task: decide whether this candidate is a true defect, and assess its severity.
+Consider carefully whether the evidence in the code supports the claim. Do not be
+sycophantic toward the candidate: if the deterministic rule fired but the code
+path shows the claim does not hold (for example the input is sanitized or the
+value cannot reach the sink), say so.
+
+Respond with ONLY this JSON object:
+{{
+  "title": "concise issue title",
+  "category": "security|logic|api_misuse|database|dependency|reliability",
+  "severity": "critical|high|medium|low|info",
+  "claim": "one-sentence statement of the alleged defect",
+  "reasoning": "step-by-step reasoning grounded in the code shown; cite file:line where possible",
+  "evidence_summary": "the concrete code facts that support (or refute) the claim",
+  "verdict": "confirmed|probable|false_positive|insufficient_evidence",
+  "confidence": 0.0-1.0,
+  "requires_verification": true|false,
+  "assumptions": ["anything you assumed that the code did not directly prove"]
+}}

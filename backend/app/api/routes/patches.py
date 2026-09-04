@@ -21,16 +21,12 @@ async def list_patches(
     status: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List patches with optional filters."""
     query = (
-        select(Patch)
-        .join(Finding)
-        .join(Scan)
-        .join(Repository)
-        .where(Repository.owner_id == current_user.id)
+        select(Patch).join(Finding).join(Scan).join(Repository).where(Repository.owner_id == current_user.id)
     )
 
     if finding_id:
@@ -48,7 +44,7 @@ async def list_patches(
 @router.get("/{patch_id}", response_model=PatchRead)
 async def get_patch(
     patch_id: uuid.UUID,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single patch by ID."""
@@ -71,7 +67,7 @@ async def get_patch(
 @router.get("/{patch_id}/verifications", response_model=list[VerificationRunRead])
 async def list_verification_runs(
     patch_id: uuid.UUID,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List verification runs for a patch."""
@@ -101,7 +97,7 @@ async def list_verification_runs(
 @router.get("/verification/{verification_id}", response_model=VerificationRunDetail)
 async def get_verification_run(
     verification_id: uuid.UUID,
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single verification run with test results."""

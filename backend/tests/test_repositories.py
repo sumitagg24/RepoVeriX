@@ -82,6 +82,7 @@ class TestRepositories:
     async def test_get_repository_not_found(self, client: AsyncClient, auth_headers):
         """Test getting nonexistent repository returns 404."""
         import uuid
+
         response = await client.get(f"/api/v1/repositories/{uuid.uuid4()}", headers=auth_headers)
         assert response.status_code == 404
 
