@@ -14,6 +14,7 @@ Authenticated callers can then list importable repositories with
 ``POST /repositories/oauth``.
 """
 
+import logging
 import secrets
 from typing import Literal
 from urllib.parse import urlencode
@@ -32,6 +33,7 @@ from app.services import oauth as oauth_service
 router = APIRouter(prefix="/auth/oauth", tags=["auth"])
 
 Provider = Literal["google", "github", "gitlab"]
+_logger = logging.getLogger("repoverix.http")
 
 _STATE_COOKIE = "rvx_oauth_state"
 
@@ -109,7 +111,11 @@ async def oauth_callback(
         access_token = token_data.get("access_token") or ""
         profile = await oauth_service.fetch_profile(provider, access_token)
     except oauth_service.OAuthError as exc:
-        params = urlencode({"error": f"oauth:{str(exc)[:120]}"})
+        # Log the provider detail server-side; the user only sees a generic
+        # error so internals (URLs, response bodies) never reach the browser.
+        host = request.client.host if request.client else "?"
+        _logger.warning("OAuth %s exchange failed for %s: %s", provider, host, exc)
+        params = urlencode({"error": "oauth_failed"})
         return RedirectResponse(url=_frontend_redirect(f"/auth/oauth/callback?{params}"))
     if not access_token or not profile.get("id"):
         return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=profile_failed"))
@@ -131,6 +137,9 @@ async def oauth_callback(
 async def _upsert_oauth_user(db: AsyncSession, provider: str, profile: dict, email: str) -> User | None:
     user = None
     if email:
+        # Emails are stored lower-case everywhere so OAuth and password sign-in
+        # resolve to the same account regardless of the provider's casing.
+        email = email.strip().lower()
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
     if user is None:
@@ -232,9 +241,14 @@ async def oauth_repos(
     try:
         repos = await oauth_service.list_repositories(provider, account.access_token)
     except oauth_service.OAuthError as exc:
+        _logger.warning(
+            "Listing %s repositories failed for user %s", provider, current_user.id, exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Could not list {provider} repositories: {exc}",
+            detail=(
+                f"Could not list {provider} repositories. Reconnect the account in Settings and try again."
+            ),
         ) from exc
     return {"provider": provider, "repositories": repos}
 

@@ -3,12 +3,14 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_current_user, get_db, get_verification_scheduler
+from app.core.config import get_settings
+from app.core.ratelimit import check_action, enforce
 from app.db.models import Finding, Patch, Repository, Scan, VerificationRun, VerificationStatus
 from app.schemas.verification import PatchRead, VerificationRunDetail, VerificationRunRead
 
@@ -20,8 +22,8 @@ async def list_patches(
     finding_id: uuid.UUID | None = None,
     scan_id: uuid.UUID | None = None,
     status: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -105,8 +107,11 @@ async def verify_patch(
     """Create a verification run for a candidate patch and schedule it.
 
     Execution happens inside an isolated sandbox (Docker in production); the
-    original repository is never modified.
+    original repository is never modified. Sandbox runs are rate limited per
+    user because they consume host resources.
     """
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "verify_patch"))
     result = await db.execute(
         select(Patch)
         .options(selectinload(Patch.finding))

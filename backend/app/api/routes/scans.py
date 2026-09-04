@@ -3,12 +3,14 @@
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_current_user, get_db, get_scan_scheduler
+from app.core.config import get_settings
+from app.core.ratelimit import check_action, enforce
 from app.db.models import Finding, Repository, Scan, ScanStatus
 from app.schemas.finding import FindingRead
 from app.schemas.scan import ScanCreate, ScanDetail, ScanRead
@@ -24,6 +26,8 @@ async def create_scan(
     scheduler=Depends(get_scan_scheduler),
 ):
     """Start a new scan for a repository and schedule it in the background."""
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "create_scan"))
     # Verify repository ownership
     repo_result = await db.execute(
         select(Repository).where(
@@ -73,8 +77,8 @@ async def get_scan_findings(
     scan_id: uuid.UUID,
     severity: str | None = None,
     status: str | None = None,
-    limit: int = 200,
-    offset: int = 0,
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -141,7 +145,7 @@ async def get_scan_report(
         )
     if format != "json":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="format must be 'json' or 'markdown'",
         )
     return Response(

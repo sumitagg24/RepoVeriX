@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,6 +13,7 @@ from app.analysis.models import AnalysisError
 from app.analysis.repair import generate_repair
 from app.api.dependencies import get_current_user, get_db
 from app.core.config import get_settings
+from app.core.ratelimit import check_action, enforce
 from app.db.models import Finding, Patch, PatchStatus, Repository, Scan
 from app.schemas.finding import FindingDetail, FindingRead
 from app.schemas.verification import PatchRead
@@ -27,8 +28,8 @@ async def list_findings(
     category: str | None = None,
     severity: str | None = None,
     status: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -83,8 +84,11 @@ async def generate_fix(
     """Generate a candidate patch for a finding (deterministic template or LLM).
 
     The patch is stored as a candidate; it is never applied to the original
-    repository. Verification happens later against an isolated copy.
+    repository. Verification happens later against an isolated copy. LLM-backed
+    generations consume tokens, so this endpoint is rate limited per user.
     """
+    if get_settings().rate_limit_enabled:
+        enforce(check_action(str(current_user.id), "generate_fix"))
     result = await db.execute(
         select(Finding)
         .options(
@@ -124,7 +128,7 @@ async def generate_fix(
         )
     except AnalysisError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=exc.message,
         ) from exc
 
