@@ -219,3 +219,47 @@ async def test_verification_reports_unavailable_runner(db_engine):
         assert "Docker is not available" in (run.logs or "")
         patch = await db.get(Patch, patch_id)
         assert patch.status == PatchStatus.not_verified
+
+
+def test_parse_junit_extracts_individual_tests(tmp_path):
+    """JUnit XML produced inside the Docker sandbox yields per-test rows."""
+    junit = tmp_path / "junit.xml"
+    junit.write_text(
+        """<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="pytest" tests="3" failures="1" errors="0" skipped="0">
+  <testcase classname="test_app" name="test_search_ok" time="0.01"/>
+  <testcase classname="test_app" name="test_injection_blocked" time="0.02">
+    <failure message="assert 1 == 0">traceback here</failure>
+  </testcase>
+  <testcase classname="test_app" name="test_skipped" time="0.0">
+    <skipped message="needs db"/>
+  </testcase>
+</testsuite>
+""",
+        encoding="utf-8",
+    )
+    from app.analysis.verify import _parse_junit
+
+    rows = _parse_junit(junit)
+    assert [r["name"] for r in rows] == [
+        "test_app::test_search_ok",
+        "test_app::test_injection_blocked",
+        "test_app::test_skipped",
+    ]
+    assert rows[0]["outcome"] == "passed"
+    assert rows[1]["outcome"] == "failed"
+    assert rows[2]["outcome"] == "skipped"
+    assert "assert 1 == 0" in rows[1]["detail"]
+
+
+def test_interpret_test_output_carries_parsed_tests():
+    """DockerRunner now carries parsed per-test rows into the result."""
+    from app.analysis.verify import _interpret_test_output
+
+    result = _interpret_test_output("4 passed in 0.3s", 0, tests=[{"name": "x", "outcome": "passed"}])
+    assert result.tests_passed is True
+    assert result.tests == [{"name": "x", "outcome": "passed"}]
+
+    result = _interpret_test_output("1 failed", 1)
+    assert result.tests_passed is False
+    assert result.tests == []
