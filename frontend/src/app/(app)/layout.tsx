@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Plus,
 } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuth } from '@/context/AuthContext';
 
 const navigation = [
@@ -127,8 +128,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </nav>
 
-        {/* User */}
-        <div className="p-3 border-t border-sidebar-border">
+        {/* Theme + user */}
+        <div className="p-3 pb-2 border-t border-sidebar-border">
+          <div className="flex items-center justify-between rounded-xl px-2.5 py-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Appearance</span>
+            <ThemeToggle />
+          </div>
+        </div>
+        <div className="px-3 pb-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex w-full items-center gap-3 rounded-xl bg-card p-2.5 text-left shadow-sm ring-1 ring-sidebar-border transition-colors hover:bg-card/70">

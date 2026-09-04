@@ -390,10 +390,10 @@ export default function FindingDetailPage() {
                       <div className="p-4 bg-muted/50 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-lg ${cn(
-                            patch.status === 'verified' && 'bg-green-500/10 text-green-600',
-                            patch.status === 'failed' && 'bg-red-500/10 text-red-600',
-                            patch.status === 'applied' && 'bg-blue-500/10 text-blue-600',
-                            'bg-gray-500/10 text-gray-600'
+                            patch.status === 'verified' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                            patch.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400',
+                            patch.status === 'applied' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                            'bg-gray-500/10 text-gray-600 dark:text-gray-400'
                           )}`}>
                             <Shield className="h-5 w-5" />
                           </div>
@@ -404,11 +404,11 @@ export default function FindingDetailPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className={cn(
-                            patch.status === 'verified' && 'bg-green-500/10 text-green-600',
-                            patch.status === 'failed' && 'bg-red-500/10 text-red-600',
-                            patch.status === 'applied' && 'bg-blue-500/10 text-blue-600',
-                            patch.status === 'candidate' && 'bg-yellow-500/10 text-yellow-600',
-                            'bg-gray-500/10 text-gray-600'
+                            patch.status === 'verified' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                            patch.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400',
+                            patch.status === 'applied' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                            patch.status === 'candidate' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+                            'bg-gray-500/10 text-gray-600 dark:text-gray-400'
                           )}>
                             {patch.status}
                           </Badge>

@@ -63,9 +63,9 @@ export default function RepositoryDetailPage() {
                 <Badge variant="outline" className="capitalize">{repository.source_type}</Badge>
                 <Badge variant="outline">{repository.default_branch}</Badge>
                 <Badge variant="outline" className={cn(
-                  repository.status === 'active' && 'bg-green-500/10 text-green-600',
-                  repository.status === 'registered' && 'bg-blue-500/10 text-blue-600',
-                  repository.status === 'archived' && 'bg-gray-500/10 text-gray-600'
+                  repository.status === 'active' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                  repository.status === 'registered' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                  repository.status === 'archived' && 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
                 )}>
                   {repository.status}
                 </Badge>
@@ -109,7 +109,7 @@ export default function RepositoryDetailPage() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {scans?.filter(s => s.status === 'completed').length || 0}
             </div>
           </CardContent>
@@ -120,7 +120,7 @@ export default function RepositoryDetailPage() {
             <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {scans?.filter(s => s.status === 'running').length || 0}
             </div>
           </CardContent>
@@ -131,7 +131,7 @@ export default function RepositoryDetailPage() {
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
               {scans?.filter(s => s.status === 'failed').length || 0}
             </div>
           </CardContent>
@@ -173,21 +173,21 @@ export default function RepositoryDetailPage() {
                     >
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div className={`p-3 rounded-lg flex-shrink-0 ${[
-                          'bg-yellow-500/10 text-yellow-600',
-                          'bg-blue-500/10 text-blue-600',
-                          'bg-green-500/10 text-green-600',
-                          'bg-red-500/10 text-red-600',
-                        ][['pending', 'running', 'completed', 'failed'].indexOf(scan.status)] || 'bg-gray-500/10 text-gray-600'}`}>
+                          'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+                          'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                          'bg-green-500/10 text-green-600 dark:text-green-400',
+                          'bg-red-500/10 text-red-600 dark:text-red-400',
+                        ][['pending', 'running', 'completed', 'failed'].indexOf(scan.status)] || 'bg-gray-500/10 text-gray-600 dark:text-gray-400'}`}>
                           <Search className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-3">
                             <span className="font-medium capitalize">{scan.configuration.replace('_', ' ')}</span>
                             <Badge variant="outline" className={cn(
-                              scan.status === 'pending' && 'bg-yellow-500/10 text-yellow-600',
-                              scan.status === 'running' && 'bg-blue-500/10 text-blue-600 animate-pulse',
-                              scan.status === 'completed' && 'bg-green-500/10 text-green-600',
-                              scan.status === 'failed' && 'bg-red-500/10 text-red-600'
+                              scan.status === 'pending' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+                              scan.status === 'running' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400 animate-pulse',
+                              scan.status === 'completed' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                              scan.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400'
                             )}>
                               {scan.status === 'running' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                               {scan.status.charAt(0).toUpperCase() + scan.status.slice(1)}

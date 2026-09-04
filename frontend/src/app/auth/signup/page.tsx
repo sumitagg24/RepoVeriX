@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { ShieldCheck, Mail, Lock, User, Check } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { OAuthSignInButton } from '@/components/oauth-buttons';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { toast } from 'sonner';
 
 const signupSchema = z
@@ -54,6 +55,10 @@ export default function SignupPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
+      {/* theme switch */}
+      <div className="fixed right-4 top-4 z-50">
+        <ThemeToggle variant="solid" />
+      </div>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(60%_100%_at_50%_0%,hsl(var(--primary)/0.08),transparent)]"
