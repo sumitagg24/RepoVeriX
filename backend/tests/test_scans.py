@@ -101,3 +101,41 @@ class TestScans:
         """Test cancelling a completed scan fails."""
         response = await client.post(f"/api/v1/scans/{test_scan.id}/cancel", headers=auth_headers)
         assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_get_scan_findings(self, client: AsyncClient, auth_headers, test_scan, db_session):
+        """List findings produced by one scan."""
+        from app.db.models import (
+            Finding,
+            FindingCategory,
+            FindingSource,
+            FindingStatus,
+            Severity,
+        )
+
+        finding = Finding(
+            scan_id=test_scan.id,
+            external_id="RVX-TEST-0001",
+            category=FindingCategory.security,
+            severity=Severity.high,
+            status=FindingStatus.verified,
+            confidence=0.8,
+            title="Test finding",
+            description="desc",
+            file_path="app.py",
+            source=FindingSource.static,
+        )
+        db_session.add(finding)
+        await db_session.commit()
+
+        response = await client.get(f"/api/v1/scans/{test_scan.id}/findings", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["title"] == "Test finding"
+
+        filtered = await client.get(
+            f"/api/v1/scans/{test_scan.id}/findings?severity=critical", headers=auth_headers
+        )
+        assert filtered.status_code == 200
+        assert filtered.json() == []

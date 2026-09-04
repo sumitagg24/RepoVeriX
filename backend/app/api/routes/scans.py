@@ -1,14 +1,16 @@
 """Scan management routes."""
 
+import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_current_user, get_db, get_scan_scheduler
-from app.db.models import Repository, Scan, ScanStatus
+from app.db.models import Finding, Repository, Scan, ScanStatus
+from app.schemas.finding import FindingRead
 from app.schemas.scan import ScanCreate, ScanDetail, ScanRead
 
 router = APIRouter(prefix="/scans", tags=["scans"])
@@ -66,6 +68,33 @@ async def list_scans(
     return list(result.scalars().all())
 
 
+@router.get("/{scan_id}/findings", response_model=list[FindingRead])
+async def get_scan_findings(
+    scan_id: uuid.UUID,
+    severity: str | None = None,
+    status: str | None = None,
+    limit: int = 200,
+    offset: int = 0,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List the findings produced by one scan (ownership-scoped)."""
+    scan_result = await db.execute(
+        select(Scan).join(Repository).where(Scan.id == scan_id, Repository.owner_id == current_user.id)
+    )
+    if scan_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+
+    query = select(Finding).where(Finding.scan_id == scan_id)
+    if severity:
+        query = query.where(Finding.severity == severity)
+    if status:
+        query = query.where(Finding.status == status)
+    query = query.order_by(Finding.created_at.asc()).limit(min(limit, 500)).offset(offset)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 @router.get("/{scan_id}", response_model=ScanDetail)
 async def get_scan(
     scan_id: uuid.UUID,
@@ -86,6 +115,39 @@ async def get_scan(
     if scan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
     return scan
+
+
+@router.get("/{scan_id}/report")
+async def get_scan_report(
+    scan_id: uuid.UUID,
+    format: str = "json",
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Full audit report for a scan in JSON or Markdown (``?format=json|markdown``)."""
+    from app.services.reporting import build_scan_report, render_markdown
+
+    report = await build_scan_report(db, scan_id, current_user.id)
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+
+    if format == "markdown":
+        md = render_markdown(report)
+        filename = f"repoverix-report-{scan_id}.md"
+        return Response(
+            content=md,
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    if format != "json":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="format must be 'json' or 'markdown'",
+        )
+    return Response(
+        content=json.dumps(report, indent=2, default=str),
+        media_type="application/json",
+    )
 
 
 @router.post("/{scan_id}/cancel", response_model=ScanRead)
