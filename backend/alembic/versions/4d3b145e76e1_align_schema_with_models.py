@@ -9,9 +9,8 @@ Create Date: 2026-09-17 20:23:09.150740
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
-
 import app.db.base  # noqa: F401  # registers GUID type for autogenerate
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "4d3b145e76e1"
