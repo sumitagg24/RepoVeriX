@@ -7,18 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, MoreHorizontal, Filter, X, AlertTriangle, Shield, Bug, FileCode, ChevronDown, ChevronUp, ScanSearch } from 'lucide-react';
+import { Search, X, Bug, ChevronDown, ChevronUp } from 'lucide-react';
 import { useFindings } from '@/hooks/useFindings';
 import { useScans } from '@/hooks/useScans';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { SOURCE_CHIP, formatConfidence } from '@/lib/verdict';
+import { formatConfidence } from '@/lib/verdict';
 import { FindingStateChip, SeverityChip } from '@/components/evidence';
 import { EmptyState, QueryError, ListSkeleton } from '@/components/ui/state';
+import { PageHeader } from '@/components/system/page-header';
 
 const severities = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const categories = ['security', 'logic', 'api_misuse', 'database', 'dependency', 'reliability'] as const;
@@ -125,18 +124,17 @@ function FindingsPageInner() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Findings</h1>
-          <p className="text-muted-foreground">Browse and analyze discovered issues</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        eyebrow="Review"
+        title="Findings"
+        description="Every issue the pipeline reported, with severity, confidence and verification state. Findings are investigation objects — open one to see why it exists."
+        actions={
           <Button variant="outline" size="sm" onClick={clearFilters} disabled={!hasActiveFilters}>
             <X className="mr-1 h-3 w-3" />
-            Clear Filters
+            Clear filters
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Filters */}
       <Card className={cn(!hasActiveFilters && 'border-muted/50')}>
@@ -231,7 +229,7 @@ function FindingsPageInner() {
                   ctaLabel={hasActiveFilters ? undefined : 'Start a scan'}
                 />
               ) : (
-                <div className="divide-y">
+                <div className="divide-y divide-border/60">
                   {filteredFindings
                     .sort((a, b) => {
                       const dateA = new Date(a.created_at).getTime();
@@ -242,54 +240,24 @@ function FindingsPageInner() {
                       <Link
                         key={finding.id}
                         href={`/findings/${finding.id}`}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 hover:bg-accent/50 transition-colors"
+                        className="data-row flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                       >
-                        <div className="flex items-start gap-4 flex-1 min-w-0">
-                          <SeverityChip severity={finding.severity} variant="solid" />
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <SeverityChip severity={finding.severity} />
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium truncate hover:text-primary">
-                                {finding.title}
-                              </span>
-                              <SeverityChip severity={finding.severity} />
-                              <FindingStateChip state={finding.status} />
-                              <Badge variant="outline" className={SOURCE_CHIP[finding.source]}>
-                                {finding.source}
-                              </Badge>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-2">
-                              <span className="font-mono truncate max-w-[300px]">
-                                {finding.file_path}:{finding.line_start || '?'}
-                              </span>
-                              <span>{finding.category.replace('_', ' ')}</span>
-                              <span>{formatDistanceToNow(new Date(finding.created_at), { addSuffix: true })}</span>
-                              <span>Confidence: {formatConfidence(finding.confidence)}</span>
-                            </div>
+                            <span className="block truncate text-sm font-medium hover:text-primary">
+                              {finding.title}
+                            </span>
+                            <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
+                              {finding.file_path}:{finding.line_start || '?'} · {finding.category.replace('_', ' ')} · confidence {formatConfidence(finding.confidence)} · {formatDistanceToNow(new Date(finding.created_at), { addSuffix: true })}
+                            </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                className="p-2 hover:bg-accent rounded-lg transition-colors"
-                                aria-label={`Actions for ${finding.title}`}
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/findings/${finding.id}`}>
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/scans/${finding.scan_id}`}>
-                                  View Scan
-                                </Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <FindingStateChip state={finding.status} />
+                          <span className="hidden font-mono text-[11px] text-muted-foreground md:inline">
+                            {finding.source}
+                          </span>
                         </div>
                       </Link>
                     ))}

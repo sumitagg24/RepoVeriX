@@ -14,7 +14,6 @@ import { ShareReportButton } from '@/components/app/share-report-button';
 import {
   Search,
   Loader2,
-  CheckCircle,
   AlertTriangle,
   Clock,
   X,
@@ -27,29 +26,33 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
-
-const scanStatusColors: Record<string, string> = {
-  pending: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-  running: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-  completed: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  failed: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-};
-
-const scanStatusIcons: Record<string, React.ReactNode> = {
-  pending: <Clock className="h-4 w-4 text-yellow-500" />,
-  running: <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />,
-  completed: <CheckCircle className="h-4 w-4 text-green-500" />,
-  failed: <AlertTriangle className="h-4 w-4 text-red-500" />,
-};
+import { formatDuration, formatConfidence } from '@/lib/verdict';
+import { useCancelScan } from '@/hooks/useScans';
+import { Breadcrumbs, PageHeader } from '@/components/system/page-header';
+import { ScanStatus } from '@/components/system/status';
+import { SeverityChip, FindingStateChip } from '@/components/evidence';
+import { CodeViewer } from '@/components/system/code';
+import { EmptyState, ListSkeleton } from '@/components/ui/state';
 
 export default function ScanDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const { data: scan, isLoading: scanLoading } = useScan(id);
+  const { data: scan, isLoading: scanLoading, refetch: refetchScan } = useScan(id);
   const { data: findings, isLoading: findingsLoading } = useFindings({ scan_id: id, limit: 20 });
   const dedup = useDedup(scan?.status === 'completed' ? id : '');
+  const cancelScan = useCancelScan();
   const [sarifBusy, setSarifBusy] = useState(false);
+
+  const handleCancel = async () => {
+    if (!confirm('Cancel this scan? Partial results are kept and remain inspectable.')) return;
+    try {
+      await cancelScan.mutateAsync(id);
+      toast.success('Scan cancelled');
+      refetchScan();
+    } catch {
+      toast.error('Could not cancel the scan');
+    }
+  };
 
   if (scanLoading) {
     return (
@@ -66,12 +69,17 @@ export default function ScanDetailPage() {
 
   if (!scan) {
     return (
-      <div className="text-center py-12">
-        <Terminal className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-        <h3 className="text-lg font-medium mb-2">Scan not found</h3>
-        <Link href="/scans">
-          <Button variant="outline" className="mt-4">Back to Scans</Button>
-        </Link>
+      <div className="space-y-6">
+        <Breadcrumbs items={[{ label: 'Scans', href: '/scans' }, { label: 'Not found' }]} />
+        <Card>
+          <EmptyState
+            icon={Terminal}
+            title="Scan not found"
+            body="It may have been removed, or the link is stale."
+            ctaHref="/scans"
+            ctaLabel="Back to scans"
+          />
+        </Card>
       </div>
     );
   }
@@ -80,72 +88,52 @@ export default function ScanDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Link href="/scans" className="text-sm text-muted-foreground hover:underline mb-2 inline-block">
-            ← Back to Scans
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-lg ${scanStatusColors[scan.status]}`}>
-              {scanStatusIcons[scan.status]}
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{scan.configuration.replace('_', ' ').toUpperCase()}</h1>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
-                <Badge variant="outline" className={scanStatusColors[scan.status]}>
-                  {scanStatusIcons[scan.status]}
-                  {scan.status.charAt(0).toUpperCase() + scan.status.slice(1)}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {scan.status === 'running' && (
-            <Button variant="destructive" onClick={() => {}} disabled>
-              <X className="mr-2 h-4 w-4" />
-              Cancel Scan
-            </Button>
-          )}
-          {scan.status === 'pending' && (
-            <Button variant="outline">
-              <Loader2 className="mr-2 h-4 w-4" />
-              Retry
-            </Button>
-          )}
-          {scan.status === 'completed' && (
-            <Button
-              variant="outline"
-              disabled={sarifBusy}
-              onClick={async () => {
-                setSarifBusy(true);
-                try {
-                  const doc = await scanAuditService.sarif(scan.id);
-                  const blob = new Blob([JSON.stringify(doc, null, 2)], {
-                    type: 'application/sarif+json',
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `repoverix-${scan.configuration}-${scan.id.slice(0, 8)}.sarif.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  toast.success('SARIF report downloaded');
-                } catch (e) {
-                  toast.error('SARIF export failed');
-                } finally {
-                  setSarifBusy(false);
-                }
-              }}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export SARIF
-            </Button>
-          )}
-          {scan.status === 'completed' && <ShareReportButton scanId={scan.id} />}
-        </div>
-      </div>
+      <Breadcrumbs items={[{ label: 'Scans', href: '/scans' }, { label: scan.configuration.replaceAll('_', ' ') }]} />
+      <PageHeader
+        eyebrow={`Scan · ${scan.configuration.replaceAll('_', ' ')}`}
+        title={scan.configuration.replace('_', ' ').toUpperCase()}
+        meta={<ScanStatus status={scan.status} />}
+        actions={
+          <>
+            {(scan.status === 'running' || scan.status === 'pending') && (
+              <Button variant="outline" onClick={handleCancel} disabled={cancelScan.isPending}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel scan
+              </Button>
+            )}
+            {scan.status === 'completed' && (
+              <Button
+                variant="outline"
+                disabled={sarifBusy}
+                onClick={async () => {
+                  setSarifBusy(true);
+                  try {
+                    const doc = await scanAuditService.sarif(scan.id);
+                    const blob = new Blob([JSON.stringify(doc, null, 2)], {
+                      type: 'application/sarif+json',
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `repoverix-${scan.configuration}-${scan.id.slice(0, 8)}.sarif.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast.success('SARIF report downloaded');
+                  } catch (e) {
+                    toast.error('SARIF export failed');
+                  } finally {
+                    setSarifBusy(false);
+                  }
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export SARIF
+              </Button>
+            )}
+            {scan.status === 'completed' && <ShareReportButton scanId={scan.id} />}
+          </>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -155,13 +143,7 @@ export default function ScanDetailPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {scan.started_at && scan.finished_at
-                ? Math.round((new Date(scan.finished_at).getTime() - new Date(scan.started_at).getTime()) / 1000 / 60) + ' min'
-                : scan.started_at
-                ? 'Running...'
-                : 'Not started'}
-            </div>
+            <div className="text-2xl font-bold tabular-nums">{formatDuration(scan.started_at, scan.finished_at)}</div>
             <p className="text-xs text-muted-foreground">Total scan time</p>
           </CardContent>
         </Card>
@@ -191,9 +173,7 @@ export default function ScanDetailPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-sm">
-              {scan.started_at ? formatDistanceToNow(new Date(scan.started_at), { addSuffix: true }) : 'Not started'}
-            </div>
+            <div className="text-sm font-semibold">{scan.started_at ? formatDistanceToNow(new Date(scan.started_at), { addSuffix: true }) : 'Not started'}</div>
           </CardContent>
         </Card>
       </div>
@@ -245,10 +225,7 @@ export default function ScanDetailPage() {
                   <div>
                     <dt className="text-sm text-muted-foreground">Status</dt>
                     <dd>
-                      <Badge variant="outline" className={scanStatusColors[scan.status]}>
-                        {scanStatusIcons[scan.status]}
-                        {scan.status.charAt(0).toUpperCase() + scan.status.slice(1)}
-                      </Badge>
+                      <ScanStatus status={scan.status} />
                     </dd>
                   </div>
                   <div>
@@ -263,16 +240,24 @@ export default function ScanDetailPage() {
                     <dt className="text-sm text-muted-foreground">Finished</dt>
                     <dd>{scan.finished_at ? new Date(scan.finished_at).toLocaleString() : 'Not finished'}</dd>
                   </div>
-                  <div className="sm:col-span-2">
+                  <div className="sm:col-span-2 space-y-1.5">
                     <dt className="text-sm text-muted-foreground">Summary</dt>
-                    <dd className="font-mono text-sm bg-muted p-3 rounded break-all">
-                      {scan.summary ? JSON.stringify(scan.summary, null, 2) : 'No summary available'}
+                    <dd>
+                      {scan.summary ? (
+                        <CodeViewer code={JSON.stringify(scan.summary, null, 2)} language="json" maxHeight={240} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No summary available</p>
+                      )}
                     </dd>
                   </div>
-                  <div className="sm:col-span-2">
+                  <div className="sm:col-span-2 space-y-1.5">
                     <dt className="text-sm text-muted-foreground">LLM Token Usage</dt>
-                    <dd className="font-mono text-sm bg-muted p-3 rounded break-all">
-                      {scan.llm_token_usage ? JSON.stringify(scan.llm_token_usage, null, 2) : 'Not available'}
+                    <dd>
+                      {scan.llm_token_usage ? (
+                        <CodeViewer code={JSON.stringify(scan.llm_token_usage, null, 2)} language="json" maxHeight={240} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Not available</p>
+                      )}
                     </dd>
                   </div>
                 </dl>
@@ -317,65 +302,37 @@ export default function ScanDetailPage() {
             </CardHeader>
             <CardContent>
               {findingsLoading ? (
-                <div className="space-y-4 p-6">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
-                  ))}
-                </div>
+                <ListSkeleton rows={3} />
               ) : recentFindings.length === 0 ? (
-                <div className="text-center py-12">
-                  <Bug className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <h3 className="text-lg font-medium mb-2">No findings yet</h3>
-                  <p className="text-muted-foreground">This scan did not discover any issues</p>
-                </div>
+                <EmptyState
+                  icon={Bug}
+                  title="No findings yet"
+                  body={
+                    scan.status === 'completed'
+                      ? 'This scan completed without discovering issues — a clean run, not missing data.'
+                      : 'Findings appear here as the pipeline reports them.'
+                  }
+                />
               ) : (
-                <div className="space-y-3">
+                <div className="divide-y divide-border/60">
                   {recentFindings.map((finding) => (
-                    <Link
+                    <div
                       key={finding.id}
-                      href={`/findings/${finding.id}`}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 hover:bg-accent/50 transition-colors"
+                      className="data-row flex flex-col gap-2 px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                     >
-                      <div className="flex items-start gap-4 flex-1 min-w-0">
-                        <div className={`p-3 rounded-lg flex-shrink-0 ${
-                          finding.severity === 'critical' && 'bg-red-500/10 text-red-600 dark:text-red-400' ||
-                          finding.severity === 'high' && 'bg-orange-500/10 text-orange-600 dark:text-orange-400' ||
-                          finding.severity === 'medium' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' ||
-                          finding.severity === 'low' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400' ||
-                          'bg-gray-500/10 text-gray-600 dark:text-gray-400'
-                        }`}>
-                          <Bug className="h-5 w-5" />
-                        </div>
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <SeverityChip severity={finding.severity} />
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Link href={`/findings/${finding.id}`} className="font-medium truncate hover:text-primary">
-                              {finding.title}
-                            </Link>
-                            <Badge variant="outline" className={cn(
-                              finding.severity === 'critical' && 'bg-red-500/10 text-red-600 dark:text-red-400',
-                              finding.severity === 'high' && 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
-                              finding.severity === 'medium' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-                              finding.severity === 'low' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                              finding.severity === 'info' && 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
-                            )}>
-                              {finding.severity}
-                            </Badge>
-                            <Badge variant="outline" className={cn(
-                              finding.status === 'verified' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-                              finding.status === 'probable' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-                              finding.status === 'rejected' && 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
-                            )}>
-                              {finding.status}
-                            </Badge>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
-                            <span className="font-mono truncate max-w-[300px]">{finding.file_path}:{finding.line_start || '?'}</span>
-                            <span>{finding.category.replace('_', ' ')}</span>
-                            <span>Confidence: {(finding.confidence * 100).toFixed(0)}%</span>
-                          </div>
+                          <Link href={`/findings/${finding.id}`} className="block truncate text-sm font-medium hover:text-primary">
+                            {finding.title}
+                          </Link>
+                          <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                            {finding.file_path}:{finding.line_start || '?'} · {finding.category.replace('_', ' ')} · confidence {formatConfidence(finding.confidence)}
+                          </p>
                         </div>
                       </div>
-                    </Link>
+                      <FindingStateChip state={finding.status} />
+                    </div>
                   ))}
                 </div>
               )}
@@ -390,10 +347,11 @@ export default function ScanDetailPage() {
             </CardHeader>
             <CardContent>
               {scan.analysis_runs?.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Terminal className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No analysis runs recorded</p>
-                </div>
+                <EmptyState
+                  icon={Terminal}
+                  title="No analysis runs recorded"
+                  body="Pipeline stages appear here once the scan starts executing."
+                />
               ) : (
                 <div className="space-y-3">
                   {scan.analysis_runs
@@ -401,32 +359,27 @@ export default function ScanDetailPage() {
                     .map((run) => (
                       <div key={run.id} className="p-4 rounded-lg border">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-lg ${run.status === 'completed' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : run.status === 'failed' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
-                              <Terminal className="h-5 w-5" />
-                            </div>
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                              <Terminal className="h-4 w-4" aria-hidden="true" />
+                            </span>
                             <div>
                               <p className="font-medium capitalize">{run.stage.replace('_', ' ')}</p>
                               <p className="text-sm text-muted-foreground">{run.tool_name || 'No tool specified'}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <Badge variant="outline" className={cn(
-                              run.status === 'pending' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-                              run.status === 'running' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                              run.status === 'completed' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-                              run.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400'
-                            )}>
-                              {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
-                            </Badge>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                            <ScanStatus status={run.status} />
                             <span>{run.started_at ? formatDistanceToNow(new Date(run.started_at), { addSuffix: true }) : 'Not started'}</span>
                             {run.finished_at && <span>Finished {formatDistanceToNow(new Date(run.finished_at), { addSuffix: true })}</span>}
                           </div>
                         </div>
                         {run.output && (
                           <details className="mt-3">
-                            <summary className="text-sm text-muted-foreground cursor-pointer">View Output</summary>
-                            <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto max-h-64">{JSON.stringify(run.output, null, 2)}</pre>
+                            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">View output</summary>
+                            <div className="mt-2">
+                              <CodeViewer code={JSON.stringify(run.output, null, 2)} language="json" maxHeight={260} />
+                            </div>
                           </details>
                         )}
                       </div>
@@ -476,15 +429,15 @@ export default function ScanDetailPage() {
                           {cluster.primary_title} <ArrowUpRight className="ml-0.5 h-3.5 w-3.5 inline" />
                         </Link>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {cluster.members.map((m) => (
-                          <div key={m.id} className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-1.5 text-xs">
-                            <span className="font-medium">{m.title}</span>
-                            {m.rule && <code className="text-muted-foreground">{m.rule}</code>}
-                            <Badge variant="outline">{m.severity}</Badge>
-                          </div>
-                        ))}
-                      </div>
+                        <div className="flex flex-wrap gap-2">
+                          {cluster.members.map((m) => (
+                            <div key={m.id} className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-1.5 text-xs">
+                              <span className="font-medium">{m.title}</span>
+                              {m.rule && <code className="text-muted-foreground">{m.rule}</code>}
+                              <SeverityChip severity={m.severity} />
+                            </div>
+                          ))}
+                        </div>
                     </div>
                   ))}
                 </div>

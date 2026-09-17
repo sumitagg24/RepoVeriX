@@ -13,7 +13,8 @@ import {
   WebsiteStateChip,
 } from '@/components/evidence';
 import { useCreateWebsiteAudit, useWebsiteAudit, useWebsiteAudits } from '@/hooks/useWebsites';
-import { ArrowLeft, ExternalLink, Globe, RefreshCw } from 'lucide-react';
+import { ExternalLink, RefreshCw } from 'lucide-react';
+import { Breadcrumbs, PageHeader } from '@/components/system/page-header';
 
 const SCORE_LABELS: Array<{ key: string; label: string; hint: string }> = [
   { key: 'technical_seo', label: 'Technical SEO', hint: 'Titles, descriptions, structure observed on crawled pages.' },
@@ -40,29 +41,28 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
     );
 
   const detail = audit.data;
+  const origin = detail?.summary
+    ? String((detail.summary as Record<string, unknown>).origin ?? '')
+    : '';
 
   return (
-    <div className="space-y-6 p-6 animate-page">
-      <Link href="/websites" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline">
-        <ArrowLeft className="h-3.5 w-3.5" /> All websites
-      </Link>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <Globe className="h-6 w-6 text-primary" /> {detail?.summary ? String((detail.summary as Record<string, unknown>).origin ?? '') : audits.data ? 'Website' : ''}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {latest
-              ? `Latest audit ${new Date(latest.created_at).toLocaleString()} · ${latest.pages_crawled} page(s) crawled`
-              : 'No audits yet.'}
-          </p>
-        </div>
-        <Button onClick={() => startAudit.mutate({ websiteId: id })} disabled={startAudit.isPending}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${startAudit.isPending ? 'animate-spin' : ''}`} />
-          Run audit
-        </Button>
-      </div>
+    <div className="space-y-6 animate-page">
+      <Breadcrumbs items={[{ label: 'Website Audits', href: '/websites' }, { label: origin || 'Website' }]} />
+      <PageHeader
+        eyebrow="Website audit"
+        title={origin || 'Website'}
+        description={
+          latest
+            ? `Latest audit ${new Date(latest.created_at).toLocaleString()} · ${latest.pages_crawled} page(s) crawled`
+            : 'No audits yet — run the first one to collect evidence.'
+        }
+        actions={
+          <Button onClick={() => startAudit.mutate({ websiteId: id })} disabled={startAudit.isPending}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${startAudit.isPending ? 'animate-spin' : ''}`} />
+            Run audit
+          </Button>
+        }
+      />
 
       {(audit.data?.status === 'pending' || audit.data?.status === 'running') && (
         <Card className="border-primary/40">

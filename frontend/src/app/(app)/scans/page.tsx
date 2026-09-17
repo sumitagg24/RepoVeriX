@@ -14,11 +14,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Plus, MoreHorizontal, Play, RefreshCw, X, Trash2, ExternalLink, Loader2, Clock, CheckCircle, AlertTriangle, Terminal } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, X, ExternalLink, Terminal, ScanSearch } from 'lucide-react';
 import { useScans, useCreateScan, useCancelScan } from '@/hooks/useScans';
 import { useRepositories } from '@/hooks/useRepositories';
 import { usePlan, LLM_LEAD_CONFIGS } from '@/hooks/usePlan';
@@ -27,6 +27,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
+import { formatDuration } from '@/lib/verdict';
+import { PageHeader } from '@/components/system/page-header';
+import { ScanStatus } from '@/components/system/status';
+import { EmptyState, ListSkeleton, QueryError } from '@/components/ui/state';
 
 const scanConfigurations = [
   { value: 'repoverix', label: 'RepoVeriX (Full Pipeline)', description: 'Complete evidence-grounded analysis with verification' },
@@ -42,35 +46,13 @@ const scanSchema = z.object({
 
 type ScanForm = z.infer<typeof scanSchema>;
 
-const scanStatusLabels: Record<string, string> = {
-  pending: 'Pending',
-  running: 'Running',
-  completed: 'Completed',
-  failed: 'Failed',
-};
-
-const scanStatusIcons: Record<string, React.ReactNode> = {
-  pending: <Clock className="h-4 w-4 text-yellow-500" />,
-  running: <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />,
-  completed: <CheckCircle className="h-4 w-4 text-green-500" />,
-  failed: <AlertTriangle className="h-4 w-4 text-red-500" />,
-};
-
-const scanStatusColors: Record<string, string> = {
-  pending: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-  running: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-  completed: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  failed: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-};
-
 export default function ScansPage() {
-  const { data: scans, isLoading: scansLoading, refetch: refetchScans } = useScans();
+  const { data: scans, isLoading: scansLoading, isError, error, refetch: refetchScans } = useScans();
   const { data: repositories, isLoading: reposLoading } = useRepositories();
   const createMutation = useCreateScan();
   const cancelMutation = useCancelScan();
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
   const { isFree, ready: planReady } = usePlan();
 
   const form = useForm<ScanForm>({
@@ -91,9 +73,16 @@ export default function ScansPage() {
     }
   }, [planReady, isFree, form]);
 
-  const filteredScans = scans?.filter((scan) =>
-    scan.configuration.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  const repoName = new Map((repositories ?? []).map((r) => [r.id, r.name]));
+
+  const filteredScans = scans?.filter((scan) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      scan.configuration.toLowerCase().includes(q) ||
+      (repoName.get(scan.repository_id) ?? '').toLowerCase().includes(q) ||
+      scan.status.toLowerCase().includes(q)
+    );
+  }) || [];
 
   const onSubmit = async (data: ScanForm) => {
     try {
@@ -120,26 +109,20 @@ export default function ScansPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this scan? This action cannot be undone.')) return;
-    // Note: DELETE endpoint not implemented in backend yet
-    toast.error('Delete not implemented yet');
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Scans</h1>
-          <p className="text-muted-foreground">Manage and monitor repository scans</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button disabled={repositories?.length === 0 || reposLoading}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Scan
-            </Button>
-          </DialogTrigger>
+      <PageHeader
+        eyebrow="Analysis"
+        title="Scans"
+        description="Every analysis run: configuration, lifecycle, duration and outcome. Scans run in the background."
+        actions={
+          <Button disabled={repositories?.length === 0 || reposLoading} onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Scan
+          </Button>
+        }
+      />
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Start New Scan</DialogTitle>
@@ -222,8 +205,7 @@ export default function ScansPage() {
               </form>
             </Form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -240,52 +222,56 @@ export default function ScansPage() {
       <Card>
         <CardContent className="p-0">
           {(scansLoading || reposLoading) ? (
-            <div className="space-y-4 p-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
-              ))}
-            </div>
+            <ListSkeleton rows={3} />
+          ) : isError ? (
+            <QueryError error={error} onRetry={() => refetchScans()} />
           ) : filteredScans.length === 0 ? (
-            <div className="text-center py-12">
-              <Terminal className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <h3 className="text-lg font-medium mb-2">No scans found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchQuery ? 'Try adjusting your search' : 'Start your first scan to analyze a repository'}
-              </p>
-              {!searchQuery && <Button onClick={() => setDialogOpen(true)}>New Scan</Button>}
-            </div>
+            <EmptyState
+              icon={ScanSearch}
+              title={searchQuery ? `No scans match “${searchQuery}”` : 'No scans yet'}
+              body={
+                searchQuery
+                  ? 'Try a configuration name, repository or status — or clear the search.'
+                  : 'Start your first scan to analyze a repository with the full evidence pipeline.'
+              }
+              action={
+                searchQuery ? (
+                  <Button variant="outline" size="sm" onClick={() => setSearchQuery('')}>
+                    Clear search
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> New scan
+                  </Button>
+                )
+              }
+            />
           ) : (
-            <div className="divide-y">
+            <div className="divide-y divide-border/60">
               {filteredScans.map((scan) => (
-                <div key={scan.id} className="p-4 hover:bg-accent/50 transition-colors">
+                <div key={scan.id} className="data-row p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className={`p-3 rounded-lg flex-shrink-0 ${scanStatusColors[scan.status]}`}>
-                        {scanStatusIcons[scan.status]}
-                      </div>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <ScanSearch className="h-4 w-4" aria-hidden="true" />
+                      </span>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                          <Link href={`/scans/${scan.id}`} className="font-medium truncate block hover:text-primary">
-                            {scan.configuration.replace('_', ' ').toUpperCase()}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link href={`/scans/${scan.id}`} className="truncate text-sm font-medium hover:text-primary">
+                            {repoName.get(scan.repository_id) ?? 'Repository'}
                           </Link>
-                          <Badge variant="outline" className={scanStatusColors[scan.status]}>
-                            {scanStatusIcons[scan.status]}
-                            {scanStatusLabels[scan.status]}
-                          </Badge>
+                          <span className="mono-label">
+                            {scan.configuration.replaceAll('_', ' ')}
+                          </span>
+                          <ScanStatus status={scan.status} />
                         </div>
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
-                          <span>{formatDistanceToNow(new Date(scan.created_at), { addSuffix: true })}</span>
-                          {scan.started_at && (
-                            <span>Started {formatDistanceToNow(new Date(scan.started_at), { addSuffix: true })}</span>
-                          )}
-                          {scan.finished_at && (
-                            <span>Finished {formatDistanceToNow(new Date(scan.finished_at), { addSuffix: true })}</span>
-                          )}
-                        </div>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(scan.created_at), { addSuffix: true })} · ran {formatDuration(scan.started_at, scan.finished_at)}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {scan.status === 'running' && (
+                      {(scan.status === 'running' || scan.status === 'pending') && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -298,7 +284,7 @@ export default function ScansPage() {
                       )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                          <button className="rounded-lg p-2 transition-colors hover:bg-accent" aria-label={`Actions for scan of ${repoName.get(scan.repository_id) ?? 'repository'}`}>
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
                         </DropdownMenuTrigger>
@@ -315,21 +301,19 @@ export default function ScansPage() {
                               View Findings
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => handleDelete(scan.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                          <DropdownMenuItem asChild>
+                            <Link href={`/repositories/${scan.repository_id}`}>
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              Open repository
+                            </Link>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                   </div>
                   {scan.error && (
-                    <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
-                      Error: {scan.error}
+                    <div className="mt-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+                      {scan.error}
                     </div>
                   )}
                 </div>

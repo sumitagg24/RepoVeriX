@@ -10,7 +10,9 @@ import { useRepository } from '@/hooks/useRepositories';
 import { useScans } from '@/hooks/useScans';
 import { GitBranch, ExternalLink, Plus, Search, Loader2, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { Breadcrumbs, PageHeader } from '@/components/system/page-header';
+import { ScanStatus } from '@/components/system/status';
+import { EmptyState, ListSkeleton } from '@/components/ui/state';
 
 export default function RepositoryDetailPage() {
   const params = useParams();
@@ -33,12 +35,17 @@ export default function RepositoryDetailPage() {
 
   if (!repository) {
     return (
-      <div className="text-center py-12">
-        <GitBranch className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-        <h3 className="text-lg font-medium mb-2">Repository not found</h3>
-        <Link href="/repositories">
-          <Button variant="outline" className="mt-4">Back to Repositories</Button>
-        </Link>
+      <div className="space-y-6">
+        <Breadcrumbs items={[{ label: 'Repositories', href: '/repositories' }, { label: 'Not found' }]} />
+        <Card>
+          <EmptyState
+            icon={GitBranch}
+            title="Repository not found"
+            body="It may have been deleted, or the link is stale."
+            ctaHref="/repositories"
+            ctaLabel="Back to repositories"
+          />
+        </Card>
       </div>
     );
   }
@@ -47,49 +54,36 @@ export default function RepositoryDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Link href="/repositories" className="text-sm text-muted-foreground hover:underline mb-2 inline-block">
-            ← Back to Repositories
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <GitBranch className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{repository.name}</h1>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
-                <Badge variant="outline" className="capitalize">{repository.source_type}</Badge>
-                <Badge variant="outline">{repository.default_branch}</Badge>
-                <Badge variant="outline" className={cn(
-                  repository.status === 'active' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-                  repository.status === 'registered' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                  repository.status === 'archived' && 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
-                )}>
-                  {repository.status}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {repository.source_url && (
-            <a href={repository.source_url} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="gap-2">
-                <ExternalLink className="h-4 w-4" />
-                View source
-              </Button>
-            </a>
-          )}
-          <Button asChild className="gap-2 shadow-sm">
-            <Link href={`/scans/new?repo=${repository.id}`}>
-              <Plus className="h-4 w-4" />
-              New scan
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <Breadcrumbs items={[{ label: 'Repositories', href: '/repositories' }, { label: repository.name }]} />
+      <PageHeader
+        eyebrow={`${repository.source_type} · ${repository.default_branch} · ${repository.status}`}
+        title={repository.name}
+        meta={
+          repository.primary_languages?.length ? (
+            <span className="text-xs text-muted-foreground">
+              {repository.primary_languages.slice(0, 3).join(' · ')}
+            </span>
+          ) : undefined
+        }
+        actions={
+          <>
+            {repository.source_url && (
+              <a href={repository.source_url} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" className="gap-2">
+                  <ExternalLink className="h-4 w-4" />
+                  View source
+                </Button>
+              </a>
+            )}
+            <Button asChild className="gap-2 shadow-sm">
+              <Link href={`/scans/new?repo=${repository.id}`}>
+                <Plus className="h-4 w-4" />
+                New scan
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -140,7 +134,7 @@ export default function RepositoryDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="scans">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="scans">Scans ({scans?.length || 0})</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
         </TabsList>
@@ -149,59 +143,39 @@ export default function RepositoryDetailPage() {
           <Card>
             <CardContent className="p-0">
               {scansLoading ? (
-                <div className="space-y-4 p-6">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
-                  ))}
-                </div>
+                <ListSkeleton rows={3} />
               ) : recentScans.length === 0 ? (
-                <div className="text-center py-12">
-                  <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <h3 className="text-lg font-medium mb-2">No scans yet</h3>
-                  <p className="text-muted-foreground mb-4">Start your first scan to analyze this repository</p>
-                  <Button asChild>
-                    <Link href={`/scans/new?repo=${repository.id}`}>Start Scan</Link>
-                  </Button>
-                </div>
+                <EmptyState
+                  icon={Search}
+                  title="No scans yet"
+                  body="Start the first scan to analyze this repository with the full evidence pipeline."
+                  action={
+                    <Button asChild>
+                      <Link href={`/scans/new?repo=${repository.id}`}>Start scan</Link>
+                    </Button>
+                  }
+                />
               ) : (
-                <div className="divide-y">
+                <div className="divide-y divide-border/60">
                   {recentScans.map((scan) => (
                     <Link
                       key={scan.id}
                       href={`/scans/${scan.id}`}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 hover:bg-accent/50 transition-colors"
+                      className="data-row flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                     >
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className={`p-3 rounded-lg flex-shrink-0 ${[
-                          'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-                          'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                          'bg-green-500/10 text-green-600 dark:text-green-400',
-                          'bg-red-500/10 text-red-600 dark:text-red-400',
-                        ][['pending', 'running', 'completed', 'failed'].indexOf(scan.status)] || 'bg-gray-500/10 text-gray-600 dark:text-gray-400'}`}>
-                          <Search className="h-5 w-5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium capitalize">{scan.configuration.replace('_', ' ')}</span>
+                          <ScanStatus status={scan.status} />
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-3">
-                            <span className="font-medium capitalize">{scan.configuration.replace('_', ' ')}</span>
-                            <Badge variant="outline" className={cn(
-                              scan.status === 'pending' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-                              scan.status === 'running' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400 animate-pulse',
-                              scan.status === 'completed' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-                              scan.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400'
-                            )}>
-                              {scan.status === 'running' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                              {scan.status.charAt(0).toUpperCase() + scan.status.slice(1)}
-                            </Badge>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
-                            <span>{formatDistanceToNow(new Date(scan.created_at), { addSuffix: true })}</span>
-                            {scan.started_at && <span>Started {formatDistanceToNow(new Date(scan.started_at), { addSuffix: true })}</span>}
-                            {scan.finished_at && <span>Finished {formatDistanceToNow(new Date(scan.finished_at), { addSuffix: true })}</span>}
-                          </div>
-                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(scan.created_at), { addSuffix: true })}
+                          {scan.started_at && ` · started ${formatDistanceToNow(new Date(scan.started_at), { addSuffix: true })}`}
+                          {scan.finished_at && ` · finished ${formatDistanceToNow(new Date(scan.finished_at), { addSuffix: true })}`}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
+                      <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>{scan.finished_at ? formatDistanceToNow(new Date(scan.finished_at), { addSuffix: true }) : 'In progress'}</span>
                       </div>
                     </Link>
