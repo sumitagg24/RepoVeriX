@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Design audit output
+audit-output/
+
+# Python byte-cache from the ui-ux-pro-max skill scripts
+__pycache__/
+*.py[cod]
+
+# Keep .mcp.json local overrides (if any) but track the committed version
+# .mcp/settings.local.json
