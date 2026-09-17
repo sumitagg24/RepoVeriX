@@ -252,8 +252,7 @@ def detect_smells(parsed_files: dict[str, ParsedFile]) -> dict[str, Any]:
                     ),
                     "detail": "no imports in or out of this module",
                     "remediation": (
-                        "Likely dead code or an entry-point module. Confirm it is wired up, "
-                        "or delete it."
+                        "Likely dead code or an entry-point module. Confirm it is wired up, or delete it."
                     ),
                 }
             )

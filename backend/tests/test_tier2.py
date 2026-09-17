@@ -42,9 +42,7 @@ def _parse_dir(root: Path) -> dict:
             rel = full.relative_to(root).as_posix()
             lang = {".py": "python", ".js": "javascript", ".ts": "typescript"}[full.suffix]
             try:
-                parsed[rel] = parse_source(
-                    full.read_text(encoding="utf-8", errors="replace"), lang, rel
-                )
+                parsed[rel] = parse_source(full.read_text(encoding="utf-8", errors="replace"), lang, rel)
             except Exception:
                 continue
     return parsed
@@ -75,9 +73,7 @@ def _finding(
 
 
 async def _seed_scan(db, repo: Repository, created=None) -> Scan:
-    scan = Scan(
-        repository_id=repo.id, configuration=ScanConfiguration.repoverix, status=ScanStatus.completed
-    )
+    scan = Scan(repository_id=repo.id, configuration=ScanConfiguration.repoverix, status=ScanStatus.completed)
     if created:
         scan.created_at = created
     db.add(scan)
@@ -245,9 +241,7 @@ class TestArchitectureSmells:
 @pytest.mark.asyncio
 async def test_architecture_smells_route(client, auth_headers, db_session, test_user):
     repo = await _seed_repo(db_session, test_user)
-    response = await client.get(
-        f"/api/v1/repositories/{repo.id}/architecture-smells", headers=auth_headers
-    )
+    response = await client.get(f"/api/v1/repositories/{repo.id}/architecture-smells", headers=auth_headers)
     assert response.status_code == 200
     body = response.json()
     assert "smells" in body
@@ -275,9 +269,7 @@ async def test_health_timeline_route(client, auth_headers, db_session, test_user
         db_session.add(row)
     await db_session.commit()
 
-    response = await client.get(
-        f"/api/v1/repositories/{repo.id}/health-timeline", headers=auth_headers
-    )
+    response = await client.get(f"/api/v1/repositories/{repo.id}/health-timeline", headers=auth_headers)
     assert response.status_code == 200
     body = response.json()
     assert body["count"] == 2

@@ -76,7 +76,7 @@ class TestValidationEngine:
         pf = parse_source(source, "python", "app.py")
         finding = _F(
             function_name="search",
-            evidence=[_ev("source_input", 2), _ev("sink", 4, extra={"rule": "RVX-SQLI-001"})]
+            evidence=[_ev("source_input", 2), _ev("sink", 4, extra={"rule": "RVX-SQLI-001"})],
         )
         result = validation.validate_finding(finding, pf)
         assert result["final_status"] == "rejected"

@@ -13,8 +13,19 @@ def _detect(files: dict[str, str]):
     return archsmells.detect_smells(parsed)
 
 
-REQUIRED = {"smell", "severity", "modules", "metric", "threshold", "actual", "explanation",
-            "affected_files", "affected_symbols", "detail", "remediation"}
+REQUIRED = {
+    "smell",
+    "severity",
+    "modules",
+    "metric",
+    "threshold",
+    "actual",
+    "explanation",
+    "affected_files",
+    "affected_symbols",
+    "detail",
+    "remediation",
+}
 
 
 def test_every_smell_has_evidence_fields():
@@ -40,10 +51,12 @@ def test_hub_module_metric_values():
 
 
 def test_cycle_metric_values():
-    result = _detect({
-        "a.py": "import b\n\ndef a():\n    return b.b2()\n",
-        "b.py": "import a\n\ndef b2():\n    return a.a()\n",
-    })
+    result = _detect(
+        {
+            "a.py": "import b\n\ndef a():\n    return b.b2()\n",
+            "b.py": "import a\n\ndef b2():\n    return a.a()\n",
+        }
+    )
     cycle = next(s for s in result["smells"] if s["smell"] == "dependency_cycle")
     assert cycle["threshold"] == 2
     assert cycle["actual"] == 2

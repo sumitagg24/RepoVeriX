@@ -41,10 +41,7 @@ _WORST_CASE: dict[str, dict[str, str]] = {
             "Contained but real: an attacker can tamper with individual records, leak "
             "partial data, or abuse the feature beyond its intent."
         ),
-        "low": (
-            "Limited exposure: a motivated attacker gains minor information or "
-            "low-value manipulation."
-        ),
+        "low": ("Limited exposure: a motivated attacker gains minor information or low-value manipulation."),
     },
     "logic": {
         "critical": (
@@ -110,9 +107,7 @@ def analyze_impact(finding: Finding, graph: KnowledgeGraph | None) -> dict[str, 
     category = finding.category.value if finding.category else "logic"
     severity = finding.severity.value if finding.severity else "low"
 
-    worst = _WORST_CASE.get(category, _WORST_CASE["logic"]).get(
-        severity, _WORST_CASE["logic"]["medium"]
-    )
+    worst = _WORST_CASE.get(category, _WORST_CASE["logic"]).get(severity, _WORST_CASE["logic"]["medium"])
 
     # --- reachability over the knowledge graph ------------------------------
     callers: list[str] = []
@@ -146,17 +141,13 @@ def analyze_impact(finding: Finding, graph: KnowledgeGraph | None) -> dict[str, 
         worst,
     ]
     if callers:
-        why_it_matters.append(
-            f"Reachable from {len(callers)} in-repo call site(s) — it is not dead code."
-        )
+        why_it_matters.append(f"Reachable from {len(callers)} in-repo call site(s) — it is not dead code.")
     if entrypoint_reachable:
         why_it_matters.append(
             "Reachable from an entry point (handler/main/route), so real requests can hit it."
         )
     elif callers:
-        why_it_matters.append(
-            "Not directly wired to an entry point, but reachable through the call graph."
-        )
+        why_it_matters.append("Not directly wired to an entry point, but reachable through the call graph.")
 
     evidence = _evidence_chain(finding)
     sink = next((e for e in reversed(evidence) if e["kind"] in ("sink", "static_analysis")), None)

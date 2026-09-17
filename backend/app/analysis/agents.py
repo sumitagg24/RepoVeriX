@@ -23,9 +23,7 @@ from typing import Any
 
 
 def _severity_weight(severity: str) -> float:
-    return {"critical": 1.0, "high": 0.7, "medium": 0.4, "low": 0.15, "info": 0.05}.get(
-        severity, 0.2
-    )
+    return {"critical": 1.0, "high": 0.7, "medium": 0.4, "low": 0.15, "info": 0.05}.get(severity, 0.2)
 
 
 def _verdict(score: float) -> str:
@@ -64,19 +62,37 @@ def _security_agent(findings: list[dict[str, Any]]) -> dict[str, Any]:
     top = sorted(findings, key=lambda f: _severity_weight(f.get("severity", "low")), reverse=True)
     if top:
         signals.append(f"worst: {top[0].get('title')} in {top[0].get('file_path')}")
-    return {"agent": "security", "verdict": _verdict(score), "score": score, "signals": signals, "confidence": 0.85}
+    return {
+        "agent": "security",
+        "verdict": _verdict(score),
+        "score": score,
+        "signals": signals,
+        "confidence": 0.85,
+    }
 
 
 def _quality_agent(health: dict[str, Any]) -> dict[str, Any]:
     avg = health.get("average_score")
     if avg is None:
-        return {"agent": "quality", "verdict": "ok", "score": 0.0, "signals": ["No files scored"], "confidence": 0.8}
+        return {
+            "agent": "quality",
+            "verdict": "ok",
+            "score": 0.0,
+            "signals": ["No files scored"],
+            "confidence": 0.8,
+        }
     score = round(max(0.0, (7.0 - avg)) * 1.6, 2)
     worst = health.get("worst_files", [])[:3]
     signals = [f"average health {avg}/10 across {health.get('files_scored')} files"]
     if worst:
         signals.append("worst: " + ", ".join(worst))
-    return {"agent": "quality", "verdict": _verdict(score), "score": min(10.0, score), "signals": signals, "confidence": 0.8}
+    return {
+        "agent": "quality",
+        "verdict": _verdict(score),
+        "score": min(10.0, score),
+        "signals": signals,
+        "confidence": 0.8,
+    }
 
 
 def _churn_agent(git: dict[str, Any]) -> dict[str, Any]:
@@ -98,19 +114,37 @@ def _churn_agent(git: dict[str, Any]) -> dict[str, Any]:
     ]
     if hot:
         signals.append("hottest: " + hot[0]["path"])
-    return {"agent": "churn", "verdict": _verdict(score), "score": score, "signals": signals, "confidence": 0.75}
+    return {
+        "agent": "churn",
+        "verdict": _verdict(score),
+        "score": score,
+        "signals": signals,
+        "confidence": 0.75,
+    }
 
 
 def _architecture_agent(smells: dict[str, Any]) -> dict[str, Any]:
     smell_list = smells.get("smells", [])
     if not smell_list:
-        return {"agent": "architecture", "verdict": "ok", "score": 0.0, "signals": ["No architectural smells"], "confidence": 0.8}
+        return {
+            "agent": "architecture",
+            "verdict": "ok",
+            "score": 0.0,
+            "signals": ["No architectural smells"],
+            "confidence": 0.8,
+        }
     weight = {"high": 1.0, "medium": 0.6, "low": 0.3}
     score = min(10.0, round(sum(weight.get(s["severity"], 0.3) for s in smell_list), 2))
     signals = [
         f"{len(smell_list)} smell(s): " + ", ".join(f"{s['smell']} ({s['severity']})" for s in smell_list[:4])
     ]
-    return {"agent": "architecture", "verdict": _verdict(score), "score": score, "signals": signals, "confidence": 0.8}
+    return {
+        "agent": "architecture",
+        "verdict": _verdict(score),
+        "score": score,
+        "signals": signals,
+        "confidence": 0.8,
+    }
 
 
 def _dependency_agent(deps: dict[str, Any]) -> dict[str, Any]:
@@ -124,7 +158,13 @@ def _dependency_agent(deps: dict[str, Any]) -> dict[str, Any]:
         signals.append(f"{unreachable} declared dependencies never imported")
     if not signals:
         signals.append("no vulnerable or dead-weight dependencies")
-    return {"agent": "dependencies", "verdict": _verdict(score), "score": score, "signals": signals, "confidence": 0.8}
+    return {
+        "agent": "dependencies",
+        "verdict": _verdict(score),
+        "score": score,
+        "signals": signals,
+        "confidence": 0.8,
+    }
 
 
 def _tests_agent(untested: list[str], tested: int) -> dict[str, Any]:
@@ -134,7 +174,13 @@ def _tests_agent(untested: list[str], tested: int) -> dict[str, Any]:
         ratio = len(untested) / max(1, len(untested) + tested)
         score = round(ratio * 10, 2)
     signals = [f"{len(untested)} changed/risky file(s) have no exercising test"]
-    return {"agent": "tests", "verdict": _verdict(score), "score": score, "signals": signals[:3], "confidence": 0.75}
+    return {
+        "agent": "tests",
+        "verdict": _verdict(score),
+        "score": score,
+        "signals": signals[:3],
+        "confidence": 0.75,
+    }
 
 
 def _correlate(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -172,7 +218,9 @@ def run_multi_agent(
     churn["flagged_files"] = flagged_by_churn[:8]
 
     security = _security_agent(findings)
-    security["flagged_files"] = sorted({f.get("file_path") for f in findings if _severity_weight(f.get("severity", "low")) >= 0.4})
+    security["flagged_files"] = sorted(
+        {f.get("file_path") for f in findings if _severity_weight(f.get("severity", "low")) >= 0.4}
+    )
 
     agents = [security, quality, churn, _architecture_agent(smells), _dependency_agent(deps)]
     correlations = _correlate(agents)

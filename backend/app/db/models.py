@@ -10,7 +10,7 @@ the repair was actually verified.
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -20,6 +20,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -169,6 +170,25 @@ class PlanName(str, enum.Enum):
     team = "team"
 
 
+class UserStatus(str, enum.Enum):
+    """Explicit account lifecycle states (docs/AUTH.md §Account states).
+
+    active           — full access.
+    email_unverified — signed up with a password, email not yet verified:
+                       may sign in, verify, resend, export/delete own data;
+                       provider connections, repository registration and
+                       scans are refused server-side.
+    suspended        — administrative hold: cannot authenticate.
+    deleted          — terminal state after account deletion: cannot
+                       authenticate; rows exist only for audit integrity.
+    """
+
+    active = "active"
+    email_unverified = "email_unverified"
+    suspended = "suspended"
+    deleted = "deleted"
+
+
 class SubscriptionStatus(str, enum.Enum):
     """Stripe subscription lifecycle (mirrors the API)."""
 
@@ -201,6 +221,31 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     scans_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     fixes_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     verifications_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Set when the user finishes (or explicitly skips) the first-run onboarding
+    # checklist; drives the /onboarding wizard and the dashboard checklist card.
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # --- account security (docs/AUTH.md) ---
+    status: Mapped[UserStatus] = mapped_column(
+        enum_type(UserStatus, "user_status"), default=UserStatus.active, nullable=False
+    )
+    # Password accounts verify via a one-time emailed link; OAuth-created
+    # accounts are verified at creation (the provider returned the address).
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Persistent progressive lockout state (see settings: auth_max_failed_*).
+    failed_login_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Bumped to invalidate every outstanding JWT (logout-all, password change,
+    # password reset, suspension). Tokens carry a ``tv`` claim; a mismatch is
+    # rejected, which is what makes stateless sessions revocable.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # One-time tokens are stored as SHA-256 hashes — a database leak cannot
+    # yield a usable verification/reset link.
+    verification_token_hash: Mapped[str | None] = mapped_column(String(64))
+    verification_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    password_reset_token_hash: Mapped[str | None] = mapped_column(String(64))
+    password_reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     repositories: Mapped[list["Repository"]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"
@@ -241,6 +286,11 @@ class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    # When set, the repository belongs to an organization and is accessible to
+    # its members according to their role (see ``app/services/access.py``).
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("organizations.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     source_type: Mapped[SourceType] = mapped_column(enum_type(SourceType, "source_type"))
     source_url: Mapped[str | None] = mapped_column(String(2048))
@@ -248,6 +298,9 @@ class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     storage_path: Mapped[str | None] = mapped_column(String(1024))
     primary_languages: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="registered", nullable=False)
+    # Shared webhook secret (HMAC) used by CI providers to authenticate
+    # re-scan deliveries. Returned once at creation; never logged.
+    webhook_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
     oauth_account_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID, ForeignKey("oauth_accounts.id", ondelete="SET NULL"), nullable=True
     )
@@ -294,9 +347,7 @@ class HealthSnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "health_snapshots"
-    __table_args__ = (
-        UniqueConstraint("repository_id", "commit_sha", name="uq_health_snapshot_repo_commit"),
-    )
+    __table_args__ = (UniqueConstraint("repository_id", "commit_sha", name="uq_health_snapshot_repo_commit"),)
 
     repository_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("repositories.id", ondelete="CASCADE"), index=True, nullable=False
@@ -319,9 +370,7 @@ class PullRequestAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "pull_request_audits"
-    __table_args__ = (
-        UniqueConstraint("repository_id", "pr_number", name="uq_pr_audit_repo_pr"),
-    )
+    __table_args__ = (UniqueConstraint("repository_id", "pr_number", name="uq_pr_audit_repo_pr"),)
 
     repository_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("repositories.id", ondelete="CASCADE"), index=True, nullable=False
@@ -408,6 +457,14 @@ class GeneratedTest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class Scan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "scans"
+    # Composite index backing "most recent scans of this repository" lists and
+    # the repository timeline — far cheaper than index-hopping per row.
+    __table_args__ = (Index("ix_scans_repository_created", "repository_id", "created_at"),)
+
+    # Client-supplied ``Idempotency-Key`` header value (when provided) so a
+    # retried scan-creation request resolves to its original scan instead of
+    # queueing a duplicate.
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), index=True)
 
     repository_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("repositories.id", ondelete="CASCADE"), index=True, nullable=False
@@ -439,6 +496,7 @@ class Scan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class AnalysisRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "analysis_runs"
+    __table_args__ = (Index("ix_analysis_runs_scan_stage", "scan_id", "stage"),)
 
     scan_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("scans.id", ondelete="CASCADE"), index=True, nullable=False
@@ -504,7 +562,13 @@ class Dependency(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class Finding(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "findings"
-    __table_args__ = (UniqueConstraint("scan_id", "external_id", name="uq_finding_scan_external"),)
+    __table_args__ = (
+        UniqueConstraint("scan_id", "external_id", name="uq_finding_scan_external"),
+        # Findings-list filters (scan + severity + status) are the most common
+        # query shape in the UI and the regression/dedup comparisons.
+        Index("ix_findings_scan_severity_status", "scan_id", "severity", "status"),
+        Index("ix_findings_scan_file", "scan_id", "file_path"),
+    )
 
     scan_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("scans.id", ondelete="CASCADE"), index=True, nullable=False
@@ -537,6 +601,7 @@ class Evidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One node of a finding's evidence graph (source -> transformation -> sink, etc.)."""
 
     __tablename__ = "evidence"
+    __table_args__ = (Index("ix_evidence_finding_order", "finding_id", "order_index"),)
 
     finding_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("findings.id", ondelete="CASCADE"), index=True, nullable=False
@@ -610,3 +675,190 @@ class TestResult(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     output: Mapped[str | None] = mapped_column(Text)
 
     verification_run: Mapped[VerificationRun] = relationship(back_populates="test_results")
+
+
+# ------------------------------------------------------------------ feedback & sharing
+
+
+class FindingFeedback(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A user's verdict on a finding (the false-positive feedback loop).
+
+    One row per (finding, user): submitting again replaces the earlier verdict
+    so the aggregate always reflects the user's current judgement. Verdicts
+    feed detection-quality metrics (confirmed true positives, reported false
+    positives, already-fixed confirmations) — they never change a finding's
+    pipeline status by themselves.
+    """
+
+    __tablename__ = "finding_feedback"
+    __table_args__ = (UniqueConstraint("finding_id", "user_id", name="uq_finding_feedback_finding_user"),)
+
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("findings.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    # correct | incorrect | already_fixed | not_useful (validated at the API)
+    verdict: Mapped[str] = mapped_column(String(30), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+
+    finding: Mapped[Finding] = relationship()
+
+
+class ReportShare(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A revocable secret-URL share of one scan report.
+
+    The token is a 32-byte urlsafe secret resolved only by
+    ``GET /api/v1/public/reports/{token}``. Shares carry NO authentication and
+    therefore serve a sanitised report: evidence code snippets, repository
+    source URLs and LLM/token usage are stripped (see
+    ``app/services/sharing.py``). Owners can revoke at any time; expiry is
+    optional.
+    """
+
+    __tablename__ = "report_shares"
+
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("scans.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    view_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    scan: Mapped[Scan] = relationship()
+
+
+# ------------------------------------------------------------------ organizations & RBAC
+
+
+class OrgRole(str, enum.Enum):
+    """Organization roles, least to most privilege.
+
+    member  — read access to org repositories, runs scans, sees findings.
+    admin   — member + add/remove members, manage repositories.
+    owner   — admin + delete the organization, transfer/remove owners.
+    """
+
+    member = "member"
+    admin = "admin"
+    owner = "owner"
+
+    @property
+    def rank(self) -> int:
+        return {OrgRole.member: 0, OrgRole.admin: 1, OrgRole.owner: 2}[self]
+
+
+class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A team workspace grouping repositories and members."""
+
+    __tablename__ = "organizations"
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(200), unique=True, index=True, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    members: Mapped[list["OrganizationMember"]] = relationship(
+        back_populates="organization", cascade="all, delete-orphan"
+    )
+
+
+class OrganizationMember(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One user's membership (and role) in an organization."""
+
+    __tablename__ = "organization_members"
+    __table_args__ = (UniqueConstraint("organization_id", "user_id", name="uq_org_member_org_user"),)
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("organizations.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    role: Mapped[OrgRole] = mapped_column(
+        enum_type(OrgRole, "org_role"), default=OrgRole.member, nullable=False
+    )
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    organization: Mapped[Organization] = relationship(back_populates="members")
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
+# ------------------------------------------------------------------ API tokens (CI)
+
+
+class ApiToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A personal API token for CI / headless API access.
+
+    Only the SHA-256 hash of the secret is stored — a database leak cannot
+    recover usable credentials. The plaintext token is shown exactly once at
+    creation. Tokens carry the same identity and authorization as their user;
+    revocation is immediate and tracked.
+    """
+
+    __tablename__ = "api_tokens"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    token_prefix: Mapped[str] = mapped_column(String(12), nullable=False)  # display only
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
+class AuthEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Security audit trail for authentication events.
+
+    One row per AUTH_* event (signup, login success/failure, lockouts, password
+    reset, provider connect/disconnect, session revocation, webhook sync).
+    Never stores credentials, tokens or cookies — only who/what/where metadata
+    (see ``app/services/authaudit.py`` for the event catalogue).
+    """
+
+    __tablename__ = "auth_events"
+    __table_args__ = (Index("ix_auth_events_user_created", "user_id", "created_at"),)
+
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # Kept even when the user row is deleted (audit integrity after deletion).
+    email: Mapped[str | None] = mapped_column(String(320), index=True)
+    event: Mapped[str] = mapped_column(String(40), nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    # Small structured detail (provider name, user-agent class, failure reason
+    # code). Never raw provider responses or secrets.
+    detail: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+
+
+class ProcessedAuthWebhook(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Idempotency ledger for inbound authentication webhooks.
+
+    Delivery is at-least-once, so every processed event id is recorded here;
+    replays are acknowledged (200, ``duplicate``) without re-applying the
+    mutation. Out-of-order events are tolerated by upsert semantics.
+    """
+
+    __tablename__ = "processed_auth_webhooks"
+
+    provider: Mapped[str] = mapped_column(String(30), nullable=False, default="repoverix-local")
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    __table_args__ = (UniqueConstraint("provider", "event_id", name="uq_auth_webhook_provider_event"),)

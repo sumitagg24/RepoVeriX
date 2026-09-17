@@ -4,6 +4,7 @@ import logging
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.main import app
 
@@ -96,24 +97,46 @@ class TestUploadValidation:
 
 class TestInputNormalization:
     @pytest.mark.asyncio
-    async def test_signup_email_is_case_insensitive(self, client: AsyncClient):
+    async def test_signup_email_is_case_insensitive(self, client: AsyncClient, db_session):
         """Emails are stored lower-case, so case variants collide (no duplicates)."""
         first = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "Case.User@Example.com", "password": "password123", "full_name": "Case User"},
+            json={
+                "email": "Case.User@Example.com",
+                "password": "S97x-strong-test-passphrase",
+                "full_name": "Case User",
+            },
         )
         assert first.status_code == 201
 
         duplicate = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "case.user@example.com", "password": "password123", "full_name": "Case User"},
+            json={
+                "email": "case.user@example.com",
+                "password": "S97x-strong-test-passphrase",
+                "full_name": "Case User",
+            },
         )
         assert duplicate.status_code == 409
 
-        # Login with the other case still succeeds.
+        # Verify the account (signup creates unverified accounts by policy),
+        # then login with the other case still succeeds.
+        from app.db.models import User
+        from app.services import account_security as acct
+
+        user = (
+            await db_session.execute(select(User).where(User.email == "case.user@example.com"))
+        ).scalar_one()
+        token = await acct.issue_verification_token(db_session, user)
+        verify = await client.post(
+            "/api/v1/auth/verify-email",
+            json={"uid": str(user.id), "token": token},
+        )
+        assert verify.status_code == 200
+
         login = await client.post(
             "/api/v1/auth/login",
-            json={"email": "CASE.USER@EXAMPLE.COM", "password": "password123"},
+            json={"email": "CASE.USER@EXAMPLE.COM", "password": "S97x-strong-test-passphrase"},
         )
         assert login.status_code == 200
 

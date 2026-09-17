@@ -61,13 +61,20 @@ def detect_intent(question: str) -> str:
 
 def _answer_hotspots(git: dict[str, Any]) -> dict[str, Any]:
     if not git.get("available"):
-        return {"answer": "This repository has no git history (imported as an archive), so hotspots cannot be computed.", "sources": []}
+        return {
+            "answer": "This repository has no git history (imported as an archive), so hotspots cannot be computed.",
+            "sources": [],
+        }
     rows = sorted(git.get("files", []), key=lambda r: r.get("hotspot_score", 0), reverse=True)[:5]
     if not rows:
         return {"answer": "No file activity found in the analyzed commit window.", "sources": []}
-    lines = [f"{r['path']} — hotspot {r['hotspot_score']} ({r['bug_fixes']} bug-fix commits, churn {r['churn']})" for r in rows]
+    lines = [
+        f"{r['path']} — hotspot {r['hotspot_score']} ({r['bug_fixes']} bug-fix commits, churn {r['churn']})"
+        for r in rows
+    ]
     return {
-        "answer": "Top code hotspots (recency-weighted churn × bug-fix signals):\n" + "\n".join(f"- {text}" for text in lines),
+        "answer": "Top code hotspots (recency-weighted churn × bug-fix signals):\n"
+        + "\n".join(f"- {text}" for text in lines),
         "sources": [{"kind": "git", "file": r["path"]} for r in rows],
     }
 
@@ -83,7 +90,8 @@ def _answer_ownership(git: dict[str, Any]) -> dict[str, Any]:
         for r in rows
     ]
     return {
-        "answer": "Files with the thinnest ownership (lowest bus factor):\n" + "\n".join(f"- {text}" for text in lines),
+        "answer": "Files with the thinnest ownership (lowest bus factor):\n"
+        + "\n".join(f"- {text}" for text in lines),
         "sources": [{"kind": "git", "file": r["path"]} for r in rows],
     }
 
@@ -98,7 +106,11 @@ def _answer_health(health: dict[str, Any]) -> dict[str, Any]:
         issues = ", ".join(i["title"] for i in t.get("issues", [])[:2])
         lines.append(f"{t['path']} — score {t['score']}/10 ({issues})")
     answer = f"Average code health is {avg}/10 across {health.get('files_scored')} files. "
-    answer += "Worst-scoring files:\n" + "\n".join(f"- {text}" for text in lines) if lines else "No files need attention."
+    answer += (
+        "Worst-scoring files:\n" + "\n".join(f"- {text}" for text in lines)
+        if lines
+        else "No files need attention."
+    )
     return {
         "answer": answer,
         "sources": [{"kind": "health", "file": t["path"]} for t in worst],
@@ -107,13 +119,13 @@ def _answer_health(health: dict[str, Any]) -> dict[str, Any]:
 
 def _answer_performance(health: dict[str, Any]) -> dict[str, Any]:
     files = health.get("files", [])
-    hits = [
-        f for f in files
-        if any(i.get("lens") == "performance" for i in f.get("issues", []))
-    ][:5]
+    hits = [f for f in files if any(i.get("lens") == "performance" for i in f.get("issues", []))][:5]
     if not hits:
         return {"answer": "No performance detectors fired — no obvious hot paths found.", "sources": []}
-    lines = [f"{f['path']} — {', '.join(i['title'] for i in f['issues'] if i.get('lens') == 'performance')}" for f in hits]
+    lines = [
+        f"{f['path']} — {', '.join(i['title'] for i in f['issues'] if i.get('lens') == 'performance')}"
+        for f in hits
+    ]
     return {
         "answer": "Files with performance risk:\n" + "\n".join(f"- {text}" for text in lines),
         "sources": [{"kind": "health", "file": f["path"]} for f in hits],
@@ -133,7 +145,9 @@ def _answer_wiki(question: str, wiki: dict[str, Any], graph: KnowledgeGraph) -> 
         for page in pages:
             for sym in page.get("symbols", []):
                 if sym["name"].lower() == name:
-                    candidates.append(f"{page['path']}::{sym['name']} ({sym['kind']}, lines {sym['line_start']}-{sym['line_end']})")
+                    candidates.append(
+                        f"{page['path']}::{sym['name']} ({sym['kind']}, lines {sym['line_start']}-{sym['line_end']})"
+                    )
     if candidates:
         return {
             "answer": "Matching symbols:\n" + "\n".join(f"- {c}" for c in candidates[:6]),
@@ -168,7 +182,10 @@ def _answer_callers(question: str, graph: KnowledgeGraph) -> dict[str, Any]:
     assert ref is not None
     callers = graph.callers_of_ref(ref)
     if not callers:
-        return {"answer": f"No in-repo callers of `{name}` found — it may be an entry point or dead code.", "sources": [{"kind": "graph", "file": ref.file_path}]}
+        return {
+            "answer": f"No in-repo callers of `{name}` found — it may be an entry point or dead code.",
+            "sources": [{"kind": "graph", "file": ref.file_path}],
+        }
     lines = "\n".join(f"- {c}" for c in callers[:10])
     return {
         "answer": f"`{name}` ({ref.kind}, {ref.file_path}:{ref.line_start}) is called by {len(callers)} symbols:\n{lines}",
@@ -177,7 +194,28 @@ def _answer_callers(question: str, graph: KnowledgeGraph) -> dict[str, Any]:
 
 
 def _answer_dependencies(question: str, graph: KnowledgeGraph) -> dict[str, Any]:
-    std = {"os", "sys", "re", "json", "sqlite3", "typing", "datetime", "pathlib", "logging", "math", "random", "string", "collections", "functools", "itertools", "time", "abc", "enum", "dataclasses", "contextlib"}
+    std = {
+        "os",
+        "sys",
+        "re",
+        "json",
+        "sqlite3",
+        "typing",
+        "datetime",
+        "pathlib",
+        "logging",
+        "math",
+        "random",
+        "string",
+        "collections",
+        "functools",
+        "itertools",
+        "time",
+        "abc",
+        "enum",
+        "dataclasses",
+        "contextlib",
+    }
     third_party: dict[str, int] = {}
     for pf in graph.files.values():
         for imp in pf.imports:
@@ -215,7 +253,10 @@ def _answer_findings(findings: list[dict[str, Any]]) -> dict[str, Any]:
     for f in findings:
         by_sev[f.get("severity", "info")] = by_sev.get(f.get("severity", "info"), 0) + 1
     sev = ", ".join(f"{n} {k}" for k, n in sorted(by_sev.items()))
-    lines = "\n".join(f"- [{f.get('severity', '').upper()}] {f.get('title')} — {f.get('file_path')}:{f.get('line_start')} ({f.get('status')}, {int((f.get('confidence') or 0) * 100)}%)" for f in findings[:8])
+    lines = "\n".join(
+        f"- [{f.get('severity', '').upper()}] {f.get('title')} — {f.get('file_path')}:{f.get('line_start')} ({f.get('status')}, {int((f.get('confidence') or 0) * 100)}%)"
+        for f in findings[:8]
+    )
     return {
         "answer": f"Latest scan: {len(findings)} findings ({sev}).\n{lines}",
         "sources": [{"kind": "finding", "file": f.get("file_path")} for f in findings[:8]],
@@ -223,7 +264,9 @@ def _answer_findings(findings: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _answer_tests(graph: KnowledgeGraph) -> dict[str, Any]:
-    test_files = [p for p in graph.files if re.search(r"(^|/)(test_|tests?/|.*\.(test|spec)\.)", p, re.IGNORECASE)]
+    test_files = [
+        p for p in graph.files if re.search(r"(^|/)(test_|tests?/|.*\.(test|spec)\.)", p, re.IGNORECASE)
+    ]
     if not test_files:
         return {"answer": "No test files detected in the working copy.", "sources": []}
     total_tests = 0
@@ -256,7 +299,9 @@ def _answer_recency(git: dict[str, Any]) -> dict[str, Any]:
     if not git.get("available"):
         return {"answer": "No git history available.", "sources": []}
     files = sorted(git.get("files", []), key=lambda r: r.get("last_touched", ""), reverse=True)[:5]
-    lines = "\n".join(f"- {r['path']} (last touched {r['last_touched']}, {r['commits']} commits)" for r in files)
+    lines = "\n".join(
+        f"- {r['path']} (last touched {r['last_touched']}, {r['commits']} commits)" for r in files
+    )
     return {
         "answer": f"Most recently touched files ({git.get('commits_analyzed')} commits analyzed):\n{lines}",
         "sources": [{"kind": "git", "file": r["path"]} for r in files],

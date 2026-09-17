@@ -14,6 +14,7 @@ dependencies = [
   "pydantic-settings>=2.3",
   "pyjwt>=2.8",
   "bcrypt>=4.1",
+  "cryptography>=42.0",
   "python-multipart>=0.0.9",
   "httpx>=0.27",
   "tree-sitter>=0.23",
@@ -55,6 +56,9 @@ select = ["E", "F", "I", "UP", "B"]
 # Long intentional prose/regex literals (rule descriptions, patterns)
 "app/analysis/evidence.py" = ["E501"]
 "app/analysis/detectors.py" = ["E501"]
+# Alembic migrations are mechanical op(...) chains; never hand-edited after
+# generation, so wrapping them adds churn without value.
+"alembic/versions/*" = ["E501"]
 # NL-query and finding-chat answer prose
 "app/analysis/query.py" = ["E501"]
 "app/analysis/findingchat.py" = ["E501"]

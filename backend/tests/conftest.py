@@ -4,6 +4,7 @@ import asyncio
 import os
 import tempfile
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 # Keep repository storage out of the project tree and ensure settings are read
 # with an isolated location before any ``get_settings()`` call caches defaults.
@@ -15,6 +16,11 @@ os.environ.setdefault("REPOVERIX_RATE_LIMIT_ENABLED", "false")
 # Quota enforcement would break bulk fixture creation; tests/test_billing.py
 # re-enables it explicitly with generous budgets.
 os.environ.setdefault("REPOVERIX_BILLING_ENFORCE", "false")
+# The ASGI test transport sends ``Host: test``; keep that host allowed and keep
+# the interactive docs reachable while tests run (tests/test_security.py
+# verifies the production gating by constructing its own app).
+os.environ.setdefault("REPOVERIX_ALLOWED_HOSTS", '["localhost", "127.0.0.1", "test"]')
+os.environ.setdefault("REPOVERIX_EXPOSE_API_DOCS", "true")
 
 import pytest
 import pytest_asyncio
@@ -70,6 +76,19 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture(scope="function")
+async def session_factory(db_engine):
+    """Session *factory* over the test engine — for persistence proofs.
+
+    Sessions produced here are independent of the conftest ``db_session`` and
+    close without committing, matching production ``get_db``. Tests that prove
+    a write actually persisted use one of these to re-read what the request
+    path wrote; anything that only flushed (and relied on the caller's
+    transaction) fails such a test.
+    """
+    return async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+
+@pytest_asyncio.fixture(scope="function")
 async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
     """Create test client with database override."""
 
@@ -117,6 +136,9 @@ async def test_user(db_session) -> User:
         hashed_password=hash_password("password123"),
         full_name="Test User",
         is_active=True,
+        # Migration 005 grandfathers existing accounts as verified; the test
+        # fixture mirrors that so login flows exercise the verified path.
+        email_verified_at=datetime.now(UTC),
     )
     db_session.add(user)
     await db_session.commit()

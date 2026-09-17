@@ -43,7 +43,9 @@ _HTTP_RE = re.compile(
     r"|@app\.|@router\.|request\.get_json|request\.form|request\.files|Request\.body|query_string|searchParams)",
     re.IGNORECASE,
 )
-_CLI_RE = re.compile(r"\b(argv|sys\.stdin|optparse|argparse|click\.|typer\.|input\(|command_line|sys\.argv)", re.IGNORECASE)
+_CLI_RE = re.compile(
+    r"\b(argv|sys\.stdin|optparse|argparse|click\.|typer\.|input\(|command_line|sys\.argv)", re.IGNORECASE
+)
 _ENV_RE = re.compile(r"\b(environ|getenv|os\.environ|process\.env)", re.IGNORECASE)
 
 # Handler-shaped names that appear in web frameworks.
@@ -65,14 +67,73 @@ _SINK_RE = re.compile(
 
 # name-regex -> (category, sink severity weight 0-100, impact label)
 _SINK_CATEGORIES: list[tuple[re.Pattern, str, int, str]] = [
-    (re.compile(r"^(execute|executescript|executemany|execute_query|raw_query)$|(^|\.)query\(", re.IGNORECASE), "sql", 95, "SQL injection / query manipulation"),
-    (re.compile(r"^(loads|load|unsafe_load|yaml\.load|pickle\.load|pickle\.loads|jsonpickle|unmarshal|deserialize|numpy\.load)\b", re.IGNORECASE), "deserialization", 90, "Unsafe deserialization"),
-    (re.compile(r"^(system|popen|spawn|spawnl|check_output|check_call|subprocess|child_process|exec_command|shell)\b", re.IGNORECASE), "shell", 90, "OS command execution"),
-    (re.compile(r"^(authenticate|authorize|authorization|login|verify_password|check_permission|is_admin|has_role|jwt\.(decode|verify|sign)|sign_token|create_session|set_cookie)\b", re.IGNORECASE), "auth", 90, "Authentication / authorization decision"),
-    (re.compile(r"^(eval|exec|compile|new\s+Function)\b", re.IGNORECASE), "eval", 85, "Dynamic code execution"),
-    (re.compile(r"^(open|write|write_text|writefile|writeFile|appendfile|appendFile|unlink|remove|rename|mkdir|mkdirs?|save|upload|store|put_object|copy_file)\b", re.IGNORECASE), "filesystem", 80, "Filesystem read/write"),
-    (re.compile(r"^(render|render_template|render_to_string|send|send_message|mail|sendmail)\b", re.IGNORECASE), "render", 75, "Unsafe rendering / injection into output"),
-    (re.compile(r"^(request|requests?\.|urllib|urlopen|http\.|https\.|fetch|axios|client\.(get|post|put|delete|patch)|sendmail|smtp)\b", re.IGNORECASE), "network", 70, "Outbound network request (SSRF/exfiltration)"),
+    (
+        re.compile(
+            r"^(execute|executescript|executemany|execute_query|raw_query)$|(^|\.)query\(", re.IGNORECASE
+        ),
+        "sql",
+        95,
+        "SQL injection / query manipulation",
+    ),
+    (
+        re.compile(
+            r"^(loads|load|unsafe_load|yaml\.load|pickle\.load|pickle\.loads|jsonpickle|unmarshal|deserialize|numpy\.load)\b",
+            re.IGNORECASE,
+        ),
+        "deserialization",
+        90,
+        "Unsafe deserialization",
+    ),
+    (
+        re.compile(
+            r"^(system|popen|spawn|spawnl|check_output|check_call|subprocess|child_process|exec_command|shell)\b",
+            re.IGNORECASE,
+        ),
+        "shell",
+        90,
+        "OS command execution",
+    ),
+    (
+        re.compile(
+            r"^(authenticate|authorize|authorization|login|verify_password|check_permission|is_admin|has_role|jwt\.(decode|verify|sign)|sign_token|create_session|set_cookie)\b",
+            re.IGNORECASE,
+        ),
+        "auth",
+        90,
+        "Authentication / authorization decision",
+    ),
+    (
+        re.compile(r"^(eval|exec|compile|new\s+Function)\b", re.IGNORECASE),
+        "eval",
+        85,
+        "Dynamic code execution",
+    ),
+    (
+        re.compile(
+            r"^(open|write|write_text|writefile|writeFile|appendfile|appendFile|unlink|remove|rename|mkdir|mkdirs?|save|upload|store|put_object|copy_file)\b",
+            re.IGNORECASE,
+        ),
+        "filesystem",
+        80,
+        "Filesystem read/write",
+    ),
+    (
+        re.compile(
+            r"^(render|render_template|render_to_string|send|send_message|mail|sendmail)\b", re.IGNORECASE
+        ),
+        "render",
+        75,
+        "Unsafe rendering / injection into output",
+    ),
+    (
+        re.compile(
+            r"^(request|requests?\.|urllib|urlopen|http\.|https\.|fetch|axios|client\.(get|post|put|delete|patch)|sendmail|smtp)\b",
+            re.IGNORECASE,
+        ),
+        "network",
+        70,
+        "Outbound network request (SSRF/exfiltration)",
+    ),
     (re.compile(r"^(md5|sha1|hashlib\.md5|createHash)\b", re.IGNORECASE), "crypto", 55, "Weak cryptography"),
 ]
 
@@ -103,8 +164,15 @@ def _classify_entry(ref: SymbolRef, pf: ParsedFile | None) -> dict:
     body = "\n".join(pf.source.splitlines()[ref.line_start - 1 : ref.line_end])
     header = body[:800]
     path = ref.file_path.lower()
-    if _HTTP_RE.search(header) or _HANDLER_NAME_RE.search(ref.name) or "/routes" in path or "/api" in path \
-            or "/controllers" in path or "/views" in path or "/handlers" in path:
+    if (
+        _HTTP_RE.search(header)
+        or _HANDLER_NAME_RE.search(ref.name)
+        or "/routes" in path
+        or "/api" in path
+        or "/controllers" in path
+        or "/views" in path
+        or "/handlers" in path
+    ):
         entry_type, label = "http", "HTTP request handler (externally reachable)"
     elif _CLI_RE.search(header):
         entry_type, label = "cli", "CLI / command-line entry point"
@@ -154,12 +222,16 @@ def _score_path(entry_type: str, sink_weight: int, status: str, length: int) -> 
     completeness = 1.0 if status == "VERIFIED" else 0.5
     score = round(sink_weight * reach * completeness * _hop_penalty(length))
     score = max(0, min(100, score))
-    return score, _risk_level(score), {
-        "sink_weight": sink_weight,
-        "entry_reachability": reach,
-        "completeness_factor": completeness,
-        "hop_penalty": _hop_penalty(length),
-    }
+    return (
+        score,
+        _risk_level(score),
+        {
+            "sink_weight": sink_weight,
+            "entry_reachability": reach,
+            "completeness_factor": completeness,
+            "hop_penalty": _hop_penalty(length),
+        },
+    )
 
 
 def find_attack_paths(
@@ -203,10 +275,7 @@ def find_attack_paths(
             "risk_score": score,
             "risk_level": level,
             "risk_factors": factors,
-            "steps": [
-                {"function": s["function"], "file": s["file"], "line": s["line"]}
-                for s in steps
-            ],
+            "steps": [{"function": s["function"], "file": s["file"], "line": s["line"]} for s in steps],
         }
         record["sink_call"] = terminal.get("sink_call") or terminal.get("function")
         if status == "VERIFIED":
@@ -312,9 +381,7 @@ def find_attack_paths(
             if len(paths) + len(probable_entries) >= max_paths:
                 break
         # BFS over resolved callee edges
-        queue: list[tuple[SymbolRef, list[dict]]] = [
-            (source, [dict(source_step)])
-        ]
+        queue: list[tuple[SymbolRef, list[dict]]] = [(source, [dict(source_step)])]
         seen: set[tuple[str, str]] = {(source.file_path, source.qualified_name)}
         while queue:
             current, steps = queue.pop(0)

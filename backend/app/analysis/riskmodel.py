@@ -139,9 +139,7 @@ def train_and_evaluate(
         w = fit_logistic([scaled[j] for j in train_idx], [labels[j] for j in train_idx], steps=120)
         loo_probs.append(predict_proba([scaled[i]], w)[0])
 
-    ranked = sorted(
-        zip(loo_probs, paths, labels, rows, strict=True), key=lambda t: -t[0]
-    )
+    ranked = sorted(zip(loo_probs, paths, labels, rows, strict=True), key=lambda t: -t[0])
     positives = sum(1 for y in labels if y > 0.5)
 
     # precision at k where k = max(1, positives) — did the model surface the risky files?
@@ -155,7 +153,10 @@ def train_and_evaluate(
         for p, path, y, _ in ranked
     ]
 
-    coefs = [{"feature": FEATURES[c], "weight": round((w_full[c] / stds[c]) * 10.0, 3)} for c in range(len(FEATURES))]
+    coefs = [
+        {"feature": FEATURES[c], "weight": round((w_full[c] / stds[c]) * 10.0, 3)}
+        for c in range(len(FEATURES))
+    ]
     coefs.sort(key=lambda c: -abs(c["weight"]))
 
     flagged_count = sum(1 for _, _, y, _ in top_k if y > 0.5)

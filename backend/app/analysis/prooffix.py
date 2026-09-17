@@ -53,8 +53,7 @@ def run_decision(run: VerificationRun | None) -> dict:
             "decision": "VERIFIED_FIX",
             "state": "verified",
             "reason": (
-                "Patch applied; static checks clean; tests passed; "
-                "original finding no longer detected."
+                "Patch applied; static checks clean; tests passed; original finding no longer detected."
             ),
         }
     if status == VerificationStatus.repair_failed:
@@ -145,8 +144,11 @@ def _check_detail(key: str, passed: bool | None, run: VerificationRun, reproduct
     if key == "tests_passed":
         if passed is None:
             return "No test execution recorded (runner unavailable)."
-        return "Repository test suite passed inside the isolated sandbox." if passed else \
-            "Repository tests failed inside the isolated sandbox."
+        return (
+            "Repository test suite passed inside the isolated sandbox."
+            if passed
+            else "Repository tests failed inside the isolated sandbox."
+        )
     if key == "static_no_new_issues":
         if passed is None:
             return "No static comparison recorded."
@@ -163,10 +165,14 @@ def proof_for_patch(patch: Patch, reproduction: dict | None = None) -> dict:
     runs = sorted(patch.verification_runs, key=lambda r: r.created_at)
     latest = runs[-1] if runs else None
     decision = run_decision(latest)
-    checks = _run_checks(latest, reproduction) if latest else [
-        {"key": key, "label": label, "passed": None, "detail": "Not run yet."}
-        for key, label in _CHECK_DEFS
-    ]
+    checks = (
+        _run_checks(latest, reproduction)
+        if latest
+        else [
+            {"key": key, "label": label, "passed": None, "detail": "Not run yet."}
+            for key, label in _CHECK_DEFS
+        ]
+    )
 
     changed_files: list[str] = []
     changed_lines = 0

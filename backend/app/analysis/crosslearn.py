@@ -19,7 +19,10 @@ import re
 from collections import Counter, defaultdict
 from typing import Any
 
-_RISKY_STEM_RE = re.compile(r"(auth|login|user|session|upload|parse|import|exec|db|sql|query|token|key|config|handler|route)", re.IGNORECASE)
+_RISKY_STEM_RE = re.compile(
+    r"(auth|login|user|session|upload|parse|import|exec|db|sql|query|token|key|config|handler|route)",
+    re.IGNORECASE,
+)
 
 
 def _stem(path: str) -> str:
@@ -67,22 +70,17 @@ def learn_patterns(repos: list[dict[str, Any]]) -> dict[str, Any]:
                 rule_pairs[(rule_list[i], rule_list[j])] += 1
 
     top_patterns = [
-        {"rule": r, "language": lang, "occurrences": n}
-        for (r, lang), n in rule_lang.most_common(12)
+        {"rule": r, "language": lang, "occurrences": n} for (r, lang), n in rule_lang.most_common(12)
     ]
     top_categories = [
-        {"category": cat, "language": lang, "findings": n}
-        for (cat, lang), n in category_lang.most_common(8)
+        {"category": cat, "language": lang, "findings": n} for (cat, lang), n in category_lang.most_common(8)
     ]
     top_stems = [
         {"file_role": stem, "category": cat, "hits": n}
         for (stem, cat), n in stem_hits.most_common(10)
         if _RISKY_STEM_RE.search(stem) or n >= 2
     ]
-    co_occurrence = [
-        {"rules": [a, b], "repositories": n}
-        for (a, b), n in rule_pairs.most_common(10)
-    ]
+    co_occurrence = [{"rules": [a, b], "repositories": n} for (a, b), n in rule_pairs.most_common(10)]
 
     # transfer suggestions: rules verified in >= 2 repos with candidates that
     # have NOT (yet) recorded that rule

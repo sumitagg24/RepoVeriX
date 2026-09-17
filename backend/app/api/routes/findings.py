@@ -236,9 +236,7 @@ async def generate_test(
     provider = build_llm_provider(get_settings())
     usage = LLMUsage()
     try:
-        generated = await testgen.generate_test(
-            finding, src, provider=provider, usage=usage
-        )
+        generated = await testgen.generate_test(finding, src, provider=provider, usage=usage)
     except AnalysisError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -289,11 +287,7 @@ async def run_generated_test(
 
     result = await db.execute(
         select(GeneratedTest)
-        .options(
-            selectinload(GeneratedTest.finding)
-            .selectinload(Finding.scan)
-            .selectinload(Scan.repository)
-        )
+        .options(selectinload(GeneratedTest.finding).selectinload(Finding.scan).selectinload(Scan.repository))
         .join(Finding)
         .join(Scan)
         .join(Repository)
@@ -416,15 +410,9 @@ async def validate_counterexample(
     language = "python" if finding.file_path.endswith(".py") else "javascript"
     pf = parse_source(full.read_text(encoding="utf-8", errors="replace"), language, finding.file_path)
     source_lines = [
-        e.line_start or 0
-        for e in finding.evidence
-        if e.kind.value in counterexamples._SOURCE_KINDS
+        e.line_start or 0 for e in finding.evidence if e.kind.value in counterexamples._SOURCE_KINDS
     ]
-    sink_lines = [
-        e.line_start or 0
-        for e in finding.evidence
-        if e.kind.value in counterexamples._SINK_KINDS
-    ]
+    sink_lines = [e.line_start or 0 for e in finding.evidence if e.kind.value in counterexamples._SINK_KINDS]
     proof = counterexamples.validate_counterexample(pf, source_lines, sink_lines)
     return {"finding_id": str(finding.id), "counterexample": proof}
 
@@ -566,9 +554,7 @@ class FindingQuestionRequest(BaseModel):
     use_llm: bool = False
 
 
-async def _load_finding_chain(
-    finding_id: uuid.UUID, db: AsyncSession, user
-) -> Finding:
+async def _load_finding_chain(finding_id: uuid.UUID, db: AsyncSession, user) -> Finding:
     result = await db.execute(
         select(Finding)
         .options(
@@ -612,9 +598,7 @@ async def get_finding_impact(
                     continue
                 rel = full.relative_to(src).as_posix()
                 try:
-                    parsed[rel] = parse_source(
-                        full.read_text(encoding="utf-8", errors="replace"), lang, rel
-                    )
+                    parsed[rel] = parse_source(full.read_text(encoding="utf-8", errors="replace"), lang, rel)
                 except Exception:
                     continue
         except Exception:
@@ -638,6 +622,10 @@ async def chat_about_finding(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "finding_chat"))
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "ai-assistant")
     finding = await _load_finding_chain(finding_id, db, current_user)
 
     # similar findings = same signature in other completed scans of the repo
@@ -672,15 +660,11 @@ async def chat_about_finding(
                 lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
                 start = max(0, (finding.line_start or 1) - 3)
                 end = min(len(lines), (finding.line_end or finding.line_start or start + 1) + 3)
-                snippet = "\n".join(
-                    f"{i + 1}: {lines[i]}" for i in range(start, end)
-                )
+                snippet = "\n".join(f"{i + 1}: {lines[i]}" for i in range(start, end))
         except Exception:
             snippet = None
 
-    result = findingchat.answer_finding_question(
-        payload.question, finding, similar=similar, snippet=snippet
-    )
+    result = findingchat.answer_finding_question(payload.question, finding, similar=similar, snippet=snippet)
 
     provider = build_llm_provider(get_settings())
     if payload.use_llm and provider is not None:

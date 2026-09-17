@@ -411,9 +411,7 @@ async def test_regression_between_scans(client, auth_headers, db_session, test_r
         db_session.add(f)
     await db_session.commit()
 
-    response = await client.get(
-        f"/api/v1/repositories/{test_repository.id}/regression", headers=auth_headers
-    )
+    response = await client.get(f"/api/v1/repositories/{test_repository.id}/regression", headers=auth_headers)
     assert response.status_code == 200
     body = response.json()
     assert body["total_before"] == 1  # scan_b

@@ -16,6 +16,7 @@ Authenticated callers can then list importable repositories with
 
 import logging
 import secrets
+from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import urlencode
 
@@ -24,8 +25,9 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user, get_db
+from app.api.dependencies import get_current_user, get_db, get_verified_user
 from app.core.config import get_settings
+from app.core.crypto import decrypt_token, encrypt_token
 from app.core.security import create_access_token, hash_password
 from app.db.models import OAuthAccount, User
 from app.services import oauth as oauth_service
@@ -127,7 +129,10 @@ async def oauth_callback(
 
     await _upsert_oauth_account(db, user, provider, profile, token_data, access_token)
 
-    token = create_access_token(user.id)
+    # Carry the current token_version: after any revocation (password change,
+    # revoke-all, suspension) the authenticator's tv-claim check would
+    # otherwise reject the OAuth session this callback just minted.
+    token = create_access_token(user.id, token_version=user.token_version or 0)
     params = urlencode({"token": token, "provider": provider})
     response = RedirectResponse(url=_frontend_redirect(f"/auth/oauth/callback?{params}"))
     response.delete_cookie(_STATE_COOKIE, path="/")
@@ -152,6 +157,12 @@ async def _upsert_oauth_user(db: AsyncSession, provider: str, profile: dict, ema
             full_name=(profile.get("name") or email.split("@")[0] or "User")[:200],
             is_active=True,
         )
+        db.add(user)
+        await db.flush()
+    # The provider verified this email address (Google/GitHub/GitLab only
+    # return verified addresses here) — trust it and mark the account verified.
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.now(UTC)
         db.add(user)
         await db.flush()
     return user
@@ -181,18 +192,20 @@ async def _upsert_oauth_account(
             provider_user_id=profile["id"],
             provider_email=profile.get("email"),
             provider_name=profile.get("name"),
-            access_token=access_token,
-            refresh_token=token_data.get("refresh_token"),
+            # Tokens are encrypted at rest when REPOVERIX_TOKEN_ENCRYPTION_KEY
+            # is configured (plaintext only in local development).
+            access_token=encrypt_token(access_token),
+            refresh_token=encrypt_token(token_data.get("refresh_token")),
             token_expires_at=expires_at,
         )
         db.add(account)
     else:
-        account.access_token = access_token
+        account.access_token = encrypt_token(access_token)
         account.provider_user_id = profile["id"]
         account.provider_email = profile.get("email") or account.provider_email
         account.provider_name = profile.get("name") or account.provider_name
         if token_data.get("refresh_token"):
-            account.refresh_token = token_data["refresh_token"]
+            account.refresh_token = encrypt_token(token_data["refresh_token"])
         account.token_expires_at = expires_at
     await db.commit()
     await db.refresh(account)
@@ -223,7 +236,7 @@ async def oauth_connections(
 @router.get("/{provider}/repos")
 async def oauth_repos(
     provider: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List the current user's importable repositories for a connected provider."""
@@ -239,7 +252,7 @@ async def oauth_repos(
             detail=f"{provider} account is not connected",
         )
     try:
-        repos = await oauth_service.list_repositories(provider, account.access_token)
+        repos = await oauth_service.list_repositories(provider, decrypt_token(account.access_token))
     except oauth_service.OAuthError as exc:
         _logger.warning(
             "Listing %s repositories failed for user %s", provider, current_user.id, exc_info=True

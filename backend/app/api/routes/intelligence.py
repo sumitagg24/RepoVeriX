@@ -53,20 +53,19 @@ async def _load_repository(repository_id: uuid.UUID, db: AsyncSession, user) -> 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
     return repository
 
-@router.get("/{repository_id}/intelligence")
-async def get_intelligence(
-    repository_id: uuid.UUID,
+
+async def _ensure_insight(
+    db: AsyncSession,
+    repository: Repository,
+    *,
     refresh: bool = False,
-    current_user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Return the cached intelligence bundle, computing it on first request.
+) -> RepositoryInsight:
+    """Return a fresh, ready intelligence bundle for a repository, computing
+    and persisting it on first request (or when stale/``refresh``).
 
-    ``?refresh=1`` forces a recompute. The bundle is stored per repository so
-    repeat views are instant; staleness is refreshed after ``_CACHE_TTL``.
+    Shared by the Intelligence page, the Ask assistant and research views so
+    the index is computed once per repository and reused everywhere.
     """
-    repository = await _load_repository(repository_id, db, current_user)
-
     result = await db.execute(
         select(RepositoryInsight).where(RepositoryInsight.repository_id == repository.id)
     )
@@ -80,7 +79,7 @@ async def get_intelligence(
         and not refresh
         and (now - _as_utc(insight.generated_at)) < _CACHE_TTL
     ):
-        return _bundle(insight)
+        return insight
 
     src = _working_copy(repository)
     if insight is None:
@@ -110,6 +109,23 @@ async def get_intelligence(
     insight.architecture = bundle["architecture"]
     await _record_health_snapshot(db, repository, bundle["health"])
     await db.commit()
+    return insight
+
+
+@router.get("/{repository_id}/intelligence")
+async def get_intelligence(
+    repository_id: uuid.UUID,
+    refresh: bool = False,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the cached intelligence bundle, computing it on first request.
+
+    ``?refresh=1`` forces a recompute. The bundle is stored per repository so
+    repeat views are instant; staleness is refreshed after ``_CACHE_TTL``.
+    """
+    repository = await _load_repository(repository_id, db, current_user)
+    insight = await _ensure_insight(db, repository, refresh=refresh)
     return _bundle(insight)
 
 
@@ -128,6 +144,10 @@ async def generate_wiki_prose(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "wiki_prose"))
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "ai-assistant")
     repository = await _load_repository(repository_id, db, current_user)
     src = _working_copy(repository)
 
@@ -198,17 +218,14 @@ async def repository_query(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "repo_query"))
-    repository = await _load_repository(repository_id, db, current_user)
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
 
-    insight_result = await db.execute(
-        select(RepositoryInsight).where(RepositoryInsight.repository_id == repository.id)
-    )
-    insight = insight_result.scalar_one_or_none()
-    if insight is None or insight.status != "ready" or not insight.health:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Intelligence index is not ready — open the Intelligence page once first",
-        )
+        await require_premium(db, current_user, "ai-assistant")
+    repository = await _load_repository(repository_id, db, current_user)
+    # Compute (and persist) the intelligence index on demand so the assistant
+    # works for any ingested repository — no hidden prerequisite page visit.
+    insight = await _ensure_insight(db, repository)
 
     src = _working_copy(repository)
     parsed = _parse_working_copy(src)
@@ -364,17 +381,13 @@ def _parse_working_copy(src: Path) -> dict[str, ParsedFile]:
             continue
         rel = full.relative_to(src).as_posix()
         try:
-            parsed[rel] = parse_source(
-                full.read_text(encoding="utf-8", errors="replace"), lang, rel
-            )
+            parsed[rel] = parse_source(full.read_text(encoding="utf-8", errors="replace"), lang, rel)
         except Exception:
             continue
     return parsed
 
 
-async def _record_health_snapshot(
-    db: AsyncSession, repository: Repository, health: dict
-) -> None:
+async def _record_health_snapshot(db: AsyncSession, repository: Repository, health: dict) -> None:
     """Upsert one timeline point for the current working-copy commit."""
     commit_sha: str | None = None
     src = _working_copy(repository)
@@ -382,9 +395,7 @@ async def _record_health_snapshot(
         try:
             from app.analysis.process import run_command
 
-            result = await run_command(
-                ["git", "rev-parse", "--short", "HEAD"], cwd=src, timeout_seconds=15
-            )
+            result = await run_command(["git", "rev-parse", "--short", "HEAD"], cwd=src, timeout_seconds=15)
             if result.ok:
                 commit_sha = (result.stdout or "").strip()[:64] or None
         except Exception:

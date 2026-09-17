@@ -22,25 +22,45 @@ from typing import Any
 
 _MIN_SAMPLES = 3  # findings per rule before the selector trusts its stats
 _FP_MAX = 0.4  # rejected share above which a rule is de-weighted
+# Reported false positives (user "incorrect" verdicts) weigh like pipeline
+# rejections in precision; "correct"/"already_fixed" confirm true positives.
+_FEEDBACK_WEIGHTS = {"incorrect": 1.0, "correct": 0.5, "already_fixed": 0.5, "not_useful": 0.25}
 _CONTEXT_STRATEGIES = ("lean", "standard", "rich")
 
 
 def compute_rule_stats(
     scan_results: list[dict[str, Any]],
     patch_results: list[dict[str, Any]],
+    feedback_results: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Aggregate per-rule outcomes across completed scans.
 
     ``scan_results``: [{"rule", "status"(verified/probable/rejected),
                         "severity", "external_id"}]
     ``patch_results``: [{"rule", "patch_count", "verified_repairs"}]
+    ``feedback_results``: [{"rule", "verdict"(correct/incorrect/...), "count"}]
+
+    Human feedback is the ground-truth signal the pipeline lacks: verdicts are
+    folded into the false-positive rate (a reported incorrect finding weighs
+    like a pipeline rejection; confirmations add precision) and reported
+    separately so the research log can compare machine vs human judgement.
     """
     per_rule: dict[str, dict[str, Any]] = {}
     for f in scan_results:
         rule = f.get("rule") or "unknown"
         row = per_rule.setdefault(
             rule,
-            {"rule": rule, "total": 0, "verified": 0, "probable": 0, "rejected": 0, "patches": 0, "verified_repairs": 0},
+            {
+                "rule": rule,
+                "total": 0,
+                "verified": 0,
+                "probable": 0,
+                "rejected": 0,
+                "patches": 0,
+                "verified_repairs": 0,
+                "feedback_total": 0,
+                "feedback_incorrect": 0,
+            },
         )
         row["total"] += 1
         status = f.get("status")
@@ -51,16 +71,55 @@ def compute_rule_stats(
         rule = p.get("rule") or "unknown"
         row = per_rule.setdefault(
             rule,
-            {"rule": rule, "total": 0, "verified": 0, "probable": 0, "rejected": 0, "patches": 0, "verified_repairs": 0},
+            {
+                "rule": rule,
+                "total": 0,
+                "verified": 0,
+                "probable": 0,
+                "rejected": 0,
+                "patches": 0,
+                "verified_repairs": 0,
+                "feedback_total": 0,
+                "feedback_incorrect": 0,
+            },
         )
         row["patches"] += int(p.get("patch_count", 0))
         row["verified_repairs"] += int(p.get("verified_repairs", 0))
 
+    for fb in feedback_results or []:
+        rule = fb.get("rule") or "unknown"
+        row = per_rule.setdefault(
+            rule,
+            {
+                "rule": rule,
+                "total": 0,
+                "verified": 0,
+                "probable": 0,
+                "rejected": 0,
+                "patches": 0,
+                "verified_repairs": 0,
+                "feedback_total": 0,
+                "feedback_incorrect": 0,
+            },
+        )
+        count = int(fb.get("count", 0))
+        row["feedback_total"] += count
+        if fb.get("verdict") == "incorrect":
+            row["feedback_incorrect"] += count
+
     rows = []
     for row in per_rule.values():
-        total = max(1, row["total"])
-        row["precision"] = round(row["verified"] / total, 3)
-        row["false_positive_rate"] = round(row["rejected"] / total, 3)
+        # Combined false-positive rate: pipeline rejections plus weighted human
+        # reports, normalised over (findings + reported-verdict weight).
+        fp_units = row["rejected"] + sum(
+            _FEEDBACK_WEIGHTS.get(v, 0.0) * c
+            for fb_row in [row]
+            for v, c in (("incorrect", row["feedback_incorrect"]),)
+        )
+        confirmations = row["verified"] + 0.5 * max(0, row["feedback_total"] - row["feedback_incorrect"])
+        denom = max(1.0, row["total"] + row["feedback_incorrect"])
+        row["precision"] = round(min(1.0, confirmations / denom), 3)
+        row["false_positive_rate"] = round(min(1.0, fp_units / denom), 3)
         rows.append(row)
     rows.sort(key=lambda r: (-r["precision"], -r["total"]))
     return {"rule_count": len(rows), "rules": rows}
@@ -96,7 +155,9 @@ def recommend_strategy(rule_rows: list[dict[str, Any]]) -> dict[str, Any]:
         strategy_score[strategy] = strategy_score.get(strategy, 0.0) + r.get("precision", 0.5) * r["total"]
 
     chosen = max(strategy_score.items(), key=lambda kv: kv[1])[0]
-    deweighted = [r["rule"] for r in rule_rows if r["false_positive_rate"] > _FP_MAX and r["total"] >= _MIN_SAMPLES]
+    deweighted = [
+        r["rule"] for r in rule_rows if r["false_positive_rate"] > _FP_MAX and r["total"] >= _MIN_SAMPLES
+    ]
 
     return {
         "exploring": exploring,

@@ -208,11 +208,7 @@ def analyze_reachability(
                 "proof of non-reachability)"
             )
 
-        triage = (
-            _TRIAGE_VULN[status]
-            if vuln_count
-            else _TRIAGE_SAFE[status]
-        )
+        triage = _TRIAGE_VULN[status] if vuln_count else _TRIAGE_SAFE[status]
         recommendation = _recommendation(status, vuln_count, dep.get("top_level", True))
         rows.append(
             {

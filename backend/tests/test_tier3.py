@@ -39,9 +39,7 @@ def _parse_dir(root: Path) -> dict:
             rel = full.relative_to(root).as_posix()
             lang = {".py": "python", ".js": "javascript", ".ts": "typescript"}[full.suffix]
             try:
-                parsed[rel] = parse_source(
-                    full.read_text(encoding="utf-8", errors="replace"), lang, rel
-                )
+                parsed[rel] = parse_source(full.read_text(encoding="utf-8", errors="replace"), lang, rel)
             except Exception:
                 continue
     return parsed
@@ -81,9 +79,7 @@ async def _seed_repo(db, user, name="t3-repo", path: Path | None = None) -> Repo
 
 
 async def _seed_scan(db, repo: Repository, created=None) -> Scan:
-    scan = Scan(
-        repository_id=repo.id, configuration=ScanConfiguration.repoverix, status=ScanStatus.completed
-    )
+    scan = Scan(repository_id=repo.id, configuration=ScanConfiguration.repoverix, status=ScanStatus.completed)
     if created:
         scan.created_at = created
     db.add(scan)
@@ -292,9 +288,7 @@ def git_bug_history(tmp_path):
 
     commit("initial scaffold", "alice", "def run():\n    return 1\n")
     # buggy line introduced at line 2 by bob
-    commit(
-        "add search feature", "bob", "def run(name):\n    return 'SELECT * FROM t WHERE n=' + name\n"
-    )
+    commit("add search feature", "bob", "def run(name):\n    return 'SELECT * FROM t WHERE n=' + name\n")
     # fix commit later
     commit(
         "fix: parameterize query",
@@ -420,9 +414,7 @@ async def test_self_improvement_and_learning_routes(client, auth_headers, db_ses
     )
     await db_session.commit()
 
-    response = await client.get(
-        f"/api/v1/repositories/{repo.id}/self-improvement", headers=auth_headers
-    )
+    response = await client.get(f"/api/v1/repositories/{repo.id}/self-improvement", headers=auth_headers)
     assert response.status_code == 200
     body = response.json()
     assert body["stats"]["rule_count"] >= 1
