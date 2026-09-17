@@ -92,14 +92,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     # ---------------------------------------------------------------- errors
     from app.services.access import AccessDenied
 
@@ -202,8 +194,29 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["health"])
     async def health_check():
-        """Health check endpoint."""
+        """Liveness probe: the process is up. No dependencies are checked."""
         return {"status": "ok", "service": settings.app_name}
+
+    @app.get("/ready", tags=["health"])
+    async def readiness_check():
+        """Readiness probe: the process is up *and* the database answers.
+
+        Orchestrators (compose ``depends_on`` with healthchecks, Caddy/vps
+        deploys, Kubernetes) should gate traffic on this, not ``/health``.
+        Returns 503 — never an exception body — when the database is down so
+        the failure mode is a clean retry, not a 500 with internals.
+        """
+        from fastapi.responses import JSONResponse
+        from sqlalchemy import text
+
+        from app.db.database import engine
+
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+        except Exception:
+            return JSONResponse(status_code=503, content={"status": "not_ready"})
+        return {"status": "ready", "service": settings.app_name}
 
     @app.get("/metrics", tags=["observability"])
     async def metrics_endpoint():

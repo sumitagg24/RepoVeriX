@@ -10,7 +10,20 @@ from app.db.base import Base
 
 settings = get_settings()
 
-engine = create_async_engine(settings.database_url, echo=settings.debug)
+# Production hardening: managed providers (Neon, RDS, ...) close idle TCP
+# connections, so pooled connections must be validated before reuse
+# (``pool_pre_ping``) and recycled well before server-side idle timeouts.
+# Without this, the first request after an idle period fails with
+# "connection is closed".
+engine = create_async_engine(
+    settings.database_url,
+    echo=settings.debug,
+    pool_pre_ping=True,
+    pool_recycle=280,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

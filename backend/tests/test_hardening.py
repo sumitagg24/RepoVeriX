@@ -40,6 +40,15 @@ class TestProductionGuard:
         with pytest.raises(RuntimeError):
             ensure_production_safety(_settings(allowed_hosts=["*"]))
 
+    def test_empty_allowlist_is_treated_as_production(self):
+        # Empty allowlist = the Host gate accepts everything, so the default
+        # secret must be refused there too.
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            ensure_production_safety(_settings(allowed_hosts=[]))
+
+    def test_empty_allowlist_with_custom_secret_is_allowed(self):
+        ensure_production_safety(_settings(allowed_hosts=[], jwt_secret="x" * 32))
+
 
 # --------------------------------------------------------------------------- SSRF pinning
 
