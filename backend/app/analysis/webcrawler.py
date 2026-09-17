@@ -83,6 +83,30 @@ def same_origin(a: str, b: str) -> bool:
     return (pa.scheme, pa.hostname, pa.port) == (pb.scheme, pb.hostname, pb.port)
 
 
+def _allowed_origins(registered: str) -> tuple[str, ...]:
+    """Origins a crawl of ``registered`` may operate on.
+
+    The registered origin plus exactly one twin: its www/apex counterpart on
+    the same scheme and port. Sites universally canonicalize apex↔www (the
+    single most common redirect), and refusing the twin would make every such
+    site audit as "0 pages fetched". Any *other* redirect target (different
+    domain, different scheme) stays off-limits — the crawler never follows a
+    site to a hostname the user did not register.
+    """
+    p = urlparse(registered)
+    host = (p.hostname or "").lower()
+    if host.startswith("www."):
+        twin = host[4:]
+    else:
+        twin = f"www.{host}"
+    port = f":{p.port}" if p.port else ""
+    return (registered, urlunparse((p.scheme, twin + port, "/", "", "", "")))
+
+
+def _on_allowed_origin(url: str, allowed_origins: tuple[str, ...]) -> bool:
+    return any(same_origin(url, origin) for origin in allowed_origins)
+
+
 class _PageParser(HTMLParser):
     """Collects SEO/a11y signals and same-origin links from one HTML page."""
 
@@ -204,7 +228,7 @@ class _RobotsPolicy:
         policy = cls()
         url = urljoin(origin, "/robots.txt")
         try:
-            resp = await _fetch_pinned(client, url)
+            resp, _ = await _fetch_pinned(client, url)
         except Exception:
             policy.fetched = True
             return policy
@@ -229,12 +253,17 @@ class _RobotsPolicy:
             return True
 
 
-async def _fetch_pinned(client: httpx.AsyncClient, url: str) -> httpx.Response:
+async def _fetch_pinned(client: httpx.AsyncClient, url: str) -> tuple[httpx.Response, str]:
     """Fetch ``url`` through the SSRF gate with connection pinning.
 
     Redirects are followed manually: every hop is re-preflighted and must
     stay on a public address (rebinding-safe), while the crawl-level origin
     restriction is enforced by the caller.
+
+    Returns ``(response, logical_url)``. The logical URL keeps the original
+    hostname: connection pinning rewrites the request host to the resolved IP
+    (so ``response.url`` shows the IP), but origin decisions must be made on
+    the hostname the user actually sees.
     """
     current = url
     headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
@@ -253,18 +282,20 @@ async def _fetch_pinned(client: httpx.AsyncClient, url: str) -> httpx.Response:
         if response.is_redirect:
             location = response.headers.get("location", "")
             if not location:
-                return response
+                return response, current
             current = urljoin(current, location)
             continue
-        return response
+        return response, current
     raise UnsafeURLError("too many redirects")
 
 
-async def _fetch_page(client: httpx.AsyncClient, url: str, origin: str, depth: int) -> PageResult:
+async def _fetch_page(
+    client: httpx.AsyncClient, url: str, allowed_origins: tuple[str, ...], depth: int
+) -> PageResult:
     result = PageResult(url=url, final_url=url, status=0, depth=depth)
     started = time.monotonic()
     try:
-        response = await _fetch_pinned(client, url)
+        response, logical_url = await _fetch_pinned(client, url)
     except UnsafeURLError as exc:
         result.error = str(exc)
         return result
@@ -273,7 +304,7 @@ async def _fetch_page(client: httpx.AsyncClient, url: str, origin: str, depth: i
         return result
     result.response_ms = int((time.monotonic() - started) * 1000)
     result.status = response.status_code
-    result.final_url = str(response.url)
+    result.final_url = logical_url
     result.server = response.headers.get("server")
     result.content_type = response.headers.get("content-type", "").split(";")[0] or None
     result.security_headers = {
@@ -285,7 +316,7 @@ async def _fetch_page(client: httpx.AsyncClient, url: str, origin: str, depth: i
         "permissions-policy": response.headers.get("permissions-policy"),
     }
     result.cookies = [cookie.name for cookie in response.cookies.jar if cookie.domain and not cookie.secure]
-    if not same_origin(result.final_url, origin):
+    if not _on_allowed_origin(result.final_url, allowed_origins):
         result.error = "redirected off-origin"
         return result
 
@@ -336,7 +367,17 @@ async def crawl_site(
 
     timeout = httpx.Timeout(REQUEST_TIMEOUT)
     async with httpx.AsyncClient(timeout=timeout, verify=True) as client:
+        # The first fetch may canonically redirect apex↔www; resolve the
+        # effective origin set once, from the registered host only.
+        allowed_origins = _allowed_origins(origin)
         robots = await _RobotsPolicy.fetch(client, origin)
+        if not robots.found:
+            for alt in allowed_origins:
+                if same_origin(alt, origin):
+                    continue
+                robots = await _RobotsPolicy.fetch(client, alt)
+                if robots.found:
+                    break
         if robots.sitemaps:
             pass  # sitemap URLs are recorded on the audit summary by the caller
         while queue and len(pages) < max_pages:
@@ -360,14 +401,14 @@ async def crawl_site(
             # delay between same-origin requests (never burst a target).
             if pages:
                 await asyncio.sleep(POLITENESS_DELAY)
-            result = await _fetch_page(client, url, origin, depth)
+            result = await _fetch_page(client, url, allowed_origins, depth)
             pages.append(result)
             if depth < max_depth and result.error is None:
                 for link in result.links:
                     canonical = _canonical(link)
                     if canonical in seen:
                         continue
-                    if not same_origin(canonical, origin):
+                    if not _on_allowed_origin(canonical, allowed_origins):
                         continue
                     seen.add(canonical)
                     queue.append((canonical, depth + 1))
