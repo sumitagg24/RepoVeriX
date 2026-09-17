@@ -21,8 +21,7 @@ os.environ.setdefault("REPOVERIX_EXPOSE_API_DOCS", "false")
 # the UI fails silently (curl-only testing never notices).
 os.environ.setdefault(
     "REPOVERIX_CORS_ORIGINS",
-    '["http://localhost:3000", "http://127.0.0.1:3000", '
-    '"http://localhost:3001", "http://127.0.0.1:3001"]',
+    '["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"]',
 )
 
 if __name__ == "__main__":
