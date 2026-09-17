@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +13,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useCreateScan } from '@/hooks/useScans';
 import { useRepositories } from '@/hooks/useRepositories';
+import { usePlan, LLM_LEAD_CONFIGS } from '@/hooks/usePlan';
 import { Search, Loader2, ArrowLeft, GitBranch } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -36,6 +38,7 @@ function NewScanPageContent() {
   
   const createMutation = useCreateScan();
   const { data: repositories, isLoading: reposLoading } = useRepositories();
+  const { isFree, ready: planReady } = usePlan();
 
   const form = useForm<ScanForm>({
     resolver: zodResolver(scanSchema),
@@ -45,9 +48,16 @@ function NewScanPageContent() {
     },
   });
 
+  // Free accounts cannot run the LLM-led configurations — the submit path
+  // coerces a stale or defaulted premium selection to the best Free one.
+  // (Enforced again server-side; here it just spares Free users a 402.)
   const onSubmit = async (data: ScanForm) => {
+    const payload: ScanForm =
+      planReady && isFree && LLM_LEAD_CONFIGS.has(data.configuration)
+        ? { ...data, configuration: 'static_llm' }
+        : data;
     try {
-      await createMutation.mutateAsync(data);
+      await createMutation.mutateAsync(payload);
       toast.success('Scan started successfully');
       router.push('/scans');
       router.refresh();
@@ -99,9 +109,15 @@ function NewScanPageContent() {
             <CardTitle>Scan Configuration</CardTitle>
             <CardDescription>Select a repository and configuration to begin scanning</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" id="scan-form">
+          <Form {...form}>              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  form.handleSubmit(onSubmit, (errs) => toast.error(Object.values(errs)[0]?.message ?? 'Please check the form'))();
+                }}
+                className="space-y-6"
+                id="scan-form"
+              >
+              <CardContent className="space-y-6">
                 <FormField
                   control={form.control}
                   name="repository_id"
@@ -143,41 +159,57 @@ function NewScanPageContent() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {scanConfigurations.map((config) => (
-                            <SelectItem key={config.value} value={config.value}>
-                              <div className="space-y-1 min-w-[280px]">
-                                <p className="font-medium">{config.label}</p>
-                                <p className="text-xs text-muted-foreground">{config.description}</p>
-                              </div>
-                            </SelectItem>
-                          ))}
+                          {scanConfigurations.map((config) => {
+                            const premium = LLM_LEAD_CONFIGS.has(config.value);
+                            return (
+                              <SelectItem
+                                key={config.value}
+                                value={config.value}
+                                disabled={planReady && isFree && premium}
+                              >
+                                <div className="flex items-center justify-between gap-3 min-w-[300px]">
+                                  <div className="space-y-1">
+                                    <p className="font-medium">{config.label}</p>
+                                    <p className="text-xs text-muted-foreground">{config.description}</p>
+                                  </div>
+                                  {premium && <Badge variant="outline" className="shrink-0 text-[10px]">Pro</Badge>}
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
+                      {planReady && isFree && (
+                        <FormDescription>
+                          The full-pipeline and LLM-only configurations are Pro features — Free scans run
+                          hybrid or static analysis.
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </form>
-            </Form>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Link href="/scans">
-              <Button variant="outline">Cancel</Button>
-            </Link>
-            <Button type="submit" form="scan-form" disabled={createMutation.isPending || !repositories?.length} className="w-full sm:w-auto">
-              {createMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Starting Scan...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Start Scan
-                </>
-              )}
-            </Button>
-          </CardFooter>
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <Link href="/scans">
+                  <Button variant="outline">Cancel</Button>
+                </Link>
+                <Button type="button" onClick={form.handleSubmit(onSubmit, (errs) => toast.error(Object.values(errs)[0]?.message ?? 'Please check the form'))} disabled={createMutation.isPending || !repositories?.length} className="w-full sm:w-auto">
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Starting Scan...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Start Scan
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
         </Card>
       )}
 

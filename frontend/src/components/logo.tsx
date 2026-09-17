@@ -1,52 +1,67 @@
 import { cn } from '@/lib/utils';
 
-/**
- * RepoVeriX brand mark — a point-top hexagonal "verified seal" cut with an X,
- * the brand's single source of truth for the logo glyph. Rendered with
- * `currentColor` so every context (sidebar tile, nav, auth screens, footer)
- * shares identical geometry and inherits the local theme color.
+/*
+ * RepoVeriX brand mark — the "VeriX tick".
  *
- * viewBox is 24×24 and geometry is stroke-based so it stays crisp from 16px
- * (favicon) to 96px (marketing) without needing alternate assets.
+ * One concept: an X that resolves into a verification tick. The long
+ * down-stroke and the top-left crossing read as the RepoVeriX X; the
+ * bottom-left arm is lifted and folded back into a check, so the glyph reads
+ * "X → ✓": find the problem, then certify it's fixed — audit · repair ·
+ * verify.
+ *
+ * The mark is deliberately transparent — no seal, no tile, no backdrop. It
+ * floats on whatever surface it sits on. Contrast is guaranteed by the
+ * gradient's *range*, not by a container: every stop stays in a calibrated
+ * mid-tone band (rust L≈0.13 → amber L≈0.26). That band clears ~3:1 on
+ * ivory *and* near-black, so no part of the stroke ever washes out in
+ * either theme. Measured, not eyeballed. Every colour is a fixed literal —
+ * no currentColor, no theme variables, no transparency blends.
  */
+
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className={className}
-      focusable="false"
-    >
-      {/* Hexagonal seal */}
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className} focusable="false">
+      <defs>
+        <linearGradient
+          id="rvx-grad"
+          x1="4"
+          y1="20"
+          x2="20"
+          y2="4"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor="#a84926" />
+          <stop offset="50%" stopColor="#c26731" />
+          <stop offset="100%" stopColor="#ca7b2c" />
+        </linearGradient>
+      </defs>
+
+      {/* The X's long down-stroke (top-left → bottom-right). */}
       <path
-        d="M12 1.7 17.1 3.05 22.3 12 17.1 20.95 6.9 20.95 1.7 12 6.9 3.05 Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
+        d="M6.6 6.6 L17.4 17.4"
+        stroke="url(#rvx-grad)"
+        strokeWidth="3.6"
+        strokeLinecap="round"
+        fill="none"
+      />
+
+      {/* The arm that crosses it and folds back into a check. */}
+      <path
+        d="M17.4 6.6 L9.3 14.7 L14.7 14.7 L14.7 10.3"
+        stroke="url(#rvx-grad)"
+        strokeWidth="3.6"
+        strokeLinecap="round"
         strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {/* The X — RepoVeriX monogram */}
-      <path
-        d="M7.05 7.05 L16.95 16.95"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M16.95 7.05 L7.05 16.95"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
+        fill="none"
       />
     </svg>
   );
 }
 
 /**
- * Full brand lockup: mark + the Fraunces wordmark with the X accented in the
- * primary color. This is the only way the brand name should be rendered —
- * mark and wordmark travel together so the identity stays uniform.
+ * Full brand lockup: mark + the wordmark with the X accented in the primary
+ * color. This is the only way the brand name should be rendered — mark and
+ * wordmark travel together so the identity stays uniform.
  */
 export function Logo({
   className,
@@ -59,9 +74,7 @@ export function Logo({
 }) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
-        <LogoMark className="h-[19px] w-[19px]" />
-      </span>
+      <LogoMark className={cn('h-7 w-7 shrink-0', markClassName)} />
       <span className="leading-tight">
         <span className="block font-display text-[17px] font-semibold tracking-tight">
           RepoVeri

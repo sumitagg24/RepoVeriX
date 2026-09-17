@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { ONBOARDING_CONNECT_FLAG } from '@/lib/onboarding';
 import { Loader2 } from 'lucide-react';
 
 function OAuthCallbackContent() {
@@ -38,8 +39,12 @@ function OAuthCallbackContent() {
     }
 
     loginWithToken(token).then(() => {
+      // A connect started from the onboarding wizard returns there; regular
       // GitHub/GitLab connects land back in the import dialog for that provider.
-      if (provider === 'github' || provider === 'gitlab') {
+      if (typeof window !== 'undefined' && sessionStorage.getItem(ONBOARDING_CONNECT_FLAG) === '1') {
+        sessionStorage.removeItem(ONBOARDING_CONNECT_FLAG);
+        router.replace('/onboarding');
+      } else if (provider === 'github' || provider === 'gitlab') {
         router.replace(`/repositories?import=1&tab=${provider}`);
       } else {
         router.replace('/dashboard');

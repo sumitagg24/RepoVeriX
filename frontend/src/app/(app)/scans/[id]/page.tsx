@@ -10,6 +10,7 @@ import { useScan } from '@/hooks/useScans';
 import { useFindings } from '@/hooks/useFindings';
 import { useDedup } from '@/hooks/useAudit';
 import { scanAuditService } from '@/services/api';
+import { ShareReportButton } from '@/components/app/share-report-button';
 import {
   Search,
   Loader2,
@@ -142,6 +143,7 @@ export default function ScanDetailPage() {
               Export SARIF
             </Button>
           )}
+          {scan.status === 'completed' && <ShareReportButton scanId={scan.id} />}
         </div>
       </div>
 

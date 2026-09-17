@@ -12,6 +12,7 @@ import { FindingChat } from '@/components/findings/finding-chat';
 import { PatchQualityBadge } from '@/components/findings/patch-quality-badge';
 import { ProofOfFixPanel } from '@/components/findings/proof-of-fix';
 import { useFinding, useGenerateFix } from '@/hooks/useFindings';
+import { FindingFeedbackBar } from '@/components/app/finding-feedback-bar';
 import { usePatches } from '@/hooks/usePatches';
 import { useGeneratedTest, useCounterexample, useValidateFinding } from '@/hooks/useAudit';
 import { getApiErrorMessage } from '@/lib/api-error';
@@ -132,6 +133,7 @@ export default function FindingDetailPage() {
 
   return (
     <div className="space-y-6">
+      <FindingFeedbackBar findingId={finding.id} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

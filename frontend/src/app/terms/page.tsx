@@ -3,7 +3,10 @@ import type { Metadata } from 'next';
 import { Logo } from '@/components/logo';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service - RepoVeriX',
+  title: 'Terms of Service',
+  description:
+    'The terms that govern your use of RepoVeriX: acceptable use, subscription billing, data handling and limitation of liability.',
+  alternates: { canonical: '/terms' },
 };
 
 export default function TermsPage() {

@@ -1,17 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { User, Shield, Key, Bell, Globe, Trash2, Loader2, Link2, Cookie } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  User,
+  Shield,
+  Trash2,
+  Loader2,
+  Link2,
+  Cookie,
+  CheckCircle2,
+  XCircle,
+  History,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { SettingsConnections } from '@/components/settings-connections';
+import { authService } from '@/services/api';
+import type { SecurityOverview } from '@/types/api';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -19,63 +32,130 @@ import { toast } from 'sonner';
 
 const profileSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email'),
 });
 
-const passwordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-});
+const passwordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(8, 'Use at least 8 characters — longer is better'),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 type ProfileForm = z.infer<typeof profileSchema>;
 type PasswordForm = z.infer<typeof passwordSchema>;
 
+/** Human-readable labels for the audit event catalogue. */
+const EVENT_LABELS: Record<string, string> = {
+  AUTH_LOGIN_SUCCESS: 'Signed in',
+  AUTH_LOGIN_FAILURE: 'Failed sign-in attempt',
+  AUTH_PASSWORD_CHANGED: 'Password changed',
+  AUTH_PASSWORD_RESET: 'Password reset via email',
+  AUTH_EMAIL_VERIFIED: 'Email verified',
+  AUTH_ACCOUNT_LOCKED: 'Temporary lockout triggered',
+  AUTH_SESSION_REVOKED: 'Sessions revoked',
+  AUTH_PROVIDER_CONNECTED: 'Provider connected',
+  AUTH_PROVIDER_DISCONNECTED: 'Provider disconnected',
+  AUTH_SIGNUP: 'Account created',
+  AUTH_LOGOUT: 'Signed out',
+};
+
 export default function SettingsPage() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, logoutWithAudit, rotateToken, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('profile');
+  const [security, setSecurity] = useState<SecurityOverview | null>(null);
+  const [securityLoading, setSecurityLoading] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [cookieChoice, setCookieChoice] = useState<string>(() => {
     if (typeof window === 'undefined') return 'unset';
     return localStorage.getItem('repoverix-cookie-consent') || 'unset';
   });
 
+  const loadSecurity = useCallback(async () => {
+    setSecurityLoading(true);
+    try {
+      setSecurity(await authService.securityOverview());
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error));
+    } finally {
+      setSecurityLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'security' && !security && !securityLoading) {
+      loadSecurity();
+    }
+  }, [activeTab, security, securityLoading, loadSecurity]);
+
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
-    defaultValues: {
-      full_name: user?.full_name || '',
-      email: user?.email || '',
-    },
+    defaultValues: { full_name: user?.full_name || '' },
   });
 
   const passwordForm = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
-    defaultValues: {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   });
 
   const onProfileSubmit = async (data: ProfileForm) => {
-    // API call to update profile would go here
-    toast.success('Profile updated successfully');
+    try {
+      await authService.updateProfile(data.full_name);
+      await refreshUser();
+      toast.success('Profile updated');
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error));
+    }
   };
 
   const onPasswordSubmit = async (data: PasswordForm) => {
-    // API call to change password would go here
-    toast.success('Password changed successfully');
-    passwordForm.reset();
+    try {
+      const result = await authService.changePassword(data.currentPassword, data.newPassword);
+      await rotateToken(result.access_token);
+      passwordForm.reset();
+      setSecurity(null); // re-fetch with fresh token next visit
+      toast.success('Password changed. Other sessions were signed out.');
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error));
+    }
+  };
+
+  const handleRevokeAll = async () => {
+    setRevoking(true);
+    try {
+      const result = await authService.revokeAllSessions();
+      await rotateToken(result.access_token);
+      setSecurity(null);
+      toast.success('All other sessions were signed out. This device stays signed in.');
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error));
+    } finally {
+      setRevoking(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm('Are you sure you want to delete your account? This action is irreversible.')) return;
-    if (!confirm('This will permanently delete all your data. Are you absolutely sure?')) return;
-    // API call to delete account
-    toast.success('Account deletion initiated');
-    logout();
+    if (
+      !confirm(
+        'This permanently deletes your account, repositories, scans and findings. This cannot be undone. Continue?'
+      )
+    )
+      return;
+    if (!confirm('Final confirmation: delete everything?')) return;
+    setDeleting(true);
+    try {
+      await authService.deleteAccount();
+      logout();
+      toast.success('Account deleted.');
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -86,7 +166,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="profile">
             <User className="mr-2 h-4 w-4" />
             Profile
@@ -98,10 +178,6 @@ export default function SettingsPage() {
           <TabsTrigger value="connections">
             <Link2 className="mr-2 h-4 w-4" />
             Connections
-          </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="mr-2 h-4 w-4" />
-            Notifications
           </TabsTrigger>
           <TabsTrigger value="privacy">
             <Cookie className="mr-2 h-4 w-4" />
@@ -118,150 +194,168 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Profile Information</CardTitle>
-              <CardDescription>Update your personal information</CardDescription>
+              <CardDescription>Update your display name</CardDescription>
             </CardHeader>
             <CardContent>
-              <Form {...profileForm}>
-                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name</Label>
-                    <Input
-                      id="full_name"
-                      {...profileForm.register('full_name')}
-                      disabled={profileForm.formState.isSubmitting}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      {...profileForm.register('email')}
-                      disabled={profileForm.formState.isSubmitting}
-                    />
-                  </div>
-                  <Button type="submit" disabled={profileForm.formState.isSubmitting}>
-                    {profileForm.formState.isSubmitting ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                </form>
-              </Form>
+              <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full Name</Label>
+                  <Input
+                    id="full_name"
+                    {...profileForm.register('full_name')}
+                    disabled={profileForm.formState.isSubmitting}
+                  />
+                  {profileForm.formState.errors.full_name && (
+                    <p className="text-sm text-destructive">
+                      {profileForm.formState.errors.full_name.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={user?.email || ''} disabled />
+                  <p className="text-xs text-muted-foreground">
+                    Your email is your verified sign-in identity and cannot be changed here.
+                  </p>
+                </div>
+                <Button type="submit" disabled={profileForm.formState.isSubmitting}>
+                  {profileForm.formState.isSubmitting ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Security Tab */}
-        <TabsContent value="security">
+        <TabsContent value="security" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Account security</CardTitle>
+              <CardDescription>Verification, status and recent activity</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {securityLoading && !security ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading security overview…
+                </div>
+              ) : security ? (
+                <div className="space-y-5">
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      {security.email_verified ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      )}
+                      Email {security.email_verified ? 'verified' : 'not verified'}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Badge variant="outline" className="capitalize">
+                        {security.account_status}
+                      </Badge>
+                      account status
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      Multi-factor: {security.mfa_status === 'not_available_yet' ? 'not available yet' : security.mfa_status}
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <History className="h-4 w-4" /> Recent security activity
+                    </p>
+                    {security.recent_events.length === 0 ? (
+                      <p className="mt-2 text-sm text-muted-foreground">No recorded events yet.</p>
+                    ) : (
+                      <ul className="mt-3 divide-y divide-border rounded-lg border">
+                        {security.recent_events.map((e, i) => (
+                          <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                            <span>{EVENT_LABELS[e.event] ?? e.event}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {e.ip ? `${e.ip} · ` : ''}
+                              {e.at ? new Date(e.at).toLocaleString() : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Events store time and IP metadata only — never credentials. See{' '}
+                      <Link href="/docs/account-security" className="underline hover:text-foreground">
+                        account security
+                      </Link>
+                      .
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Security overview unavailable.</p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Change Password</CardTitle>
-              <CardDescription>Update your account password</CardDescription>
+              <CardDescription>
+                Changing your password signs out every other session
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Form {...passwordForm}>
-                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input
-                      id="currentPassword"
-                      type="password"
-                      {...passwordForm.register('currentPassword')}
-                      disabled={passwordForm.formState.isSubmitting}
-                    />
-                    {passwordForm.formState.errors.currentPassword && (
-                      <p className="text-sm text-destructive">{passwordForm.formState.errors.currentPassword.message}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      {...passwordForm.register('newPassword')}
-                      disabled={passwordForm.formState.isSubmitting}
-                    />
-                    {passwordForm.formState.errors.newPassword && (
-                      <p className="text-sm text-destructive">{passwordForm.formState.errors.newPassword.message}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      {...passwordForm.register('confirmPassword')}
-                      disabled={passwordForm.formState.isSubmitting}
-                    />
-                    {passwordForm.formState.errors.confirmPassword && (
-                      <p className="text-sm text-destructive">{passwordForm.formState.errors.confirmPassword.message}</p>
-                    )}
-                  </div>
-                  <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
-                    {passwordForm.formState.isSubmitting ? 'Changing...' : 'Change Password'}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-
-          <Separator className="my-6" />
-
-          <Card>
-            <CardHeader>
-              <CardTitle>API Keys</CardTitle>
-              <CardDescription>Manage your API keys for programmatic access</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Key className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Default API Key</p>
-                      <p className="text-sm text-muted-foreground">Created Jan 15, 2024 • Last used 2 hours ago</p>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm">Regenerate</Button>
+              <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    {...passwordForm.register('currentPassword')}
+                    disabled={passwordForm.formState.isSubmitting}
+                  />
+                  {passwordForm.formState.errors.currentPassword && (
+                    <p className="text-sm text-destructive">
+                      {passwordForm.formState.errors.currentPassword.message}
+                    </p>
+                  )}
                 </div>
-                <Button variant="outline" asChild>
-                  <a href="/settings/api-keys">Manage API Keys</a>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    {...passwordForm.register('newPassword')}
+                    disabled={passwordForm.formState.isSubmitting}
+                  />
+                  {passwordForm.formState.errors.newPassword && (
+                    <p className="text-sm text-destructive">
+                      {passwordForm.formState.errors.newPassword.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    {...passwordForm.register('confirmPassword')}
+                    disabled={passwordForm.formState.isSubmitting}
+                  />
+                  {passwordForm.formState.errors.confirmPassword && (
+                    <p className="text-sm text-destructive">
+                      {passwordForm.formState.errors.confirmPassword.message}
+                    </p>
+                  )}
+                </div>
+                <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
+                  {passwordForm.formState.isSubmitting ? 'Changing...' : 'Change Password'}
                 </Button>
-              </div>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Configure how you receive updates about scans and findings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {[
-                { title: 'Scan Completed', desc: 'Get notified when a scan finishes', enabled: true },
-                { title: 'Critical Findings', desc: 'Alert me immediately for critical severity issues', enabled: true },
-                { title: 'High Findings', desc: 'Notify me about high severity findings', enabled: true },
-                { title: 'Weekly Digest', desc: 'Receive a weekly summary of scan activity', enabled: false },
-                { title: 'Email Notifications', desc: 'Receive notifications via email', enabled: true },
-                { title: 'In-App Notifications', desc: 'Show notifications in the application', enabled: true },
-              ].map((item) => (
-                <div key={item.title} className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-sm text-muted-foreground">{item.desc}</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" defaultChecked={item.enabled} className="sr-only peer" />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary peer-focus:ring-opacity-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                  </label>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Danger Zone Tab */}
+        {/* Connections Tab */}
         <TabsContent value="connections">
           <Card>
             <CardHeader>
@@ -296,7 +390,11 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground">
                     Current choice:{' '}
                     <span className="font-medium capitalize">
-                      {cookieChoice === 'accepted' ? 'Accepted' : cookieChoice === 'rejected' ? 'Rejected' : 'Not chosen yet'}
+                      {cookieChoice === 'accepted'
+                        ? 'Accepted'
+                        : cookieChoice === 'rejected'
+                          ? 'Rejected'
+                          : 'Not chosen yet'}
                     </span>
                   </p>
                 </div>
@@ -364,29 +462,20 @@ export default function SettingsPage() {
               <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-destructive">Delete Account</p>
-                    <p className="text-sm text-muted-foreground">
-                      Permanently delete your account and all associated data. This action cannot be undone.
-                    </p>
-                  </div>
-                  <Button variant="destructive" onClick={handleDeleteAccount}>
-                    Delete Account
-                  </Button>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
                     <p className="font-medium text-destructive">Revoke All Sessions</p>
                     <p className="text-sm text-muted-foreground">
-                      Sign out of all devices and revoke all active tokens. You will need to log in again.
+                      Sign out of all other devices by invalidating every existing token. This
+                      device stays signed in.
                     </p>
                   </div>
-                  <Button variant="outline" onClick={() => { logout(); toast.success('All sessions revoked'); }}>
-                    Revoke Sessions
+                  <Button variant="outline" onClick={handleRevokeAll} disabled={revoking}>
+                    {revoking ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Revoking…
+                      </>
+                    ) : (
+                      'Revoke Sessions'
+                    )}
                   </Button>
                 </div>
               </div>
@@ -396,13 +485,20 @@ export default function SettingsPage() {
               <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-destructive">Delete All Data</p>
+                    <p className="font-medium text-destructive">Delete Account</p>
                     <p className="text-sm text-muted-foreground">
-                      Delete all repositories, scans, findings, and patches while keeping your account.
+                      Permanently delete your account and all associated data. This action cannot
+                      be undone.
                     </p>
                   </div>
-                  <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => toast.error('Not implemented yet')}>
-                    Delete All Data
+                  <Button variant="destructive" onClick={handleDeleteAccount} disabled={deleting}>
+                    {deleting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting…
+                      </>
+                    ) : (
+                      'Delete Account'
+                    )}
                   </Button>
                 </div>
               </div>

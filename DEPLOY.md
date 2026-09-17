@@ -142,6 +142,9 @@ Then set `NEXT_PUBLIC_API_URL=https://api.your-domain.com` and
 - [ ] No real API keys were committed (the repo keeps `.env*` out of Git)
 - [ ] CORS allow-list contains exactly the browser origin(s) you serve
 - [ ] Docker socket mount is only enabled on a dedicated host
-- [ ] `auto_create_tables` is fine for the prototype; switch to Alembic
-      (`backend/alembic`) for schema migrations in production
+- [ ] Migrations: run `alembic upgrade head` against PostgreSQL on deploy
+      (keep `REPOVERIX_AUTO_CREATE_TABLES=false` in production; SQLite dev
+      environments use `create_all` instead)
+- [ ] Startup fails fast if `REPOVERIX_JWT_SECRET` is left at its default on a
+      public Host allowlist — this is intentional, configure the secret
 - [ ] HTTPS terminates at a reverse proxy; never expose port 8000 directly

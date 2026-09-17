@@ -22,6 +22,7 @@ import {
   FolderGit2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { toast } from 'sonner';
 import type { SourceType } from '@/types/api';
 
@@ -319,18 +320,18 @@ export function ImportRepositoryPanel({
         source_url: url,
       }),
     onSuccess: (repo) => done(repo.id),
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(getApiErrorMessage(e)),
   });
   const archiving = useMutation({
     mutationFn: ({ name, url }: { name: string; url: string }) => repositoryService.createFromArchive({ name, url }),
     onSuccess: (repo) => done(repo.id),
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(getApiErrorMessage(e)),
   });
   const oauthImport = useMutation({
     mutationFn: ({ provider, path }: { provider: 'github' | 'gitlab'; path: string }) =>
       repositoryService.createFromOAuth({ provider, repo_path: path }),
     onSuccess: (repo) => done(repo.id),
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(getApiErrorMessage(e)),
   });
 
   const current = SOURCES.find((s) => s.id === tab)!;

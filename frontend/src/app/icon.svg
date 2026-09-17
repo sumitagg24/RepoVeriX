@@ -1,27 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Warm ivory rounded-square tile -->
-  <rect width="64" height="64" rx="14" fill="#faf7f2"/>
-  <!-- Clay hexagonal seal -->
-  <path
-    d="M32 6.5 L47.6 12.7 L63.2 32 L47.6 51.3 L16.4 51.3 L0.8 32 L16.4 12.7 Z"
-    fill="none"
-    stroke="#c4552f"
-    stroke-width="4.5"
-    stroke-linejoin="round"
-    stroke-linecap="round"
-    transform="translate(0,0) scale(0.968) translate(1,1)"
-  />
-  <!-- The X monogram -->
-  <path
-    d="M20.1 20.1 L43.9 43.9"
-    stroke="#c4552f"
-    stroke-width="5"
-    stroke-linecap="round"
-  />
-  <path
-    d="M43.9 20.1 L20.1 43.9"
-    stroke="#c4552f"
-    stroke-width="5"
-    stroke-linecap="round"
-  />
+  <defs>
+    <linearGradient id="g" x1="10.7" y1="53.3" x2="53.3" y2="10.7" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a84926"/>
+      <stop offset="50%" stop-color="#c26731"/>
+      <stop offset="100%" stop-color="#ca7b2c"/>
+    </linearGradient>
+  </defs>
+  <path d="M17.6 17.6 L46.4 46.4" stroke="url(#g)" stroke-width="9.6" stroke-linecap="round" fill="none"/>
+  <path d="M46.4 17.6 L24.8 39.2 L39.2 39.2 L39.2 27.5"
+        stroke="url(#g)" stroke-width="9.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 </svg>

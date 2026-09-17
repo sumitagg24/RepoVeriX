@@ -1,9 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import type {
+  OnboardingStatus,
   ProofOfFix,
   RunTestResponse,
   User,
   TokenResponse,
+  SecurityOverview,
   LoginRequest,
   SignupRequest,
   Repository,
@@ -49,7 +51,15 @@ import type {
   PullRequestAuditSummary,
   PullRequestAuditDetail,
   ChangeAuditMeta,
-  FindingValidationResult
+  FindingValidationResult,
+  ReportShare,
+  FindingFeedback,
+  FeedbackSummary,
+  OrgRead,
+  OrgMember,
+  OrgRepo,
+  TeamDashboard,
+  SecurityCenter
 } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -153,6 +163,64 @@ export const authService = {
   login: async (data: LoginRequest): Promise<TokenResponse> => {
     const response = await api.post<TokenResponse>('/auth/login', data);
     return response.data;
+  },
+
+  forgotPassword: async (email: string): Promise<{ detail: string }> => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (uid: string, token: string, newPassword: string): Promise<{ detail: string }> => {
+    const response = await api.post('/auth/reset-password', {
+      uid,
+      token,
+      new_password: newPassword,
+    });
+    return response.data;
+  },
+
+  verifyEmail: async (uid: string, token: string): Promise<{ detail: string }> => {
+    const response = await api.post('/auth/verify-email', { uid, token });
+    return response.data;
+  },
+
+  resendVerification: async (email: string): Promise<{ detail: string; dev_verification_url?: string | null }> => {
+    const response = await api.post('/auth/resend-verification', { email });
+    return response.data;
+  },
+
+  changePassword: async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ detail: string; access_token: string }> => {
+    const response = await api.post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return response.data;
+  },
+
+  securityOverview: async (): Promise<SecurityOverview> => {
+    const response = await api.get<SecurityOverview>('/auth/security-overview');
+    return response.data;
+  },
+
+  revokeAllSessions: async (): Promise<{ detail: string; access_token: string }> => {
+    const response = await api.post('/auth/revoke-all-sessions');
+    return response.data;
+  },
+
+  logoutAudit: async (): Promise<void> => {
+    await api.post('/auth/logout');
+  },
+
+  updateProfile: async (fullName: string): Promise<{ detail: string; full_name: string }> => {
+    const response = await api.put('/auth/me', { full_name: fullName });
+    return response.data;
+  },
+
+  deleteAccount: async (): Promise<void> => {
+    await api.delete('/auth/me');
   },
 
   me: async (): Promise<User> => {
@@ -377,6 +445,23 @@ export const scanService = {
     const response = await api.post<Scan>(`/scans/${id}/cancel`);
     return response.data;
   },
+
+  createShare: async (id: string, expiryDays?: number): Promise<ReportShare> => {
+    const response = await api.post<ReportShare>(
+      `/scans/${id}/share`,
+      expiryDays ? { expiry_days: expiryDays } : {}
+    );
+    return response.data;
+  },
+
+  listShares: async (id: string): Promise<ReportShare[]> => {
+    const response = await api.get<ReportShare[]>(`/scans/${id}/share`);
+    return response.data;
+  },
+
+  revokeShare: async (shareId: string): Promise<void> => {
+    await api.delete(`/shares/${shareId}`);
+  },
 };
 
 export const findingService = {
@@ -406,6 +491,81 @@ export const findingService = {
   generateFix: async (findingId: string): Promise<Patch> => {
     const response = await api.post<Patch>(`/findings/${findingId}/generate-fix`);
     return response.data;
+  },
+
+  submitFeedback: async (
+    findingId: string,
+    verdict: 'correct' | 'incorrect' | 'already_fixed' | 'not_useful',
+    note?: string
+  ): Promise<FindingFeedback> => {
+    const response = await api.post<FindingFeedback>(`/findings/${findingId}/feedback`, {
+      verdict,
+      note: note || null,
+    });
+    return response.data;
+  },
+
+  getMyFeedback: async (findingId: string): Promise<FindingFeedback | null> => {
+    const response = await api.get<FindingFeedback | null>(`/findings/${findingId}/feedback`);
+    return response.data;
+  },
+
+  getFeedbackSummary: async (findingId: string): Promise<FeedbackSummary> => {
+    const response = await api.get<FeedbackSummary>(`/findings/${findingId}/feedback/summary`);
+    return response.data;
+  },
+
+  deleteFeedback: async (findingId: string): Promise<void> => {
+    await api.delete(`/findings/${findingId}/feedback`);
+  },
+};
+
+export const orgService = {
+  listMy: async (): Promise<OrgRead[]> => {
+    const response = await api.get<OrgRead[]>('/organizations');
+    return response.data;
+  },
+
+  create: async (payload: { name: string; slug?: string }): Promise<OrgRead> => {
+    const response = await api.post<OrgRead>('/organizations', payload);
+    return response.data;
+  },
+
+  getDashboard: async (orgId: string): Promise<TeamDashboard> => {
+    const response = await api.get<TeamDashboard>(`/organizations/${orgId}/dashboard`);
+    return response.data;
+  },
+
+  getSecurityCenter: async (orgId: string): Promise<SecurityCenter> => {
+    const response = await api.get<SecurityCenter>(`/organizations/${orgId}/security-center`);
+    return response.data;
+  },
+
+  listMembers: async (orgId: string): Promise<OrgMember[]> => {
+    const response = await api.get<OrgMember[]>(`/organizations/${orgId}/members`);
+    return response.data;
+  },
+
+  addMember: async (orgId: string, email: string, role: 'member' | 'admin' | 'owner'): Promise<OrgMember> => {
+    const response = await api.post<OrgMember>(`/organizations/${orgId}/members`, { email, role });
+    return response.data;
+  },
+
+  removeMember: async (orgId: string, memberId: string): Promise<void> => {
+    await api.delete(`/organizations/${orgId}/members/${memberId}`);
+  },
+
+  listOrgRepos: async (orgId: string): Promise<OrgRepo[]> => {
+    const response = await api.get<OrgRepo[]>(`/organizations/${orgId}/repositories`);
+    return response.data;
+  },
+
+  attachRepo: async (orgId: string, repositoryId: string): Promise<void> => {
+    await api.post(`/organizations/${orgId}/repositories`, { repository_id: repositoryId });
+  },
+
+  detachRepo: async (orgId: string, repositoryId: string): Promise<void> => {
+    await api.delete(`/organizations/${orgId}/repositories/${repositoryId}`);
   },
 };
 
@@ -579,6 +739,20 @@ export const prAuditService = {
       html_url?: string;
       comment_count: number;
     }>(`/repositories/${repositoryId}/pull-requests/${auditId}/post`);
+    return response.data;
+  },
+};
+
+export const onboardingService = {
+  status: async (): Promise<OnboardingStatus> => {
+    const response = await api.get<OnboardingStatus>('/onboarding/status');
+    return response.data;
+  },
+
+  complete: async (): Promise<{ completed: boolean; completed_at?: string | null }> => {
+    const response = await api.post<{ completed: boolean; completed_at?: string | null }>(
+      '/onboarding/complete'
+    );
     return response.data;
   },
 };

@@ -72,7 +72,8 @@ export function CookieConsent() {
           <button
             className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => choose('rejected')}
-            aria-label="Dismiss"
+            aria-label="Reject non-essential cookies"
+            title="Reject non-essential cookies"
           >
             <X className="h-4 w-4" />
           </button>
@@ -91,6 +92,10 @@ export function CookieConsent() {
             Privacy policy
           </Link>
         </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground/80">
+          RepoVeriX loads no analytics or tracking until you accept. Essential
+          cookies (sign-in session, security) always apply.
+        </p>
       </div>
     </div>
   );
