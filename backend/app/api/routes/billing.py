@@ -50,6 +50,7 @@ async def billing_overview(
             "scans_per_month": plan.scans_per_month,
             "fixes_per_month": plan.fixes_per_month,
             "verifications_per_month": plan.verifications_per_month,
+            "website_audits_per_month": plan.website_audits_per_month,
             "llm_enabled": plan.llm_enabled,
             "sandbox_enabled": plan.sandbox_enabled,
             "collaborators": plan.collaborators,
@@ -59,6 +60,7 @@ async def billing_overview(
             "scans_used": current_user.scans_used,
             "fixes_used": current_user.fixes_used,
             "verifications_used": current_user.verifications_used,
+            "website_audits_used": current_user.website_audits_used,
             "period_ends_at": billing_service.current_period(current_user).isoformat(),
         },
         "subscription": {
@@ -119,6 +121,7 @@ async def create_checkout(
         current_user.scans_used = 0
         current_user.fixes_used = 0
         current_user.verifications_used = 0
+        current_user.website_audits_used = 0
         await db.commit()
         return {
             "url": f"{frontend}/billing?checkout=success&plan={target.value}&demo=1",

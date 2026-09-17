@@ -35,6 +35,7 @@ class PlanLimits:
     scans_per_month: int
     fixes_per_month: int
     verifications_per_month: int
+    website_audits_per_month: int
     llm_enabled: bool
     sandbox_enabled: bool
     collaborators: int
@@ -50,12 +51,14 @@ PLANS: dict[str, PlanLimits] = {
         scans_per_month=5,
         fixes_per_month=2,
         verifications_per_month=2,
+        website_audits_per_month=10,
         llm_enabled=False,
         sandbox_enabled=False,
         collaborators=1,
         highlights=(
             "3 repositories",
             "5 scans / month",
+            "10 website audits / month",
             "Static + hybrid findings",
             "2 candidate fixes",
             "2 sandbox verifications",
@@ -69,12 +72,14 @@ PLANS: dict[str, PlanLimits] = {
         scans_per_month=60,
         fixes_per_month=30,
         verifications_per_month=30,
+        website_audits_per_month=100,
         llm_enabled=True,
         sandbox_enabled=True,
         collaborators=1,
         highlights=(
             "20 repositories",
             "60 scans / month",
+            "100 website audits / month",
             "LLM reasoning included",
             "Unlimited findings & evidence",
             "Sandboxed verified repairs",
@@ -89,12 +94,14 @@ PLANS: dict[str, PlanLimits] = {
         scans_per_month=400,
         fixes_per_month=200,
         verifications_per_month=200,
+        website_audits_per_month=500,
         llm_enabled=True,
         sandbox_enabled=True,
         collaborators=5,
         highlights=(
             "100 repositories",
             "400 scans / month",
+            "500 website audits / month",
             "5 collaborators",
             "Priority queue & support",
             "Audit history & reports",
@@ -152,6 +159,7 @@ async def rollover_if_needed(db, user) -> None:
         user.scans_used = 0
         user.fixes_used = 0
         user.verifications_used = 0
+        user.website_audits_used = 0
         user.current_period_end = datetime.now(UTC) + timedelta(days=PERIOD_DAYS)
         db.add(user)
         await db.commit()
@@ -199,6 +207,16 @@ async def assert_can_verify(db, user) -> None:
     if user.verifications_used >= limits.verifications_per_month:
         _raise_upgrade("verify-quota", limits)
     user.verifications_used += 1
+    db.add(user)
+
+
+async def assert_can_audit_website(db, user) -> None:
+    """Block starting a website audit when the monthly budget is exhausted."""
+    await rollover_if_needed(db, user)
+    limits = get_plan(user.plan)
+    if user.website_audits_used >= limits.website_audits_per_month:
+        _raise_upgrade("website-audit-quota", limits)
+    user.website_audits_used += 1
     db.add(user)
 
 

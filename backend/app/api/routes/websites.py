@@ -118,6 +118,10 @@ async def create_audit(
     website = await _load_website(db, website_id, current_user.id)
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "create_webaudit"))
+    if get_settings().billing_enforce:
+        from app.services.billing import assert_can_audit_website
+
+        await assert_can_audit_website(db, current_user)
     # Only one live audit per website: prevents duplicate crawls hammering a target.
     running = (
         await db.execute(

@@ -383,6 +383,7 @@ export interface PlanInfo {
   scans_per_month: number;
   fixes_per_month: number;
   verifications_per_month: number;
+  website_audits_per_month: number;
   llm_enabled: boolean;
   sandbox_enabled: boolean;
   collaborators: number;
@@ -393,6 +394,7 @@ export interface BillingUsage {
   scans_used: number;
   fixes_used: number;
   verifications_used: number;
+  website_audits_used: number;
   period_ends_at: string;
 }
 
