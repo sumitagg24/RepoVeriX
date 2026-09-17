@@ -24,6 +24,13 @@ backend/.env
 
 # Runtime data (repository storage, logs, local databases)
 data/
+
+# Preserve UI/UX Pro Max skill data (the "data/" rule above would otherwise ignore it)
+!frontend/.claude/
+!frontend/.claude/skills/
+!frontend/.claude/skills/ui-ux-pro-max/
+!frontend/.claude/skills/ui-ux-pro-max/data/
+!frontend/.claude/skills/ui-ux-pro-max/data/stacks/
 logs/
 *.db
 *.sqlite
