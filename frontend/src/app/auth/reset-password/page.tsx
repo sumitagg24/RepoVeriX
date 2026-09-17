@@ -12,8 +12,7 @@ import { Label } from '@/components/ui/label';
 import { KeyRound, AlertCircle } from 'lucide-react';
 import { authService } from '@/services/api';
 import { getApiErrorMessage as extractApiError } from '@/lib/api-error';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { LogoMark } from '@/components/logo';
+import { AuthShell } from '@/components/auth-shell';
 import { toast } from 'sonner';
 
 const schema = z
@@ -63,6 +62,7 @@ function ResetPasswordContent() {
     return (
       <div className="flex flex-col items-center gap-4 py-6 text-center">
         <AlertCircle className="h-10 w-10 text-destructive" aria-hidden />
+        <p className="font-medium">This link won&apos;t work</p>
         <p className="text-sm text-muted-foreground">
           This reset link is incomplete. Request a new one — links expire after 60 minutes and can
           be used only once.
@@ -90,6 +90,7 @@ function ResetPasswordContent() {
             id="password"
             type="password"
             placeholder="A long, unique passphrase"
+            autoComplete="new-password"
             className="pl-9"
             {...register('password')}
             disabled={isLoading}
@@ -101,7 +102,7 @@ function ResetPasswordContent() {
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="confirm">Confirm new password</Label>
-        <Input id="confirm" type="password" placeholder="Repeat it" {...register('confirm')} disabled={isLoading} />
+        <Input id="confirm" type="password" placeholder="Repeat it" autoComplete="new-password" {...register('confirm')} disabled={isLoading} />
         {errors.confirm && (
           <p className="text-xs font-medium text-destructive">{errors.confirm.message}</p>
         )}
@@ -118,32 +119,18 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
-      <div className="fixed right-4 top-4 z-50">
-        <ThemeToggle variant="solid" />
-      </div>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(60%_100%_at_50%_0%,hsl(var(--primary)/0.08),transparent)]"
-      />
-      <div className="relative w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 w-fit">
-            <LogoMark className="h-12 w-12 drop-shadow-sm" />
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight">Choose a new password</h1>
-        </div>
-        <div className="animate-rise rounded-2xl border bg-card p-6 shadow-sm">
-          <Suspense fallback={null}>
-            <ResetPasswordContent />
-          </Suspense>
-        </div>
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          <Link href="/auth/login" className="font-medium text-primary hover:underline">
-            Back to sign in
-          </Link>
-        </p>
-      </div>
-    </div>
+    <AuthShell
+      title="Choose a new password"
+      subtitle="Links expire after 60 minutes and work once"
+      footer={
+        <Link href="/auth/login" className="font-medium text-primary hover:underline">
+          Back to sign in
+        </Link>
+      }
+    >
+      <Suspense fallback={null}>
+        <ResetPasswordContent />
+      </Suspense>
+    </AuthShell>
   );
 }

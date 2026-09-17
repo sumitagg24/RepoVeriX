@@ -6,8 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { BadgeCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { authService } from '@/services/api';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { LogoMark } from '@/components/logo';
+import { AuthShell } from '@/components/auth-shell';
 
 type VerifyState = 'verifying' | 'verified' | 'invalid';
 
@@ -58,7 +57,7 @@ function VerifyEmailContent() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 py-6 text-center">
+    <div className="flex flex-col items-center gap-4 py-6 text-center" role="status">
       {state === 'verifying' && (
         <>
           <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" aria-hidden />
@@ -80,6 +79,7 @@ function VerifyEmailContent() {
       {state === 'invalid' && (
         <>
           <AlertCircle className="h-10 w-10 text-destructive" aria-hidden />
+          <p className="font-medium">This link didn&apos;t work</p>
           <p className="text-sm text-muted-foreground">
             This link is invalid or has expired. If you still need to verify, enter your email and
             we&apos;ll send a fresh link.
@@ -113,32 +113,18 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
-      <div className="fixed right-4 top-4 z-50">
-        <ThemeToggle variant="solid" />
-      </div>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(60%_100%_at_50%_0%,hsl(var(--primary)/0.08),transparent)]"
-      />
-      <div className="relative w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 w-fit">
-            <LogoMark className="h-12 w-12 drop-shadow-sm" />
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight">Email verification</h1>
-        </div>
-        <div className="animate-rise rounded-2xl border bg-card p-6 shadow-sm">
-          <Suspense fallback={null}>
-            <VerifyEmailContent />
-          </Suspense>
-        </div>
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          <Link href="/auth/login" className="font-medium text-primary hover:underline">
-            Back to sign in
-          </Link>
-        </p>
-      </div>
-    </div>
+    <AuthShell
+      title="Email verification"
+      subtitle="One click unlocks scans, evidence and verified repairs"
+      footer={
+        <Link href="/auth/login" className="font-medium text-primary hover:underline">
+          Back to sign in
+        </Link>
+      }
+    >
+      <Suspense fallback={null}>
+        <VerifyEmailContent />
+      </Suspense>
+    </AuthShell>
   );
 }

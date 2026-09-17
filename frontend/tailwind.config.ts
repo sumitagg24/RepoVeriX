@@ -2,7 +2,6 @@
 module.exports = {
   darkMode: ['class'],
   content: [
-    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
@@ -54,6 +53,22 @@ module.exports = {
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
+        },
+        verified: {
+          DEFAULT: 'hsl(var(--verified))',
+          foreground: 'hsl(var(--verified-foreground))',
+        },
+        probable: {
+          DEFAULT: 'hsl(var(--probable))',
+          foreground: 'hsl(var(--probable-foreground))',
+        },
+        observed: {
+          DEFAULT: 'hsl(var(--observed))',
+          foreground: 'hsl(var(--observed-foreground))',
+        },
+        insufficient: {
+          DEFAULT: 'hsl(var(--insufficient))',
+          foreground: 'hsl(var(--insufficient-foreground))',
         },
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',
