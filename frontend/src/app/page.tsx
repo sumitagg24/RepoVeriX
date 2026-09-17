@@ -35,6 +35,7 @@ import {
 
 const navLinks = [
   { name: 'Product', href: '#product' },
+  { name: 'Tools', href: '/tools' },
   { name: 'Pricing', href: '#pricing' },
   { name: 'Explore', href: '#explore' },
   { name: 'Docs', href: '/docs' },
@@ -287,6 +288,44 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How RepoVeriX works — the evidence loop */}
+      <section aria-label="How RepoVeriX works" className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+            <div>
+              <p className="text-sm font-medium text-primary">How RepoVeriX works</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                Find what is wrong. Show why. Verify the repair.
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                One loop runs the whole product — repository audits, website audits, repairs and
+                reports all speak the same evidence language.
+              </p>
+              <Link href="/tools" className="group mt-5 inline-flex">
+                <Button variant="outline" className="gap-2">
+                  Browse every tool <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                </Button>
+              </Link>
+            </div>
+            <ol className="grid gap-3 sm:grid-cols-2">
+              {[
+                ['Analyze', 'Repository or website in, deterministic detectors + LLM reasoning over real code and measured signals.'],
+                ['Evidence', 'Source → transformation → sink chains with VERIFIED / PROBABLE / REJECTED confidence.'],
+                ['Repair', 'Candidate patch as a reviewable diff — proposed, never auto-applied.'],
+                ['Verify', 'Sandbox run: tests, static checks, re-analysis. Verdict before trust.'],
+              ].map(([title, body], i) => (
+                <li key={title} className="rounded-2xl border bg-card p-5 shadow-sm">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-primary">
+                    {String(i + 1).padStart(2, '0')} · {title}
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </section>
@@ -849,6 +888,7 @@ export default function HomePage() {
                   title: 'Product',
                   links: [
                     ['Features', '#product'],
+                    ['Tools', '/tools'],
                     ['Pricing', '#pricing'],
                     ['Research', '#research'],
                     ['Start free', '/auth/signup'],

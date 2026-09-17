@@ -23,6 +23,8 @@ import {
   FlaskConical,
   Loader2,
   FolderGit2,
+  Globe,
+  Wrench,
 } from 'lucide-react';
 import { useRepositories } from '@/hooks/useRepositories';
 import { useScans } from '@/hooks/useScans';
@@ -102,6 +104,8 @@ export function CommandPalette({
       page('Scans', 'All analysis runs', '/scans', ScanSearch, 'analysis pipeline runs'),
       page('Findings', 'Every evidence-backed issue', '/findings', Bug, 'vulnerabilities defects issues'),
       page('Pull Request Auditor', 'Analyze a GitHub PR', '/pull-requests', GitPullRequest, 'pr review audit'),
+      page('Website Audits', 'Passive SEO + security + accessibility audits', '/websites', Globe, 'website seo security a11y performance'),
+      page('Tools', 'Every capability in one catalog', '/tools', Wrench, 'tools catalog sarif export webhook api'),
       page('Billing', 'Plans and usage', '/billing', CreditCard, 'plan upgrade stripe'),
       page('Settings', 'Account and connections', '/settings', Settings, 'profile keys oauth'),
       page('Documentation', 'Guides and API reference', '/docs', BookOpen, 'help guides'),

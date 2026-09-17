@@ -80,6 +80,10 @@ const nav: { section: string; items: NavItem[] }[] = [
     items: [{ name: 'Pull Requests', href: '/pull-requests', icon: GitPullRequest }],
   },
   {
+    section: 'Resources',
+    items: [{ name: 'Tools', href: '/tools', icon: FileSearch }],
+  },
+  {
     section: 'Team',
     items: [
       { name: 'Team & Orgs', href: '/team', icon: Users },
