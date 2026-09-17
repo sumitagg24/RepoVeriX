@@ -14,6 +14,7 @@ Everything is capped at ``REPOVERIX_LLM_MAX_CONTEXT_CHARS`` and redacted.
 from __future__ import annotations
 
 from app.analysis.knowledge import KnowledgeGraph
+from app.analysis.llm import quarantine_content
 from app.analysis.models import ParsedFile, StaticFinding
 from app.analysis.redaction import redact_text
 from app.core.config import get_settings
@@ -162,4 +163,6 @@ def build_candidate_context(
     )
 
     text, _redacted = redact_text("\n\n".join(sections))
-    return text[:budget]
+    # Delimit the whole package as untrusted data: repository text may contain
+    # injected instructions, and the model must analyze it, never obey it.
+    return quarantine_content(text[:budget])

@@ -89,6 +89,7 @@ async def init_db() -> None:
             "scans_used": "INTEGER",
             "fixes_used": "INTEGER",
             "verifications_used": "INTEGER",
+            "website_audits_used": "INTEGER",
         }
         for column, ddl in _user_columns.items():
             await _ensure_column(conn, "users", column, ddl)
@@ -97,6 +98,7 @@ async def init_db() -> None:
         await conn.execute(text("UPDATE users SET scans_used = 0 WHERE scans_used IS NULL"))
         await conn.execute(text("UPDATE users SET fixes_used = 0 WHERE fixes_used IS NULL"))
         await conn.execute(text("UPDATE users SET verifications_used = 0 WHERE verifications_used IS NULL"))
+        await conn.execute(text("UPDATE users SET website_audits_used = 0 WHERE website_audits_used IS NULL"))
         # Composite indexes defined on the ORM models only apply to tables
         # *created* after this change; existing deployments get them here so a
         # hot-path query never falls back to per-row index hops. Statements are

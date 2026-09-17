@@ -19,13 +19,14 @@ def _settings_cache():
 
 @pytest.fixture
 def tiny_free(monkeypatch):
-    """Free plan with a 2-scan / 1-fix / 1-verify / 1-repo budget."""
+    """Free plan with a 2-scan / 1-fix / 1-verify / 1-repo / 1-audit budget."""
     free = replace(
         svc.get_plan("free"),
         max_repositories=1,
         scans_per_month=2,
         fixes_per_month=1,
         verifications_per_month=1,
+        website_audits_per_month=1,
     )
     monkeypatch.setitem(svc.PLANS, "free", free)
     return free
@@ -85,6 +86,25 @@ class TestQuotas:
         await svc.assert_can_scan(db_session, test_user)  # rolls over, then consumes 1
         assert test_user.scans_used == 1
         assert test_user.current_period_end > datetime.now(UTC)
+
+    @pytest.mark.asyncio
+    async def test_website_audit_quota_counts_and_blocks(self, db_session, test_user, tiny_free):
+        await svc.assert_can_audit_website(db_session, test_user)
+        assert test_user.website_audits_used == 1
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc:
+            await svc.assert_can_audit_website(db_session, test_user)
+        assert exc.value.status_code == 402
+
+    @pytest.mark.asyncio
+    async def test_rollover_resets_website_audits(self, db_session, test_user, tiny_free):
+        test_user.website_audits_used = 1
+        test_user.current_period_end = datetime.now(UTC) - timedelta(days=1)
+        db_session.add(test_user)
+        await svc.assert_can_audit_website(db_session, test_user)  # rolls over, then consumes 1
+        assert test_user.website_audits_used == 1
 
     @pytest.mark.asyncio
     async def test_repository_cap_blocks_import(self, db_session, test_user, test_repository, tiny_free):
@@ -149,9 +169,35 @@ class TestBillingRoutes:
         body = response.json()
         assert body["plan"]["name"] == "free"
         assert "scans_per_month" in body["plan"]
+        assert "website_audits_per_month" in body["plan"]
         assert "scans_used" in body["usage"]
+        assert "website_audits_used" in body["usage"]
         assert "period_ends_at" in body["usage"]
         assert body["demo_mode"] is True
+
+    @pytest.mark.asyncio
+    async def test_website_audit_endpoint_402_when_quota_exhausted(
+        self, client: AsyncClient, auth_headers, test_user, tiny_free, monkeypatch
+    ):
+        _enable_routes(monkeypatch)
+        first_site = await client.post(
+            "/api/v1/websites", headers=auth_headers, json={"url": "https://quota-one.example"}
+        )
+        assert first_site.status_code == 201
+        first_audit = await client.post(
+            f"/api/v1/websites/{first_site.json()['id']}/audits", headers=auth_headers, json={}
+        )
+        assert first_audit.status_code == 202
+
+        second_site = await client.post(
+            "/api/v1/websites", headers=auth_headers, json={"url": "https://quota-two.example"}
+        )
+        assert second_site.status_code == 201
+        exhausted = await client.post(
+            f"/api/v1/websites/{second_site.json()['id']}/audits", headers=auth_headers, json={}
+        )
+        assert exhausted.status_code == 402
+        assert exhausted.headers.get("X-Upgrade-Reason") == "website-audit-quota"
 
     @pytest.mark.asyncio
     async def test_checkout_rejects_free(self, client: AsyncClient, auth_headers, monkeypatch):

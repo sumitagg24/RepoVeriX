@@ -221,6 +221,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     scans_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     fixes_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     verifications_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    website_audits_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Set when the user finishes (or explicitly skips) the first-run onboarding
     # checklist; drives the /onboarding wizard and the dashboard checklist card.

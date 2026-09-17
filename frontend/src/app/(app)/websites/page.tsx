@@ -12,6 +12,7 @@ import {
   QueryError,
 } from '@/components/ui/state';
 import { useCreateWebsiteAudit, useDeleteWebsite, useRegisterWebsite, useWebsites } from '@/hooks/useWebsites';
+import { useBilling } from '@/hooks/useBilling';
 import { Globe, Globe2, Loader2, Plus, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '@/components/system/page-header';
@@ -28,6 +29,7 @@ export default function WebsitesPage() {
   const register = useRegisterWebsite();
   const remove = useDeleteWebsite();
   const startAudit = useCreateWebsiteAudit();
+  const { data: billing } = useBilling();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +46,17 @@ export default function WebsitesPage() {
         eyebrow="Analysis"
         title="Website Audits"
         description="Passive analysis of public pages: SEO, security headers, accessibility and AI-search readiness signals."
+        meta={
+          billing ? (
+            <Link
+              href="/billing"
+              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              title="View usage and plan limits"
+            >
+              {billing.usage.website_audits_used} of {billing.plan.website_audits_per_month} audits used this cycle
+            </Link>
+          ) : undefined
+        }
       />
 
       <Card>

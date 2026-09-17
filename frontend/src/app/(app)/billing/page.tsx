@@ -131,6 +131,12 @@ function BillingPageInner() {
             label="Verified repairs"
             hint="this cycle"
           />
+          <UsageBar
+            used={usage.website_audits_used}
+            limit={plan.website_audits_per_month}
+            label="Website audits"
+            hint="this cycle"
+          />
         </CardContent>
       </Card>
 
