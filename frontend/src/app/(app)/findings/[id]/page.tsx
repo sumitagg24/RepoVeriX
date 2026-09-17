@@ -10,6 +10,7 @@ import { VerificationSection } from '@/components/patch-verification';
 import { ImpactPanel } from '@/components/findings/impact-panel';
 import { FindingChat } from '@/components/findings/finding-chat';
 import { PatchQualityBadge } from '@/components/findings/patch-quality-badge';
+import { FindingStateChip, SeverityChip } from '@/components/evidence';
 import { ProofOfFixPanel } from '@/components/findings/proof-of-fix';
 import { useFinding, useGenerateFix } from '@/hooks/useFindings';
 import { FindingFeedbackBar } from '@/components/app/finding-feedback-bar';
@@ -147,15 +148,9 @@ export default function FindingDetailPage() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-bold tracking-tight">{finding.title}</h1>
-                <Badge variant="outline" className={severityColors[finding.severity]}>
-                  {finding.severity}
-                </Badge>
-                <Badge variant="outline" className={statusColors[finding.status]}>
-                  {finding.status === 'verified' && <CheckCircle className="mr-1 h-3 w-3" />}
-                  {finding.status === 'rejected' && <XCircle className="mr-1 h-3 w-3" />}
-                  {finding.status.charAt(0).toUpperCase() + finding.status.slice(1)}
-                </Badge>
-                <Badge variant="outline" className={sourceColors[finding.source]}>
+                <SeverityChip severity={finding.severity} variant="solid" />
+                <FindingStateChip state={finding.status} variant="solid" />
+                <Badge variant="outline" className={sourceColors[finding.source] ?? ''}>
                   {finding.source}
                 </Badge>
               </div>

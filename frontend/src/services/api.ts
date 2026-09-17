@@ -59,7 +59,10 @@ import type {
   OrgMember,
   OrgRepo,
   TeamDashboard,
-  SecurityCenter
+  SecurityCenter,
+  Website,
+  WebsiteAudit,
+  WebsiteAuditDetail
 } from '@/types/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -759,3 +762,36 @@ export const onboardingService = {
 
 export { api };
 export default api;
+export const websiteService = {
+  list: async (): Promise<Website[]> => {
+    const response = await api.get<Website[]>('/websites');
+    return response.data;
+  },
+
+  register: async (url: string): Promise<Website> => {
+    const response = await api.post<Website>('/websites', { url });
+    return response.data;
+  },
+
+  remove: async (id: string): Promise<void> => {
+    await api.delete(`/websites/${id}`);
+  },
+
+  listAudits: async (websiteId: string): Promise<WebsiteAudit[]> => {
+    const response = await api.get<WebsiteAudit[]>(`/websites/${websiteId}/audits`);
+    return response.data;
+  },
+
+  createAudit: async (
+    websiteId: string,
+    params?: { max_pages?: number; max_depth?: number }
+  ): Promise<WebsiteAudit> => {
+    const response = await api.post<WebsiteAudit>(`/websites/${websiteId}/audits`, params ?? {});
+    return response.data;
+  },
+
+  getAudit: async (websiteId: string, auditId: string): Promise<WebsiteAuditDetail> => {
+    const response = await api.get<WebsiteAuditDetail>(`/websites/${websiteId}/audits/${auditId}`);
+    return response.data;
+  },
+};

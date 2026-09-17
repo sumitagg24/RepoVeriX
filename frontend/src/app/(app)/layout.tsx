@@ -46,6 +46,7 @@ import {
   ShieldCheck,
   Loader2,
   LifeBuoy,
+  Globe,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo, LogoMark } from '@/components/logo';
@@ -71,6 +72,7 @@ const nav: { section: string; items: NavItem[] }[] = [
     items: [
       { name: 'Scans', href: '/scans', icon: ScanSearch },
       { name: 'Findings', href: '/findings', icon: Bug },
+      { name: 'Website Audits', href: '/websites', icon: Globe },
     ],
   },
   {

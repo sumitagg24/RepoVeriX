@@ -1290,3 +1290,47 @@ export interface OnboardingStatus {
   steps: Record<OnboardingStepKey, OnboardingStepStatus>;
   latest_repository?: OnboardingRepositoryHint | null;
 }
+export interface Website {
+  id: UUID;
+  url: string;
+  hostname: string;
+  label?: string | null;
+  status: string;
+  created_at: string;
+  last_audit_at?: string | null;
+}
+
+export interface WebsiteAudit {
+  id: UUID;
+  website_id: UUID;
+  status: 'pending' | 'running' | 'complete' | 'failed' | string;
+  pages_crawled: number;
+  error?: string | null;
+  created_at: string;
+  finished_at?: string | null;
+}
+
+export interface WebsiteFinding {
+  code: string;
+  title: string;
+  state: 'observed' | 'recommendation' | 'insufficient' | string;
+  severity: string;
+  detail: string;
+  url?: string | null;
+  evidence_id?: string | null;
+}
+
+export interface WebsiteEvidenceRow {
+  id: string;
+  kind: string;
+  url: string;
+  detail: Record<string, unknown>;
+}
+
+export interface WebsiteAuditDetail extends WebsiteAudit {
+  scores?: Record<string, number | null> | null;
+  summary?: Record<string, unknown> | null;
+  pages?: Array<Record<string, unknown>> | null;
+  findings?: WebsiteFinding[] | null;
+  evidence?: WebsiteEvidenceRow[] | null;
+}
