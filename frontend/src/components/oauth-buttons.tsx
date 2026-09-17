@@ -55,11 +55,14 @@ export function OAuthSignInButton({
   next = '/dashboard',
   variant = 'outline',
   className,
+  onRedirect,
 }: {
   provider: OAuthProviderName;
   next?: string;
   variant?: 'outline' | 'secondary' | 'default';
   className?: string;
+  /** Called right before the browser leaves for the provider (e.g. to record return context). */
+  onRedirect?: () => void;
 }) {
   const { data, isLoading } = useOAuthProviders();
   const configured = data?.[provider]?.configured ?? false;
@@ -86,6 +89,7 @@ export function OAuthSignInButton({
       }
       onClick={() => {
         if (configured) {
+          onRedirect?.();
           window.location.href = authService.oauthLoginUrl(provider, next);
         } else {
           toast.info(`${provider[0].toUpperCase()}${provider.slice(1)} OAuth isn't configured on this server yet.`);

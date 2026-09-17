@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTheme } from '@/context/ThemeProvider';
 
 interface ThemeToggleProps {
@@ -24,38 +25,45 @@ export function ThemeToggle({ className, variant = 'ghost' }: ThemeToggleProps) 
   const isDark = shown === 'dark';
 
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isDark}
-      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-      onClick={toggleTheme}
-      className={cn(
-        'relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl transition-all duration-200 active:scale-95',
-        variant === 'solid'
-          ? 'border bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-foreground hover:bg-card/80'
-          : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground',
-        className
-      )}
-    >
-      {!mounted ? (
-        <span className="h-4 w-4 rounded-full bg-muted" />
-      ) : (
-        <>
-          <Sun
-            className={cn(
-              'absolute h-[18px] w-[18px] transition-all duration-300',
-              isDark ? 'translate-y-0 rotate-0 opacity-0' : 'translate-y-0 rotate-90 opacity-100'
-            )}
-          />
-          <Moon
-            className={cn(
-              'absolute h-[18px] w-[18px] transition-all duration-300',
-              isDark ? 'translate-y-0 rotate-0 opacity-100' : '-translate-y-2 rotate-0 opacity-0'
-            )}
-          />
-        </>
-      )}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isDark}
+          aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={toggleTheme}
+          className={cn(
+            'relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl transition-all duration-200 active:scale-95',
+            variant === 'solid'
+              ? 'border bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:text-foreground hover:bg-card/80'
+              : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground',
+            className
+          )}
+        >
+          {!mounted ? (
+            <span className="h-4 w-4 rounded-full bg-muted" />
+          ) : (
+            <>
+              <Sun
+                className={cn(
+                  'absolute h-[18px] w-[18px] transition-all duration-300',
+                  isDark ? 'translate-y-0 rotate-0 opacity-0' : 'translate-y-0 rotate-90 opacity-100'
+                )}
+              />
+              <Moon
+                className={cn(
+                  'absolute h-[18px] w-[18px] transition-all duration-300',
+                  isDark ? 'translate-y-0 rotate-0 opacity-100' : '-translate-y-2 rotate-0 opacity-0'
+                )}
+              />
+            </>
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      </TooltipContent>
+    </Tooltip>
   );
 }

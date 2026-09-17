@@ -2,7 +2,7 @@
   "name": "repoverix-frontend",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
+    "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
@@ -10,7 +10,9 @@
     "type-check": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "audit": "node scripts/design-audit.mjs --url http://localhost:3000 --out audit-output",
+    "audit:file": "node scripts/design-audit.mjs --file ./index.html --out audit-output"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -55,7 +57,9 @@
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.7",
+        "playwright": "^1.49.0",
     "ts-jest": "^29.2.0",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "wait-on": "^8.0.1"
   }
 }

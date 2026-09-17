@@ -3,7 +3,10 @@ import type { Metadata } from 'next';
 import { Logo } from '@/components/logo';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy - RepoVeriX',
+  title: 'Privacy Policy',
+  description:
+    'What RepoVeriX collects, how repository data and OAuth tokens are stored and protected, how long data is retained, and how to export or delete your account.',
+  alternates: { canonical: '/privacy' },
 };
 
 export default function PrivacyPage() {

@@ -74,8 +74,8 @@ function SignupPageInner() {
       />
       <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20">
-            <LogoMark className="h-7 w-7" />
+          <div className="mx-auto mb-5 w-fit">
+            <LogoMark className="h-12 w-12 drop-shadow-sm" />
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">Create your workspace</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -137,6 +137,23 @@ function SignupPageInner() {
                 </>
               )}
             </Button>
+            <p className="text-center text-xs leading-relaxed text-muted-foreground">
+              By continuing, you agree to our{' '}
+              <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+            <p className="text-center text-xs text-muted-foreground">
+              Need help?{' '}
+              <Link href="/help" className="font-medium text-primary hover:underline">
+                Visit the Help Center
+              </Link>
+            </p>
           </form>
         </div>
 

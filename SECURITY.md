@@ -127,6 +127,37 @@ next upgrade:
 
 ---
 
+## 7. Content-Security-Policy
+
+Enforced per-request by `frontend/src/middleware.ts` using the documented
+Next.js nonce pattern (`src/lib/csp.ts` builds the policy — unit-tested in
+`src/lib/__tests__/csp.test.ts`):
+
+- **`script-src 'nonce-<random>' 'strict-dynamic'`** — the strict part of the
+  policy. Every response carries a fresh 16-byte nonce; middleware also sets it
+  on the *request* headers, which Next.js reads to auto-nonce its own bootstrap
+  and chunk scripts. App-owned inline scripts (theme bootstrap, JSON-LD) read
+  the nonce via `getNonce()` (`src/lib/csp-server.ts`). No `unsafe-inline` for
+  scripts, no script host allowlist: an injected `<script>` without the
+  per-request nonce cannot execute.
+- **`style-src 'self' 'unsafe-inline'`** — accepted trade-off: React renders
+  dynamic `style={{}}` attributes (progress bars, gauges) that CSP cannot
+  nonce. Style injection does not execute code.
+- **`connect-src`** includes `NEXT_PUBLIC_API_URL` (the browser calls the
+  FastAPI backend directly) plus the same-origin proxy; dev additionally
+  allows `ws:`/`wss:` (HMR) and `'unsafe-eval'` (react-refresh).
+- **Locked:** `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`,
+  `form-action 'self'`, `frame-src 'none'`; `upgrade-insecure-requests` in
+  production only.
+- **Rollout canary:** set `REPOVERIX_CSP_REPORT_ONLY=true` to emit the policy
+  as `Content-Security-Policy-Report-Only` while observing violation reports
+  before enforcing.
+- Known limitation (dev-only cosmetic): Fast Refresh re-renders cannot read
+  request headers, so React may log a nonce-prop hydration warning in dev.
+  Enforcement is unaffected — the attribute is correct at HTML parse time.
+
+---
+
 ## Verified
 
 Backend: **118 pytest tests** (incl. dedicated `tests/test_ratelimit.py` —

@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo, LogoMark } from '@/components/logo';
 import { HeroRepoForm } from '@/components/hero-repo-form';
-import { GithubStarButton } from '@/components/github-star-button';
 import { ScrollReveal } from '@/components/scroll-reveal';
+import { getNonce } from '@/lib/csp-server';
 import {
   ArrowRight,
   GitBranch,
@@ -30,13 +30,15 @@ import {
   Rocket,
   Building2,
   FlaskConical as FlaskIcon,
+  Server,
 } from 'lucide-react';
 
 const navLinks = [
   { name: 'Product', href: '#product' },
   { name: 'Pricing', href: '#pricing' },
   { name: 'Explore', href: '#explore' },
-  { name: 'Docs', href: 'https://github.com/sumitagg24/RepoVeriX' },
+  { name: 'Docs', href: '/docs' },
+  { name: 'Help', href: '/help' },
   { name: 'Research', href: '#research' },
 ];
 
@@ -120,15 +122,55 @@ const faqs = [
   },
   {
     q: 'Can I run it myself?',
-    a: 'Yes — RepoVeriX is open source and self-hostable with Docker Compose. The same codebase runs the hosted product.',
+    a: 'Yes — RepoVeriX can be deployed with Docker Compose. The same codebase runs the hosted product.',
   },
   {
     q: 'Are patches ever applied to my code automatically?',
     a: 'Never. Patches are generated as reviewable diffs and only applied inside an isolated verification copy where tests and static checks run first.',
   },
+  {
+    q: 'What exactly counts as a scan?',
+    a: 'One run of the analysis pipeline against a repository snapshot: Free includes 5 a month, Pro 60, Team 400. Re-scanning the same repository consumes another scan; completed results, findings and evidence stay stored per scan.',
+  },
+  {
+    q: 'How do I know a finding is not a false positive?',
+    a: 'The counterexample engine tries to disprove every claim: it traces the data flow to the sink, looks for sanitizers, authorization checks and framework protections, searches tests for confirmation, and only then assigns VERIFIED, PROBABLE or REJECTED with a confidence derived from that evidence. A candidate test can also be generated and executed to reproduce the defect.',
+  },
+  {
+    q: 'Which languages are supported?',
+    a: 'Static detectors and tree-sitter parsing cover Python, JavaScript and TypeScript (symbols, call graph, source→sink chains). Code health, git analytics, architecture and LLM reasoning work across the repository regardless of language.',
+  },
+  {
+    q: 'What happens when I hit a plan limit?',
+    a: 'The action is refused with an explicit upgrade prompt — nothing is silently degraded or deleted. Monthly counters reset at the start of each billing period, and your repositories and past scans remain available.',
+  },
+  {
+    q: 'Is my code safe?',
+    a: 'Repositories land in isolated per-repository storage and uploads are validated (traversal, symlink and zip-bomb checks) with hard size caps. Verification runs untrusted code only inside resource-limited Docker sandboxes with no host secrets. The LLM never receives the whole repository — bounded, redacted context — and treats code as untrusted data it must not obey. OAuth tokens are encrypted at rest when your deployment sets the key.',
+  },
+  {
+    q: 'Can I cancel or downgrade?',
+    a: 'Yes — cancel or change plans anytime from the billing portal. A paid plan stays active through its current period, then falls back to Free; scans, findings and evidence remain accessible within the Free limits.',
+  },
 ];
 
+/** Schema.org FAQPage markup generated from the same array that renders the
+ *  visible FAQ — the structured data always mirrors on-page content. */
+function faqJsonLd() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  };
+}
+
 export default function HomePage() {
+  // Nonce for the FAQ JSON-LD block (strict script-src CSP, see middleware.ts).
+  const nonce = getNonce();
   return (
     <main className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -162,7 +204,6 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle className="border bg-card shadow-sm ring-1 ring-border hover:bg-card/80" />
-            <GithubStarButton />
             <Link href="/auth/login">
               <Button variant="ghost">Sign in</Button>
             </Link>
@@ -183,7 +224,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              Open source · Evidence-grounded · Verified repairs
+              Evidence-grounded · Verified repairs
             </span>
             <h1 className="mt-6 text-balance font-display text-5xl font-semibold tracking-tight sm:text-6xl">
               Repository intelligence
@@ -232,7 +273,7 @@ export default function HomePage() {
             <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 ['12', 'code-health detectors'],
-                ['6', 'evidence kinds in a chain'],
+                ['8', 'evidence kinds in a chain'],
                 ['4', 'research configurations'],
                 ['5', 'ways to import a repo'],
               ].map(([value, label], i) => (
@@ -324,32 +365,34 @@ export default function HomePage() {
           <ScrollReveal delay={120}>
           <div className="rounded-2xl border bg-card p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Live verdict
+              How a repair gets verified
             </p>
-            <div className="mt-4 space-y-3 font-mono text-[13px]">
-              <div className="rounded-lg bg-muted/60 p-3 text-foreground/80">
-                <span className="text-muted-foreground">$ </span>repoverix verify \
-                <br />
-                &nbsp;&nbsp;--finding RVX-SQLI-001 --patch sha-parameterize.diff
-              </div>
-              <div className="space-y-1.5 rounded-lg border border-border/70 p-4">
-                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                  <Check className="h-3.5 w-3.5" /> patch applied to app.py
+            <div className="mt-4 space-y-3 text-[13px]">
+              <div className="space-y-2 rounded-lg border border-border/70 p-4">
+                <p className="flex items-center gap-2 text-foreground/80">
+                  <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  Patch applied to an isolated copy — never your branch
                 </p>
-                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                  <Check className="h-3.5 w-3.5" /> 4 tests passed · 0.4s
+                <p className="flex items-center gap-2 text-foreground/80">
+                  <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  Dependencies installed inside a resource-limited sandbox
                 </p>
-                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                  <Check className="h-3.5 w-3.5" /> ruff clean — no new issues
+                <p className="flex items-center gap-2 text-foreground/80">
+                  <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  Your test suite runs against the patched copy
                 </p>
-                <p className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                  <Check className="h-3.5 w-3.5" /> RVX-SQLI-001 no longer detected
+                <p className="flex items-center gap-2 text-foreground/80">
+                  <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  Static checks re-run (ruff / ESLint) — no new issues
+                </p>
+                <p className="flex items-center gap-2 text-foreground/80">
+                  <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  The same detectors re-run — the finding must be gone
                 </p>
                 <p className="mt-2 font-sans text-sm font-semibold text-foreground">
-                  Result:{' '}
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
-                    VERIFIED REPAIR
-                  </span>
+                  Verdicts are deterministic:{' '}
+                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">VERIFIED REPAIR</span>
+                  {' '}· REPAIR FAILED · NOT VERIFIED
                 </p>
               </div>
             </div>
@@ -368,30 +411,31 @@ export default function HomePage() {
                 Sample repositories, real findings
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Not a demo reel — these are the fixtures RepoVeriX audits in its own test suite,
-                with real findings, evidence chains and git analytics. Sign in to run them yourself.
+                Start with the deliberately vulnerable fixtures from RepoVeriX&apos;s own test suite —
+                real findings, evidence chains and verified repairs — or import your own repository
+                and run the same pipeline on your code.
               </p>
             </div>
           </ScrollReveal>
           <div className="mt-12 grid gap-5 md:grid-cols-3">
             {[
               {
-                name: 'vulnerable-app',
-                meta: 'Python · 5 files · 2 classes',
-                body: 'A deliberately vulnerable Flask-style app: SQL injection, command injection, eval, hardcoded secrets, weak crypto.',
+                name: 'vulnerable_app',
+                meta: 'Python · Flask-style · 5 files',
+                body: 'A deliberately vulnerable Python app used as a test fixture: SQL injection, command injection, eval, hardcoded secrets and weak crypto — with the finding chain and a fixed_app for comparison.',
                 tags: ['SQLi', 'RCE', 'Secrets'],
               },
               {
-                name: 'demo-git-repo',
-                meta: 'Python · real commit history',
-                body: 'A git-backed fixture that exercises hotspots, ownership, bus factor, co-change coupling and change audits.',
-                tags: ['Git intelligence', 'Hotspots', 'Bus factor'],
+                name: 'your-repository',
+                meta: 'Any git host · archive · ZIP upload',
+                body: 'Import a public or private repository — GitHub, GitLab, any git host, an archive URL or a ZIP — and audit it with the full evidence pipeline.',
+                tags: ['Evidence chains', 'Verified repairs'],
               },
               {
-                name: 'RepoVeriX itself',
-                meta: 'TypeScript + Python · open source',
-                body: 'The project auditing itself — frontend, backend and analysis engine, all open on GitHub.',
-                tags: ['Open source', 'Self-hosted'],
+                name: 'vulnerable_js',
+                meta: 'Node.js · Express · 2 files',
+                body: 'A deliberately vulnerable Node/Express API fixture: unsanitized SQL, OS command injection, eval of user input and a fake Stripe secret.',
+                tags: ['SQLi', 'RCE', 'Secrets'],
               },
             ].map((repo, i) => (
               <ScrollReveal key={repo.name} delay={i * 80}>
@@ -485,12 +529,12 @@ export default function HomePage() {
           <div className="mt-12 grid gap-5 md:grid-cols-3">
             {[
               {
-                icon: Github,
-                title: 'Open source',
+                icon: Server,
+                title: 'Self-hosted',
                 body: 'Run RepoVeriX yourself with Docker Compose — code, storage and model provider stay under your control.',
-                cta: 'View on GitHub',
-                href: 'https://github.com/sumitagg24/RepoVeriX',
-                external: true,
+                cta: 'Deploy your own',
+                href: '/docs/getting-started',
+                external: false,
               },
               {
                 icon: Building2,
@@ -570,16 +614,11 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            <a
-              href="https://github.com/sumitagg24/RepoVeriX"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0"
-            >
+            <Link href="/docs" className="shrink-0">
               <Button variant="outline" className="gap-2">
-                <Github className="h-4 w-4" /> Read the docs
+                <BookOpen className="h-4 w-4" /> Read the docs
               </Button>
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -736,7 +775,7 @@ export default function HomePage() {
           </div>
           <p className="mt-8 text-center text-xs text-muted-foreground">
             Prices in USD. Cancel anytime. Questions?{' '}
-            <Link href="/settings" className="font-medium text-primary hover:underline">
+            <Link href="/help/contact" className="font-medium text-primary hover:underline">
               Contact support
             </Link>
           </p>
@@ -764,6 +803,12 @@ export default function HomePage() {
             </details>
           ))}
         </div>
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd()) }}
+        />
       </section>
 
       {/* CTA */}
@@ -779,9 +824,9 @@ export default function HomePage() {
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Button>
             </Link>
-            <Link href="https://github.com/sumitagg24/RepoVeriX" target="_blank" rel="noopener noreferrer">
+            <Link href="/docs/getting-started">
               <Button size="lg" variant="outline" className="gap-2 px-8">
-                <Github className="h-4 w-4" /> Star on GitHub
+                <BookOpen className="h-4 w-4" /> Read the docs
               </Button>
             </Link>
           </div>
@@ -812,26 +857,35 @@ export default function HomePage() {
                 {
                   title: 'Resources',
                   links: [
-                    ['GitHub', 'https://github.com/sumitagg24/RepoVeriX'],
-                    ['Docs', 'https://github.com/sumitagg24/RepoVeriX'],
+                    ['Docs', '/docs'],
+                    ['Help center', '/help'],
+                    ['Getting started', '/docs/getting-started'],
+                    ['API reference', '/docs/api'],
+                    ['Blog', '/blog'],
+                    ['Changelog', '/changelog'],
+                    ['Vulnerability guides', '/vulnerabilities'],
+                    ['Detection rules', '/detections'],
+                    ['Glossary', '/glossary'],
+                    ['Compare', '/compare'],
                     ['Sign in', '/auth/login'],
                   ],
                 },
                 {
                   title: 'Integrations',
                   links: [
-                    ['GitHub OAuth', '/auth/signup'],
-                    ['GitLab OAuth', '/auth/signup'],
-                    ['Google sign-in', '/auth/signup'],
-                    ['SARIF export', '/auth/signup'],
+                    ['GitHub', '/integrations/github'],
+                    ['GitLab', '/integrations/gitlab'],
+                    ['SARIF export', '/docs/features'],
                   ],
                 },
                 {
                   title: 'Company',
                   links: [
+                    ['About', '/#product'],
+                    ['Contact', '/help/contact'],
+                    ['Community', '/help/community'],
                     ['Privacy', '/privacy'],
                     ['Terms', '/terms'],
-                    ['Settings', '/settings'],
                   ],
                 },
               ].map((col) => (
@@ -857,8 +911,8 @@ export default function HomePage() {
           </div>
           <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
             <div className="flex items-center gap-2">
-              <LogoMark className="h-4 w-4 text-primary" />
-              <span>© 2026 RepoVeriX · Open source · Research prototype</span>
+              <LogoMark className="h-4 w-4" />
+              <span>© 2026 RepoVeriX</span>
             </div>
             <p>Deterministic evidence · LLM reasoning · Sandbox verification</p>
           </div>

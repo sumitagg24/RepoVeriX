@@ -196,7 +196,7 @@ function RepositoriesContent() {
                       {repo.source_url && (
                         <DropdownMenuItem asChild>
                           <a href={repo.source_url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="mr-2 h-4 w-4" /> Open source
+                            <ExternalLink className="mr-2 h-4 w-4" /> Open repository
                           </a>
                         </DropdownMenuItem>
                       )}

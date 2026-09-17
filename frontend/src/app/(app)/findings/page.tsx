@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,10 +42,31 @@ const sourceColors: Record<string, string> = {
 };
 
 export default function FindingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4 p-6">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
+          ))}
+        </div>
+      }
+    >
+      <FindingsPageInner />
+    </Suspense>
+  );
+}
+
+function FindingsPageInner() {
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  // Dashboard “Group: Status” pills deep-link here (?status=verified|probable).
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const param = searchParams.get('status') ?? '';
+    return (statuses as readonly string[]).includes(param) ? param : '';
+  });
   const [scanFilter, setScanFilter] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [activeTab, setActiveTab] = useState<string>('list');

@@ -13,6 +13,23 @@ export interface User {
 export interface TokenResponse {
   access_token: string;
   token_type: string;
+  email_verified?: boolean | null;
+  /** Dev-only: present when the backend mailer runs in console mode. */
+  dev_verification_url?: string | null;
+}
+
+export interface SecurityEvent {
+  event: string;
+  ip: string | null;
+  at: string | null;
+  detail: Record<string, string>;
+}
+
+export interface SecurityOverview {
+  email_verified: boolean;
+  account_status: string;
+  mfa_status: string;
+  recent_events: SecurityEvent[];
 }
 
 export interface SignupRequest {
@@ -107,6 +124,108 @@ export interface Scan {
 export interface ScanCreate {
   repository_id: UUID;
   configuration?: ScanConfiguration;
+}
+
+export interface ReportShare {
+  share_id: UUID;
+  url: string;
+  token: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  view_count: number;
+  created_at: string | null;
+}
+
+export type FeedbackVerdict = 'correct' | 'incorrect' | 'already_fixed' | 'not_useful';
+
+export interface FindingFeedback {
+  id: UUID;
+  finding_id: UUID;
+  user_id: UUID;
+  verdict: FeedbackVerdict;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeedbackSummary {
+  total: number;
+  correct: number;
+  incorrect: number;
+  already_fixed: number;
+  not_useful: number;
+  false_positive_share: number | null;
+}
+
+// Organizations / teams
+
+export type OrgRole = 'member' | 'admin' | 'owner';
+
+export interface OrgRead {
+  id: UUID;
+  name: string;
+  slug: string;
+  created_by: UUID | null;
+  created_at: string;
+  updated_at: string;
+  role: OrgRole;
+}
+
+export interface OrgMember {
+  id: UUID;
+  organization_id: UUID;
+  user_id: UUID;
+  email: string;
+  full_name: string | null;
+  role: OrgRole;
+  created_at: string;
+}
+
+export interface OrgRepo {
+  id: UUID;
+  name: string;
+  status: string;
+  source_type: string;
+  languages: string[];
+  created_at: string | null;
+}
+
+export interface TeamDashboard {
+  organization_id: UUID;
+  repositories: { id: UUID; name: string; status: string; default_branch: string }[];
+  repository_count: number;
+  member_counts: Record<string, number>;
+  scans: { total: number; completed: number; last_scan_at: string | null };
+  findings: {
+    total: number;
+    by_severity: Record<string, number>;
+    by_status: Record<string, number>;
+    verified_critical_high: number;
+  };
+  fixes: { verified: number; failed_or_unverified: number };
+}
+
+export interface SecurityCenter {
+  organization_id: UUID;
+  posture_score: number;
+  risk_level: string;
+  findings: {
+    total: number;
+    by_severity: Record<string, number>;
+    by_status: Record<string, number>;
+    verified_critical_high: number;
+  };
+  coverage: {
+    repositories: number;
+    scanned_repositories: number;
+    per_repository: { repository_id: UUID; repository_name: string; findings_total: number }[];
+  };
+  detection_quality: {
+    feedback_total: number;
+    verdicts: Record<string, number>;
+    agreement_ratio: number | null;
+  };
+  fix_pipeline: { patches_total: number; patches_verified: number };
 }
 
 export interface AnalysisRun {
@@ -1151,4 +1270,23 @@ export interface RegressionItem {
     line_start?: number | null;
     evidence?: RegressionEvidenceRow[];
   };
+}
+
+export type OnboardingStepKey = 'connect_provider' | 'add_repository' | 'run_first_scan';
+
+export interface OnboardingStepStatus {
+  done: boolean;
+  detail?: string | null;
+}
+
+export interface OnboardingRepositoryHint {
+  id: UUID;
+  name: string;
+}
+
+export interface OnboardingStatus {
+  completed: boolean;
+  completed_at?: string | null;
+  steps: Record<OnboardingStepKey, OnboardingStepStatus>;
+  latest_repository?: OnboardingRepositoryHint | null;
 }

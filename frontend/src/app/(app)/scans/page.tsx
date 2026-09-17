@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Plus, MoreHorizontal, Play, RefreshCw, X, Trash2, ExternalLink, Loader2, Clock, CheckCircle, AlertTriangle, Terminal } from 'lucide-react';
 import { useScans, useCreateScan, useCancelScan } from '@/hooks/useScans';
 import { useRepositories } from '@/hooks/useRepositories';
+import { usePlan, LLM_LEAD_CONFIGS } from '@/hooks/usePlan';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -70,6 +71,7 @@ export default function ScansPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+  const { isFree, ready: planReady } = usePlan();
 
   const form = useForm<ScanForm>({
     resolver: zodResolver(scanSchema),
@@ -78,6 +80,16 @@ export default function ScansPage() {
       configuration: 'repoverix',
     },
   });
+
+  // Free accounts cannot run the LLM-led configurations.
+  useEffect(() => {
+    if (planReady && isFree) {
+      const current = form.getValues('configuration');
+      if (LLM_LEAD_CONFIGS.has(current)) {
+        form.setValue('configuration', 'static_llm');
+      }
+    }
+  }, [planReady, isFree, form]);
 
   const filteredScans = scans?.filter((scan) =>
     scan.configuration.toLowerCase().includes(searchQuery.toLowerCase())
@@ -172,16 +184,32 @@ export default function ScansPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {scanConfigurations.map((config) => (
-                            <SelectItem key={config.value} value={config.value}>
-                              <div className="space-y-1">
-                                <p className="font-medium">{config.label}</p>
-                                <p className="text-xs text-muted-foreground">{config.description}</p>
-                              </div>
-                            </SelectItem>
-                          ))}
+                          {scanConfigurations.map((config) => {
+                            const premium = LLM_LEAD_CONFIGS.has(config.value);
+                            return (
+                              <SelectItem
+                                key={config.value}
+                                value={config.value}
+                                disabled={planReady && isFree && premium}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <p className="font-medium">{config.label}</p>
+                                    <p className="text-xs text-muted-foreground">{config.description}</p>
+                                  </div>
+                                  {premium && <Badge variant="outline" className="shrink-0 text-[10px]">Pro</Badge>}
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
+                      {planReady && isFree && (
+                        <FormDescription>
+                          The full-pipeline and LLM-only configurations are Pro features — Free scans run
+                          hybrid or static analysis.
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

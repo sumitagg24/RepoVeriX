@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRepository } from '@/hooks/useRepositories';
 import { useScans } from '@/hooks/useScans';
-import { GitBranch, ExternalLink, Plus, Search, Loader2, Clock, CheckCircle, AlertTriangle, BrainCircuit, GitCompare, Network, FlaskConical, MessageSquare, Activity, History } from 'lucide-react';
+import { GitBranch, ExternalLink, Plus, Search, Loader2, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -73,61 +73,19 @@ export default function RepositoryDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {repository.source_url && (
             <a href={repository.source_url} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" className="gap-2">
                 <ExternalLink className="h-4 w-4" />
-                View on GitHub
+                View source
               </Button>
             </a>
           )}
-          <Button asChild variant="outline" className="gap-2">
-            <Link href={`/repositories/${repository.id}/intelligence`}>
-              <BrainCircuit className="h-4 w-4" />
-              Intelligence
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-2">
-            <Link href={`/repositories/${repository.id}/intelligence?tab=ask`}>
-              <MessageSquare className="h-4 w-4" />
-              Ask RepoVeriX
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-2">
-            <Link href={`/repositories/${repository.id}/audit`}>
-              <GitCompare className="h-4 w-4" />
-              Change Audit
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-2">
-            <Link href={`/repositories/${repository.id}/graph`}>
-              <Network className="h-4 w-4" />
-              Evidence Graph
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-2">
-            <Link href={`/repositories/${repository.id}/research`}>
-              <FlaskConical className="h-4 w-4" />
-              Research
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-2">
-            <Link href={`/repositories/${repository.id}/regression`}>
-              <History className="h-4 w-4" />
-              Regression
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-2">
-            <Link href={`/repositories/${repository.id}/history`}>
-              <Activity className="h-4 w-4" />
-              Health History
-            </Link>
-          </Button>
-          <Button asChild>
+          <Button asChild className="gap-2 shadow-sm">
             <Link href={`/scans/new?repo=${repository.id}`}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Scan
+              <Plus className="h-4 w-4" />
+              New scan
             </Link>
           </Button>
         </div>

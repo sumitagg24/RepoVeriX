@@ -13,6 +13,8 @@ interface AuthContextType {
   signup: (email: string, password: string, fullName: string) => Promise<void>;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
+  logoutWithAudit: () => Promise<void>;
+  rotateToken: (newToken: string) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -64,7 +66,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(data.access_token);
     localStorage.setItem('access_token', data.access_token);
     await refreshUser();
-    router.push('/dashboard');
+    // Dev-mode (console mail backend): the response carries the verification
+    // link because no real email is sent — completing verification is the
+    // actual next step. Null when SMTP is configured (production), so the
+    // normal first-run flow applies.
+    if (data.dev_verification_url) {
+      const url = new URL(data.dev_verification_url);
+      router.push(`${url.pathname}${url.search}`);
+      router.refresh();
+      return;
+    }
+    // New accounts start the guided first-run checklist (unless they arrived
+    // via a pricing CTA, which lands them on the plan they picked first).
+    const planParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('plan') : null;
+    router.push(planParam && planParam !== 'free' ? `/billing?plan=${encodeURIComponent(planParam)}` : '/onboarding');
     router.refresh();
   };
 
@@ -84,8 +99,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.refresh();
   };
 
+  /** Client-side sign-out that also records the AUTH_LOGOUT audit event.
+   *  Best-effort: the local session is cleared even if the API call fails. */
+  const logoutWithAudit = async () => {
+    try {
+      await authService.logoutAudit();
+    } catch {
+      // Token may already be dead — clearing local state is what matters.
+    }
+    logout();
+  };
+
+  /** Rotate the stored token (password change / revoke-all re-issue). */
+  const rotateToken = async (newToken: string) => {
+    setToken(newToken);
+    setAccessToken(newToken);
+    localStorage.setItem('access_token', newToken);
+    await refreshUser();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, signup, loginWithToken, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isLoading,
+        login,
+        signup,
+        loginWithToken,
+        logout,
+        logoutWithAudit,
+        rotateToken,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

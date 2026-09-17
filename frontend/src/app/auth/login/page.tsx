@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { OAuthSignInButton } from '@/components/oauth-buttons';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LogoMark } from '@/components/logo';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
@@ -42,7 +43,9 @@ function LoginContent() {
       await login(data.email, data.password);
       toast.success('Welcome back');
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Invalid credentials');
+      // Surfaces the backend's safe copy (invalid credentials / unverified
+      // email / temporary lockout) — never internals.
+      toast.error(getApiErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -61,8 +64,8 @@ function LoginContent() {
       />
       <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20">
-            <LogoMark className="h-7 w-7" />
+          <div className="mx-auto mb-5 w-fit">
+            <LogoMark className="h-12 w-12 drop-shadow-sm" />
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -109,6 +112,15 @@ function LoginContent() {
                 <Input id="password" type="password" placeholder="••••••••" className="pl-9" {...register('password')} disabled={isLoading} />
               </div>
               {errors.password && <p className="text-xs font-medium text-destructive">{errors.password.message}</p>}
+            </div>
+
+            <div className="flex items-center justify-end">
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Forgot password?
+              </Link>
             </div>
 
             <Button type="submit" className="w-full shadow-sm" disabled={isLoading}>
