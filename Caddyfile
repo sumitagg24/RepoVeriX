@@ -1,0 +1,37 @@
+{$ACME_EMAIL}
+
+{
+	auto_https disable_redirects
+}
+
+{$API_DOMAIN} {
+	# Reverse-proxy the FastAPI backend. Websockets (SSE/WS progress feeds)
+	# are supported by Caddy by default.
+	reverse_proxy backend:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# Reasonable body cap for JSON APIs (archives are downloaded server-side,
+	# never uploaded by browsers).
+	request_body {
+		max_size 4MB
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 50MiB
+			roll_keep 3
+		}
+	}
+}
+
+http://{$API_DOMAIN} {
+	redir https://{host}{uri} permanent
+}
