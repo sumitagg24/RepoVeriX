@@ -45,9 +45,21 @@ def archive_path(repo_id: str, storage_root: Path | None = None) -> Path:
 
 
 def store_archive(repo_id: str, payload: bytes, storage_root: Path | None = None) -> Path:
-    """Persist an uploaded repository archive."""
+    """Persist an uploaded repository archive.
+
+    Writes the local working copy needed for extraction now, and stores the
+    durable copy through the artifact-storage seam so re-analysis on another
+    replica can fetch it without a re-upload (a no-op duplicate under the
+    local backend; object storage in production).
+    """
     dest = archive_path(repo_id, storage_root)
     dest.write_bytes(payload)
+    try:
+        from app.core.artifacts import get_artifact_storage
+
+        get_artifact_storage().put(f"archives/{repo_id}/archive.zip", payload)
+    except Exception:  # noqa: BLE001 - durable copy must never block ingestion
+        pass
     return dest
 
 

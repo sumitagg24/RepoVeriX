@@ -162,6 +162,17 @@ class Settings(BaseSettings):
     # Uploaded archive payload cap in bytes (checked while streaming to disk).
     max_upload_bytes: int = 110 * 1024 * 1024
 
+    # --- Artifact storage (archives, bundles; durable across replicas) ---
+    # "local" keeps artifacts under repository_storage_dir (development);
+    # "s3" selects any S3-compatible object store (fail-closed on misconfig).
+    artifact_storage: str = "local"
+    artifact_s3_bucket: str | None = None
+    artifact_s3_access_key: str | None = None
+    artifact_s3_secret_key: str | None = None
+    artifact_s3_region: str = "auto"
+    artifact_s3_endpoint: str | None = None  # R2/MinIO path-style endpoint
+    artifact_s3_prefix: str = "artifacts"
+
     # --- LLM providers ---
     llm_timeout_seconds: int = 120
     llm_max_retries: int = 2
