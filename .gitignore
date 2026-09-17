@@ -24,6 +24,8 @@ backend/.env
 
 # Runtime data (repository storage, logs, local databases)
 data/
+# ...except tracked application datasets that live under an app/data path
+!backend/app/data/
 
 # Preserve UI/UX Pro Max skill data (the "data/" rule above would otherwise ignore it)
 !frontend/.claude/
