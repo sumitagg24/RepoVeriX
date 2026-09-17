@@ -175,7 +175,11 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
     if acct.lockout_seconds_remaining(user) > 0:
         raise auth_error(status.HTTP_423_LOCKED, auth_errors.TEMPORARILY_LOCKED, "TEMPORARILY_LOCKED")
 
-    if not acct.is_verified(user):
+    # The verification policy is configurable: deployments without an email
+    # backend can disable the gate (documented operator decision). The flag
+    # must be honored here on the login path too, not only by
+    # ensure_email_verified on the expensive-feature paths.
+    if get_settings().auth_require_email_verification and not acct.is_verified(user):
         await authaudit.record(
             db,
             user_id=user.id,
