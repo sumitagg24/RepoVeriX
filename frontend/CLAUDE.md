@@ -81,6 +81,28 @@ for additional patterns, but always align with the existing system.
 | Automated review | `design-review` subagent + `/design-plan` & `/design-review` commands | `.claude/agents`, `.claude/commands` |
 | Standalone audit | `scripts/design-audit.mjs` (multi-viewport screenshots) | `scripts/`, CI in `.github/workflows` |
 
+## Available Skills
+
+All skills from the [ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) repository are available:
+
+| Skill | Purpose | Key Scripts |
+|-------|---------|-------------|
+| `ui-ux-pro-max` | Core knowledge base: 79 styles, 192 palettes, 74 font pairings, 25 charts, 22 stacks | `scripts/search.py` |
+| `ui-styling` | Tailwind CSS + shadcn/ui component styling | `scripts/tailwind_config_gen.py`, `scripts/shadcn_add.py` |
+| `design` | Unified design: brand, tokens, UI, logo, CIP, banners, social photos, icons | `scripts/logo/generate.py`, `scripts/cip/generate.py`, `scripts/icon/generate.py` |
+| `design-system` | Token architecture, component specs, slide generation | `scripts/generate-tokens.cjs`, `scripts/search-slides.py` |
+| `brand` | Brand voice, visual identity, messaging, asset management | `scripts/inject-brand-context.cjs`, `scripts/sync-brand-to-tokens.cjs` |
+| `banner-design` | Multi-format banner design (social, ads, web, print) | `references/banner-sizes-and-styles.md` |
+| `slides` | Strategic HTML presentations with Chart.js | `references/layout-patterns.md`, `references/html-template.md` |
+
+### Quick Reference
+
+- **Design tokens:** `python .claude/skills/design-system/scripts/generate-tokens.cjs --config tokens.json -o tokens.css`
+- **Brand context injection:** `node .claude/skills/brand/scripts/inject-brand-context.cjs`
+- **Banner design:** Read `.claude/skills/banner-design/references/banner-sizes-and-styles.md` for platform sizes
+- **Slide creation:** `python .claude/skills/design-system/scripts/search-slides.py "<topic>"`
+- **Logo generation:** `python .claude/skills/design/scripts/logo/generate.py --brand "Name" --style minimalist`
+
 ## Notes
 
 - The `ui-ux-pro-max` skill is already installed at `.claude/skills/ui-ux-pro-max/`. Run its

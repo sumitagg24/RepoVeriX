@@ -1,17 +1,24 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "enableAllProjectMcpServers": true,
-  "permissions": {
-        "allow": [
-      "Bash(node scripts/design-audit.mjs:*)",
-      "Bash(npm run audit:*)",
-      "Bash(npx playwright:*)",
-      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py:*)",
-      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py:*)",
-      "Read(//home/**)",
-      "mcp__playwright",
-      "mcp__chrome-devtools",
-      "mcp__shadcn"
-    ]
+  "plugins": {
+    "frontend-design": {
+      "name": "frontend-design",
+      "source": "anthropics/claude-code",
+      "description": "Taste layer — forces a real aesthetic commitment before any CSS; kills AI-slop defaults"
+    }
+  },
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": ["-y", "shadcn@latest", "mcp"]
+    }
   }
 }
