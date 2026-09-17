@@ -862,3 +862,61 @@ class ProcessedAuthWebhook(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     __table_args__ = (UniqueConstraint("provider", "event_id", name="uq_auth_webhook_provider_event"),)
+
+
+class Website(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A user-registered public website targeted by passive audits.
+
+    ``hostname`` is the canonical, lowercased host (IDNA-stripped at the
+    edge); ``url`` preserves the scheme the owner registered. Audits are
+    passive: RepoVeriX fetches and analyses what a browser would see — it
+    never attacks, fuzzes or authenticates to the target.
+    """
+
+    __tablename__ = "websites"
+
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    hostname: Mapped[str] = mapped_column(String(253), index=True, nullable=False)
+    label: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(30), default="active", nullable=False)
+    last_audit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    audits: Mapped[list["WebsiteAudit"]] = relationship(
+        back_populates="website", cascade="all, delete-orphan"
+    )
+
+
+class WebsiteAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One passive website audit run.
+
+    ``scores`` / ``summary`` are plain JSON payloads served verbatim by the
+    API; ``pages`` mirrors the crawl graph, ``findings`` the normalised
+    observations. Website findings are observations of *public* surface —
+    they never assert vulnerabilities, only what was observed and what a
+    cautious operator might improve.
+    """
+
+    __tablename__ = "website_audits"
+    __table_args__ = (Index("ix_website_audits_website_created", "website_id", "created_at"),)
+
+    website_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("websites.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False)
+    max_pages: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    max_depth: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
+    pages_crawled: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+    scores: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    summary: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    pages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    findings: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+
+    website: Mapped[Website] = relationship(back_populates="audits")

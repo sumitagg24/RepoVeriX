@@ -130,6 +130,23 @@ async def get_scan_scheduler() -> Callable[[uuid.UUID], None]:
     return _schedule
 
 
+async def get_website_audit_scheduler() -> Callable[[uuid.UUID], None]:
+    """Return the function that starts a passive website audit in the background.
+
+    Same seam pattern as ``get_scan_scheduler`` so tests can substitute an
+    inline runner and a future job queue can replace the in-process scheduler
+    without touching routes.
+    """
+    from app.analysis import runtime as scan_runtime
+    from app.analysis.webrun import run_website_audit
+    from app.db.database import SessionLocal
+
+    def _schedule(audit_id: uuid.UUID) -> None:
+        scan_runtime.schedule(str(audit_id), lambda: run_website_audit(SessionLocal, audit_id))
+
+    return _schedule
+
+
 async def get_verification_scheduler() -> Callable[[uuid.UUID], None]:
     """Return the function that starts a verification run in the background.
 

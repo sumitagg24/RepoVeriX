@@ -23,6 +23,7 @@ from app.api.routes.sharing import public_router as sharing_public_router
 from app.api.routes.sharing import router as sharing_router
 from app.api.routes.tokens import router as tokens_router
 from app.api.routes.webhooks import router as webhooks_router
+from app.api.routes.websites import router as websites_router
 
 __all__ = [
     "audit_router",
@@ -46,6 +47,7 @@ __all__ = [
     "organizations_router",
     "tokens_router",
     "webhooks_router",
+    "websites_router",
     "automation_router",
     "account_security_router",
 ]
