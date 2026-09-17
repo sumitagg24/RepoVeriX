@@ -89,7 +89,7 @@ async def session_factory(db_engine):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session, session_factory) -> AsyncGenerator[AsyncClient, None]:
     """Create test client with database override."""
 
     async def override_get_db():
@@ -103,6 +103,9 @@ async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
     )
     from app.api.dependencies import (
         get_verification_scheduler as get_verify_scheduler_dep,
+    )
+    from app.api.dependencies import (
+        get_website_audit_scheduler as get_webaudit_scheduler_dep,
     )
 
     app.dependency_overrides[get_db_dep] = override_get_db
@@ -119,8 +122,24 @@ async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
     async def _override_verify_scheduler():
         return _noop_schedule
 
+    async def _override_webaudit_scheduler():
+        async def _run_inline(audit_id):
+            # Execute website audits against the *test* engine so the
+            # request/response cycle proves real persistence.
+            from app.analysis.webrun import run_website_audit
+
+            await run_website_audit(session_factory, audit_id)
+
+        def _schedule(audit_id):
+            # Fire a real task on the running loop; the route calls the
+            # scheduler synchronously (fire-and-forget), like production.
+            asyncio.get_running_loop().create_task(_run_inline(audit_id))
+
+        return _schedule
+
     app.dependency_overrides[get_scheduler_dep] = _override_scheduler
     app.dependency_overrides[get_verify_scheduler_dep] = _override_verify_scheduler
+    app.dependency_overrides[get_webaudit_scheduler_dep] = _override_webaudit_scheduler
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
@@ -152,6 +171,31 @@ async def auth_headers(test_user) -> dict:
     from app.core.security import create_access_token
 
     token = create_access_token(test_user.id)
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_user_b(db_session) -> User:
+    """A second, unrelated user — for owner-isolation (IDOR) tests."""
+    user = User(
+        email="other@example.com",
+        hashed_password=hash_password("password456"),
+        full_name="Other User",
+        is_active=True,
+        email_verified_at=datetime.now(UTC),
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture(scope="function")
+async def auth_headers_b(test_user_b) -> dict:
+    """Auth headers for the second, unrelated test user."""
+    from app.core.security import create_access_token
+
+    token = create_access_token(test_user_b.id)
     return {"Authorization": f"Bearer {token}"}
 
 

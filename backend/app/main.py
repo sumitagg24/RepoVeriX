@@ -31,6 +31,7 @@ from app.api.routes import (
     sharing_router,
     tokens_router,
     webhooks_router,
+    websites_router,
 )
 from app.core import metrics as metrics_registry
 from app.core.config import get_settings
@@ -197,6 +198,7 @@ def create_app() -> FastAPI:
     app.include_router(research_router, prefix=settings.api_prefix)
     app.include_router(learning_router, prefix=settings.api_prefix)
     app.include_router(dashboard_router, prefix=settings.api_prefix)
+    app.include_router(websites_router, prefix=settings.api_prefix)
 
     @app.get("/health", tags=["health"])
     async def health_check():
