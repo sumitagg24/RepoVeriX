@@ -15,6 +15,21 @@ publishes them to **GitHub Container Registry**
 
 ---
 
+## 0. Production topology (recommended)
+
+- **Frontend**: Vercel (git-linked, auto-deploys `main`).
+- **API**: a small VPS (Hetzner/DO, 2 vCPU / 4 GB) running
+  `docker-compose.vps.yml` — pulls the GHCR backend image, runs Alembic
+  migrations on start, and terminates TLS via the bundled Caddyfile.
+  Provision with `scripts/provision-vps.sh` after filling in `.env`
+  (see `.env.prod.example`; every variable is classified PUBLIC/SECRET).
+- **Database**: Neon managed PostgreSQL (pooled endpoint, `ssl=require`).
+  The full Alembic chain 001→006 has been validated against Neon.
+- **LLM keys**: optional — static/evidence analysis works without them.
+- **Proof-of-Fix sandbox**: needs a Docker socket mount on the VPS (see the
+  warning in `docker-compose.vps.yml`); without it, verification reports an
+  honest runner error instead of "verified".
+
 ## 1. Try the whole stack locally (fastest)
 
 Requirements: Docker with Compose v2.
