@@ -5,6 +5,7 @@ Revises: 002
 Create Date: 2026-09-06 00:00:00.000000
 
 """
+
 import sqlalchemy as sa
 
 from alembic import op
@@ -70,7 +71,12 @@ def upgrade() -> None:
     op.add_column("repositories", sa.Column("org_id", sa.String(length=36), nullable=True))
     op.add_column("repositories", sa.Column("webhook_secret", sa.String(length=64), nullable=True))
     op.create_foreign_key(
-        "fk_repositories_org_id_organizations", "repositories", "organizations", ["org_id"], ["id"], ondelete="SET NULL"
+        "fk_repositories_org_id_organizations",
+        "repositories",
+        "organizations",
+        ["org_id"],
+        ["id"],
+        ondelete="SET NULL",
     )
     op.create_index("ix_repositories_org_id", "repositories", ["org_id"])
 

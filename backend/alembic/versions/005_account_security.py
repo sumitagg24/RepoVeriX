@@ -9,6 +9,7 @@ Existing users are grandfathered as email-verified (``email_verified_at =
 created_at``) so the new verification gate only applies to accounts created
 after this migration — no existing user can be locked out of their data.
 """
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
