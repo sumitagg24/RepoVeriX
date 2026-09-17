@@ -117,6 +117,16 @@ test.describe('authenticated shell (logged out)', () => {
       await expect(page).toHaveURL(/\/auth\/login/, { timeout: 15000 });
     });
   }
+
+  test('website history of an unknown site fails honestly', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    // Logged out → login redirect (no data fabricated for strangers).
+    await page.goto('/websites/00000000-0000-0000-0000-000000000000/history');
+    await expect(page).toHaveURL(/\/auth\/login/, { timeout: 15000 });
+    await expectNoOverflow(page);
+    expect(errors, 'console page errors').toEqual([]);
+  });
 });
 
 test.describe('keyboard + theme', () => {

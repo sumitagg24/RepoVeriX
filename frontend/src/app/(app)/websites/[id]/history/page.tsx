@@ -1,7 +1,7 @@
 'use client';
 
-import { use } from 'react';
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,8 +33,9 @@ function findingKey(f: WebsiteFinding): string {
  * codes against the previous completed audit. No manufactured trends: deltas
  * appear only where both audits report the same score.
  */
-export default function WebsiteHistoryPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function WebsiteHistoryPage() {
+  const params = useParams();
+  const id = params.id as string;
   const websites = useWebsites();
   const audits = useWebsiteAudits(id);
   const [expandedId, setExpandedId] = useState<string | null>(null);

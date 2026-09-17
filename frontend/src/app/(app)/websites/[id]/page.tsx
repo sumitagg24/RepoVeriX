@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,8 +27,9 @@ const SCORE_LABELS: Array<{ key: string; label: string; hint: string }> = [
 
 const STATE_ORDER = ['observed', 'recommendation', 'insufficient'] as const;
 
-export default function WebsiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function WebsiteDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
   const audits = useWebsiteAudits(id);
   const latest = audits.data?.[0];
   const audit = useWebsiteAudit(id, latest?.id);
