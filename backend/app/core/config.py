@@ -237,9 +237,12 @@ def ensure_production_safety(settings: Settings) -> None:
     tokens for any user, so configuration load fails loudly instead. Local
     development is unaffected: its Host allowlist only contains
     loopback/test values.
+
+    An *empty* allowlist is also production-like: the Host gate accepts every
+    host in that mode, so it must never be combined with the default secret.
     """
     host_allowlist = {h.lower() for h in settings.allowed_hosts}
-    looks_production = not host_allowlist.issubset(_LOCAL_HOSTS)
+    looks_production = len(host_allowlist) == 0 or not host_allowlist.issubset(_LOCAL_HOSTS)
     if looks_production and settings.jwt_secret == Settings.model_fields["jwt_secret"].default:
         raise RuntimeError(
             "REPOVERIX_JWT_SECRET must be set in production: the default secret "
