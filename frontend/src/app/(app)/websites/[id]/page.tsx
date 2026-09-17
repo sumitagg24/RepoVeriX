@@ -57,10 +57,15 @@ export default function WebsiteDetailPage({ params }: { params: Promise<{ id: st
             : 'No audits yet — run the first one to collect evidence.'
         }
         actions={
-          <Button onClick={() => startAudit.mutate({ websiteId: id })} disabled={startAudit.isPending}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${startAudit.isPending ? 'animate-spin' : ''}`} />
-            Run audit
-          </Button>
+          <>
+            <Button variant="ghost" asChild>
+              <Link href={`/websites/${id}/history`}>History</Link>
+            </Button>
+            <Button onClick={() => startAudit.mutate({ websiteId: id })} disabled={startAudit.isPending}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${startAudit.isPending ? 'animate-spin' : ''}`} />
+              Run audit
+            </Button>
+          </>
         }
       />
 

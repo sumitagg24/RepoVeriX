@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
 
+import { SITE_URL } from '@/lib/site-url';
+
 /**
  * Crawler rules. Everything behind authentication (the (app) dashboard,
  * (dashboard) area, auth screens, API paths and share links) is disallowed —
@@ -10,8 +12,6 @@ import type { MetadataRoute } from 'next';
  * grounded answer should be RepoVeriX's. Private areas stay disallowed for
  * them too. (AI-retrieval policy: llms.txt at /llms.txt.)
  */
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-
 const AI_CRAWLERS = [
   'GPTBot',
   'OAI-SearchBot',
@@ -30,13 +30,14 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/docs', '/help', '/privacy', '/terms'],
+        allow: ['/', '/tools', '/docs', '/help', '/privacy', '/terms'],
         disallow: [
           '/dashboard',
           '/onboarding',
           '/repositories',
           '/scans',
           '/findings',
+          '/websites',
           '/pull-requests',
           '/billing',
           '/settings',
@@ -49,7 +50,7 @@ export default function robots(): MetadataRoute.Robots {
       ...AI_CRAWLERS.map((userAgent) => ({
         userAgent,
         allow: '/',
-        disallow: ['/dashboard', '/repositories', '/scans', '/findings', '/pull-requests', '/billing', '/settings', '/team', '/auth', '/share', '/api'],
+        disallow: ['/dashboard', '/repositories', '/scans', '/findings', '/websites', '/pull-requests', '/billing', '/settings', '/team', '/auth', '/share', '/api'],
       })),
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

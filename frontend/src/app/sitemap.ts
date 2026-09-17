@@ -6,6 +6,7 @@ import { GLOSSARY_TERMS } from '@/lib/seo/glossary';
 import { DETECTION_RULES } from '@/lib/seo/rules';
 import { SAMPLE_REPOS } from '@/lib/seo/repos';
 import { VULNERABILITY_CLASSES } from '@/lib/seo/vulnerabilities';
+import { SITE_URL } from '@/lib/site-url';
 
 /**
  * Public marketing/docs sitemap. App pages (dashboard, repositories, scans,
@@ -17,8 +18,6 @@ import { VULNERABILITY_CLASSES } from '@/lib/seo/vulnerabilities';
  * (a rule, glossary term, comparison…) lands in the sitemap automatically.
  * Only pages without a registry are hand-listed here.
  */
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-
 const now = new Date();
 
 const page = (path: string, changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'], priority: number) => ({

@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 /** Dismiss the cookie-consent dialog (appears ~900ms after load) when present. */
-async function dismissCookies(page) {
+async function dismissCookies(page: Page) {
   const dialog = page.getByRole('dialog', { name: /cookie consent/i });
   try {
     await dialog.waitFor({ state: 'visible', timeout: 5000 });
@@ -15,7 +16,7 @@ async function dismissCookies(page) {
 }
 
 /** No horizontal page overflow at any tested viewport. */
-async function expectNoOverflow(page) {
+async function expectNoOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
     const el = document.scrollingElement ?? document.documentElement;
     return el.scrollWidth - document.documentElement.clientWidth;
