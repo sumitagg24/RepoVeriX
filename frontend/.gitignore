@@ -17,3 +17,5 @@ __pycache__/
 
 # Keep .mcp.json local overrides (if any) but track the committed version
 # .mcp/settings.local.json
+.vercel
+.env*

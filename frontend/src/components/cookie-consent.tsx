@@ -70,7 +70,7 @@ export function CookieConsent() {
             </p>
           </div>
           <button
-            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={() => choose('rejected')}
             aria-label="Reject non-essential cookies"
             title="Reject non-essential cookies"
