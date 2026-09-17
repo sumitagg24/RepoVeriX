@@ -29,6 +29,17 @@
     --sidebar-foreground: 25 18% 14%;
     --sidebar-accent: 38 22% 88%;
     --sidebar-border: 36 15% 84%;
+    /* Verification verdicts — the evidentiary core of RepoVeriX.
+       verified = evidence-backed · probable = needs confirmation
+       observed = seen but unjudged · insufficient = not enough signal */
+    --verified: 160 60% 38%;
+    --verified-foreground: 0 0% 100%;
+    --probable: 38 85% 46%;
+    --probable-foreground: 25 30% 12%;
+    --observed: 217 70% 52%;
+    --observed-foreground: 0 0% 100%;
+    --insufficient: 28 8% 45%;
+    --insufficient-foreground: 0 0% 100%;
     --radius: 0.75rem;
     --font-display: ui-serif, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, Cambria,
       'Times New Roman', serif;
@@ -58,6 +69,14 @@
     --sidebar-foreground: 40 30% 92%;
     --sidebar-accent: 26 10% 17%;
     --sidebar-border: 26 10% 18%;
+    --verified: 160 55% 45%;
+    --verified-foreground: 25 20% 8%;
+    --probable: 40 90% 55%;
+    --probable-foreground: 25 25% 10%;
+    --observed: 217 75% 62%;
+    --observed-foreground: 25 20% 8%;
+    --insufficient: 30 8% 55%;
+    --insufficient-foreground: 25 20% 8%;
     --font-display: ui-serif, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, Cambria,
       'Times New Roman', serif;
   }
@@ -71,6 +90,12 @@
     @apply bg-background text-foreground antialiased;
     /* let variable fonts pick their optical size per text size */
     font-optical-sizing: auto;
+  }
+  /* Visible keyboard focus everywhere — WCAG 2.2 AA target. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 4px;
   }
   /* Page titles get Fraunces — the warm, editorial RepoVeriX mark. */
   h1 {
@@ -99,6 +124,20 @@
   /* numerals in big figures align into tidy columns */
   .tabular-nums-display {
     font-variant-numeric: tabular-nums lining-nums;
+  }
+  /* Deliberate type scale — use these, not ad-hoc text sizes. */
+  .type-display {
+    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    @apply text-4xl font-semibold tracking-tight sm:text-5xl;
+  }
+  .type-page-title {
+    @apply text-2xl font-bold tracking-tight sm:text-3xl;
+  }
+  .type-section {
+    @apply text-base font-semibold tracking-tight;
+  }
+  .type-meta {
+    @apply font-mono text-[11px] text-muted-foreground;
   }
 }
 
@@ -198,5 +237,315 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+/* ==========================================================================
+   Evidence design system — semantic layer
+
+   Severity, finding-status, dimension-score and evidence-chain tokens.
+   Every `<token>` ships four faces: the solid hue, readable text on solid
+   (`-fg`), a soft tinted surface (`-soft`) and readable text on that surface
+   (`-ink`). All pairs are tuned for WCAG AA contrast in both themes.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    /* severity ramp (repository + website findings) */
+    --sev-critical: 0 72% 44%;
+    --sev-critical-fg: 0 0% 100%;
+    --sev-critical-soft: 0 75% 96%;
+    --sev-critical-ink: 0 70% 38%;
+    --sev-high: 20 80% 46%;
+    --sev-high-fg: 0 0% 100%;
+    --sev-high-soft: 24 88% 95%;
+    --sev-high-ink: 20 75% 40%;
+    --sev-medium: 38 90% 36%;
+    --sev-medium-fg: 0 0% 100%;
+    --sev-medium-soft: 45 92% 93%;
+    --sev-medium-ink: 35 80% 30%;
+    --sev-low: 205 50% 38%;
+    --sev-low-fg: 0 0% 100%;
+    --sev-low-soft: 205 60% 95%;
+    --sev-low-ink: 205 55% 32%;
+    --sev-info: 155 18% 34%;
+    --sev-info-fg: 0 0% 100%;
+    --sev-info-soft: 150 18% 93%;
+    --sev-info-ink: 155 15% 28%;
+
+    /* finding states — VERIFIED / PROBABLE / REJECTED + website states */
+    --state-verified: 152 52% 34%;
+    --state-verified-fg: 0 0% 100%;
+    --state-verified-soft: 150 50% 94%;
+    --state-verified-ink: 152 55% 28%;
+    --state-probable: 32 88% 40%;
+    --state-probable-fg: 0 0% 100%;
+    --state-probable-soft: 43 90% 93%;
+    --state-probable-ink: 32 80% 32%;
+    --state-rejected: 28 8% 42%;
+    --state-rejected-fg: 0 0% 100%;
+    --state-rejected-soft: 35 10% 92%;
+    --state-rejected-ink: 28 8% 36%;
+    --state-observed: 175 48% 30%;
+    --state-observed-fg: 0 0% 100%;
+    --state-observed-soft: 175 45% 94%;
+    --state-observed-ink: 175 50% 25%;
+    --state-recommendation: 258 40% 48%;
+    --state-recommendation-fg: 0 0% 100%;
+    --state-recommendation-soft: 258 50% 96%;
+    --state-recommendation-ink: 258 40% 42%;
+    --state-insufficient: 30 6% 50%;
+    --state-insufficient-fg: 0 0% 100%;
+    --state-insufficient-soft: 35 8% 93%;
+    --state-insufficient-ink: 30 6% 40%;
+
+    /* dimension-score bands (RepoVeriX analytical scores, 0–100) */
+    --band-strong: 152 52% 34%;
+    --band-moderate: 38 90% 36%;
+    --band-weak: 20 80% 46%;
+    --band-unknown: 30 8% 45%;
+
+    /* evidence chain — the product's spine */
+    --chain-line: 36 17% 84%;
+    --chain-node: 14 63% 52%;
+    --chain-node-soft: 14 70% 96%;
+    --chain-node-ink: 14 70% 40%;
+  }
+
+  .dark {
+    --sev-critical: 0 72% 52%;
+    --sev-critical-fg: 0 0% 100%;
+    --sev-critical-soft: 0 45% 16%;
+    --sev-critical-ink: 0 80% 72%;
+    --sev-high: 20 80% 56%;
+    --sev-high-fg: 25 20% 8%;
+    --sev-high-soft: 20 45% 16%;
+    --sev-high-ink: 24 85% 70%;
+    --sev-medium: 40 88% 55%;
+    --sev-medium-fg: 25 20% 8%;
+    --sev-medium-soft: 40 45% 15%;
+    --sev-medium-ink: 45 85% 66%;
+    --sev-low: 205 60% 60%;
+    --sev-low-fg: 25 20% 8%;
+    --sev-low-soft: 205 40% 15%;
+    --sev-low-ink: 205 70% 70%;
+    --sev-info: 155 20% 62%;
+    --sev-info-fg: 25 20% 8%;
+    --sev-info-soft: 155 20% 14%;
+    --sev-info-ink: 155 25% 74%;
+
+    --state-verified: 150 48% 52%;
+    --state-verified-fg: 25 20% 8%;
+    --state-verified-soft: 150 30% 13%;
+    --state-verified-ink: 150 55% 66%;
+    --state-probable: 38 85% 56%;
+    --state-probable-fg: 25 20% 8%;
+    --state-probable-soft: 38 40% 14%;
+    --state-probable-ink: 42 85% 66%;
+    --state-rejected: 28 8% 58%;
+    --state-rejected-fg: 25 20% 8%;
+    --state-rejected-soft: 28 8% 16%;
+    --state-rejected-ink: 28 8% 70%;
+    --state-observed: 175 45% 55%;
+    --state-observed-fg: 25 20% 8%;
+    --state-observed-soft: 175 35% 13%;
+    --state-observed-ink: 175 50% 66%;
+    --state-recommendation: 258 55% 68%;
+    --state-recommendation-fg: 25 20% 8%;
+    --state-recommendation-soft: 258 35% 17%;
+    --state-recommendation-ink: 258 60% 78%;
+    --state-insufficient: 30 6% 60%;
+    --state-insufficient-fg: 25 20% 8%;
+    --state-insufficient-soft: 30 6% 16%;
+    --state-insufficient-ink: 30 6% 70%;
+
+    --band-strong: 150 48% 52%;
+    --band-moderate: 40 85% 56%;
+    --band-weak: 20 80% 58%;
+    --band-unknown: 30 8% 58%;
+
+    --chain-line: 26 10% 24%;
+    --chain-node: 14 63% 60%;
+    --chain-node-soft: 14 45% 18%;
+    --chain-node-ink: 16 75% 68%;
+  }
+}
+
+@layer components {
+  /* ---- chips -------------------------------------------------------- */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 9999px;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.6875rem;
+    line-height: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .chip .chip-dot {
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: currentColor;
+    flex: none;
+  }
+
+  .sev-critical {
+    background: hsl(var(--sev-critical));
+    color: hsl(var(--sev-critical-fg));
+  }
+  .sev-critical-soft {
+    background: hsl(var(--sev-critical-soft));
+    color: hsl(var(--sev-critical-ink));
+  }
+  .sev-high {
+    background: hsl(var(--sev-high));
+    color: hsl(var(--sev-high-fg));
+  }
+  .sev-high-soft {
+    background: hsl(var(--sev-high-soft));
+    color: hsl(var(--sev-high-ink));
+  }
+  .sev-medium {
+    background: hsl(var(--sev-medium));
+    color: hsl(var(--sev-medium-fg));
+  }
+  .sev-medium-soft {
+    background: hsl(var(--sev-medium-soft));
+    color: hsl(var(--sev-medium-ink));
+  }
+  .sev-low {
+    background: hsl(var(--sev-low));
+    color: hsl(var(--sev-low-fg));
+  }
+  .sev-low-soft {
+    background: hsl(var(--sev-low-soft));
+    color: hsl(var(--sev-low-ink));
+  }
+  .sev-info {
+    background: hsl(var(--sev-info));
+    color: hsl(var(--sev-info-fg));
+  }
+  .sev-info-soft {
+    background: hsl(var(--sev-info-soft));
+    color: hsl(var(--sev-info-ink));
+  }
+
+  .state-verified {
+    background: hsl(var(--state-verified));
+    color: hsl(var(--state-verified-fg));
+  }
+  .state-verified-soft {
+    background: hsl(var(--state-verified-soft));
+    color: hsl(var(--state-verified-ink));
+  }
+  .state-probable {
+    background: hsl(var(--state-probable));
+    color: hsl(var(--state-probable-fg));
+  }
+  .state-probable-soft {
+    background: hsl(var(--state-probable-soft));
+    color: hsl(var(--state-probable-ink));
+  }
+  .state-rejected {
+    background: hsl(var(--state-rejected));
+    color: hsl(var(--state-rejected-fg));
+  }
+  .state-rejected-soft {
+    background: hsl(var(--state-rejected-soft));
+    color: hsl(var(--state-rejected-ink));
+  }
+  .state-observed {
+    background: hsl(var(--state-observed));
+    color: hsl(var(--state-observed-fg));
+  }
+  .state-observed-soft {
+    background: hsl(var(--state-observed-soft));
+    color: hsl(var(--state-observed-ink));
+  }
+  .state-recommendation {
+    background: hsl(var(--state-recommendation));
+    color: hsl(var(--state-recommendation-fg));
+  }
+  .state-recommendation-soft {
+    background: hsl(var(--state-recommendation-soft));
+    color: hsl(var(--state-recommendation-ink));
+  }
+  .state-insufficient {
+    background: hsl(var(--state-insufficient));
+    color: hsl(var(--state-insufficient-fg));
+  }
+  .state-insufficient-soft {
+    background: hsl(var(--state-insufficient-soft));
+    color: hsl(var(--state-insufficient-ink));
+  }
+
+  .band-strong {
+    color: hsl(var(--band-strong));
+  }
+  .band-moderate {
+    color: hsl(var(--band-moderate));
+  }
+  .band-weak {
+    color: hsl(var(--band-weak));
+  }
+  .band-unknown {
+    color: hsl(var(--band-unknown));
+  }
+
+  /* ---- evidence chain ------------------------------------------------ */
+  .chain-line {
+    background: hsl(var(--chain-line));
+  }
+  .chain-node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    flex: none;
+    background: hsl(var(--chain-node-soft));
+    color: hsl(var(--chain-node-ink));
+  }
+  .chain-node-active {
+    background: hsl(var(--chain-node));
+    color: hsl(var(--primary-foreground));
+  }
+
+  /* ---- shared primitives --------------------------------------------- */
+  .mono-label {
+    font-family: var(--font-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+  .data-row {
+    transition: background-color 0.15s ease;
+  }
+  .data-row:hover {
+    background: hsl(var(--accent) / 0.6);
+  }
+  .score-meter {
+    height: 0.375rem;
+    border-radius: 9999px;
+    background: hsl(var(--muted));
+    overflow: hidden;
+  }
+  .score-meter > span {
+    display: block;
+    height: 100%;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+  .focus-ring:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
