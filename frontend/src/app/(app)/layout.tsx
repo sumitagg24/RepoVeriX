@@ -475,7 +475,75 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </main>
+
+      {/* Mobile bottom navigation — first-class touch targets, real routes only */}
+      <MobileNav
+        pathname={pathname}
+        findingTotal={findingTotal}
+        onMenu={() => setSidebarOpen(true)}
+      />
     </div>
+  );
+}
+
+const MOBILE_NAV: { name: string; href: string; icon: typeof Bug }[] = [
+  { name: 'Home', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Repos', href: '/repositories', icon: GitBranch },
+  { name: 'Sites', href: '/websites', icon: Globe },
+  { name: 'Findings', href: '/findings', icon: Bug },
+];
+
+function MobileNav({
+  pathname,
+  findingTotal,
+  onMenu,
+}: {
+  pathname: string;
+  findingTotal: number | null;
+  onMenu: () => void;
+}) {
+  return (
+    <nav
+      aria-label="Primary"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+    >
+      <div className="grid grid-cols-5">
+        {MOBILE_NAV.map((item) => {
+          const active = pathname === item.href || pathname.startsWith(item.href + '/');
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'relative flex min-h-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors',
+                active ? 'text-primary' : 'text-muted-foreground'
+              )}
+            >
+              {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-primary" aria-hidden="true" />}
+              <span className="relative">
+                <Icon className="h-5 w-5" aria-hidden="true" />
+                {item.href === '/findings' && findingTotal !== null && findingTotal > 0 && (
+                  <span className="absolute -right-2 -top-1 min-w-[16px] rounded-full bg-red-500 px-1 text-center text-[9px] font-bold leading-4 text-white">
+                    {findingTotal > 99 ? '99+' : findingTotal}
+                  </span>
+                )}
+              </span>
+              {item.name}
+            </Link>
+          );
+        })}
+        <button
+          onClick={onMenu}
+          aria-label="Open full navigation menu"
+          className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Menu className="h-5 w-5" aria-hidden="true" />
+          Menu
+        </button>
+      </div>
+    </nav>
   );
 }
 

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LogoMark } from '@/components/logo';
@@ -303,9 +302,9 @@ function StepFrame({
 function ConnectedNote({ detail }: { detail?: string | null }) {
   return (
     <div className="flex items-center gap-2">
-      <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+      <span className="chip state-verified-soft">
         {detail || 'Done'}
-      </Badge>
+      </span>
       <span className="text-xs text-muted-foreground">Completed</span>
     </div>
   );

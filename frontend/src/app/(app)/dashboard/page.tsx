@@ -30,6 +30,11 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import type { Finding, Repository, Scan } from '@/types/api';
 import { cn } from '@/lib/utils';
+import { formatConfidence } from '@/lib/verdict';
+import { PageHeader } from '@/components/system/page-header';
+import { SeverityChip, FindingStateChip } from '@/components/evidence';
+import { ScanStatus } from '@/components/system/status';
+import { EmptyState } from '@/components/ui/state';
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 const SEVERITY_BAR: Record<string, string> = {
@@ -38,24 +43,6 @@ const SEVERITY_BAR: Record<string, string> = {
   medium: 'bg-amber-500',
   low: 'bg-sky-500',
   info: 'bg-muted-foreground/50',
-};
-const SEVERITY_CHIP: Record<string, string> = {
-  critical: 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400',
-  high: 'border-orange-500/20 bg-orange-500/10 text-orange-600 dark:text-orange-400',
-  medium: 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  low: 'border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  info: 'bg-muted text-muted-foreground border-border',
-};
-const STATUS_CHIP: Record<string, string> = {
-  verified: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  probable: 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  rejected: 'bg-muted text-muted-foreground border-border',
-};
-const SCAN_CHIP: Record<string, string> = {
-  completed: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  running: 'border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  pending: 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  failed: 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400',
 };
 
 function durationText(scan: Scan): string {
@@ -134,45 +121,33 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toolbar header (product-app style) */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <ShieldCheck className="h-4.5 w-4.5" />
-          </span>
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Dashboard <span className="mx-1 text-border">/</span>{' '}
-              <span className="font-medium text-foreground">
-                {hasData && critical > 0
-                  ? `${critical} critical finding${critical === 1 ? '' : 's'} need${critical === 1 ? 's' : ''} attention`
-                  : hasData && high > 0
-                    ? `${high} high-severity issue${high === 1 ? '' : 's'} to review`
-                    : hasData
-                      ? 'No critical issues — evidence looks clean'
-                      : 'Your audit workspace'}
-              </span>
-            </p>
-            <p className="text-[13px] text-muted-foreground/80">
-              {repositories.length} {repositories.length === 1 ? 'repository' : 'repositories'} · {scans.length} scans ·{' '}
-              {verified} verified finding{verified === 1 ? '' : 's'}
-              {runningCount > 0 ? ` · ${runningCount} scan${runningCount === 1 ? '' : 's'} running` : ''}
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button variant="outline" size="sm" asChild className="h-8 gap-1.5 rounded-lg text-xs">
-            <Link href="/repositories?import=1">
-              <Plus className="h-3.5 w-3.5" /> Import
-            </Link>
-          </Button>
-          <Button size="sm" asChild className="h-8 gap-1.5 rounded-lg text-xs shadow-sm">
-            <Link href="/scans/new">
-              <ScanSearch className="h-3.5 w-3.5" /> New scan
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Dashboard"
+        title={
+          hasData && critical > 0
+            ? `${critical} critical finding${critical === 1 ? '' : 's'} need${critical === 1 ? 's' : ''} attention`
+            : hasData && high > 0
+              ? `${high} high-severity issue${high === 1 ? '' : 's'} to review`
+              : hasData
+                ? 'No critical issues — evidence looks clean'
+                : 'Your audit workspace'
+        }
+        description={`${repositories.length} ${repositories.length === 1 ? 'repository' : 'repositories'} · ${scans.length} scans · ${verified} verified finding${verified === 1 ? '' : 's'}${runningCount > 0 ? ` · ${runningCount} scan${runningCount === 1 ? '' : 's'} running` : ''}`}
+        actions={
+          <>
+            <Button variant="outline" size="sm" asChild className="h-8 gap-1.5 rounded-lg text-xs">
+              <Link href="/repositories?import=1">
+                <Plus className="h-3.5 w-3.5" /> Import
+              </Link>
+            </Button>
+            <Button size="sm" asChild className="h-8 gap-1.5 rounded-lg text-xs shadow-sm">
+              <Link href="/scans/new">
+                <ScanSearch className="h-3.5 w-3.5" /> New scan
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       <OnboardingChecklistCard />
 
@@ -187,7 +162,7 @@ export default function DashboardPage() {
           <Card key={k.label} className="transition-colors hover:border-border">
             <CardContent className="flex items-center justify-between p-4">
               <div className="min-w-0">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{k.label}</p>
+                <p className="mono-label">{k.label}</p>
                 <p className="mt-0.5 font-display text-3xl font-semibold tracking-tight tabular-nums">{k.value}</p>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{k.sub}</p>
               </div>
@@ -201,28 +176,28 @@ export default function DashboardPage() {
 
       {/* Group-style status pills (visual state, real counts) */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        <span className="mono-label mr-1">
           Group: Status
         </span>
         {hasData && (
           <>
             <Link
               href="/findings?status=verified"
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/15 dark:text-emerald-400"
+              className="inline-flex items-center gap-1.5 rounded-full transition-transform hover:scale-[1.02]"
             >
-              <ShieldCheck className="h-3 w-3" /> Verified · {verified}
+              <FindingStateChip state="verified" /> <span className="text-xs font-semibold tabular-nums">{verified}</span>
             </Link>
             <Link
               href="/findings?status=probable"
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/15 dark:text-amber-400"
+              className="inline-flex items-center gap-1.5 rounded-full transition-transform hover:scale-[1.02]"
             >
-              <AlertTriangle className="h-3 w-3" /> Probable · {probable}
+              <FindingStateChip state="probable" /> <span className="text-xs font-semibold tabular-nums">{probable}</span>
             </Link>
             <Link
-              href="/findings"
-              className="inline-flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/15 dark:text-red-400"
+              href="/findings?severity=critical"
+              className="inline-flex items-center gap-1.5 rounded-full transition-transform hover:scale-[1.02]"
             >
-              <XCircle className="h-3 w-3" /> Critical · {critical}
+              <SeverityChip severity="critical" /> <span className="text-xs font-semibold tabular-nums">{critical}</span>
             </Link>
             {runningCount > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400">
@@ -257,7 +232,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             {!hasData ? (
-              <EmptyPanel
+              <EmptyState
                 icon={FileSearch}
                 title="No findings yet"
                 body="Verified, probable and rejected counts appear once a scan completes."
@@ -333,7 +308,7 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             {queueItems.length === 0 ? (
               <div className="p-6">
-                <EmptyPanel
+                <EmptyState
                   icon={CheckCircle2}
                   title={hasData ? 'No open critical or high findings' : 'Nothing to triage yet'}
                   body={
@@ -352,11 +327,9 @@ export default function DashboardPage() {
                   const repoId = scan?.repository_id;
                   const repo = repoId ? repoName.get(repoId) : null;
                   return (
-                    <div key={f.id} className="flex flex-col gap-2 px-5 py-3 transition-colors hover:bg-accent/40 sm:flex-row sm:items-center sm:gap-4">
+                    <div key={f.id} className="data-row flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:gap-4">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <Badge variant="outline" className={cn('w-16 justify-center font-semibold', SEVERITY_CHIP[f.severity])}>
-                          {f.severity}
-                        </Badge>
+                        <SeverityChip severity={f.severity} />
                         <div className="min-w-0">
                           <Link href={`/findings/${f.id}`} className="block truncate text-sm font-medium hover:text-primary">
                             {f.title}
@@ -374,10 +347,8 @@ export default function DashboardPage() {
                             {repo}
                           </Link>
                         )}
-                        <Badge variant="outline" className={cn('gap-1', STATUS_CHIP[f.status])}>
-                          {f.status === 'verified' ? <ShieldCheck className="h-3 w-3" /> : f.status === 'probable' ? <AlertTriangle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                          {f.status} · {f.confidence}%
-                        </Badge>
+                        <FindingStateChip state={f.status} />
+                        <span className="text-xs tabular-nums text-muted-foreground">{formatConfidence(f.confidence)}</span>
                         <Link href={repo ? (scan ? `/scans/${scan.id}` : '#') : '#'} className="text-muted-foreground hover:text-foreground" title="Open the scan that found this">
                           <ArrowUpRight className="h-3.5 w-3.5" />
                         </Link>
@@ -408,7 +379,7 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             {recentScans.length === 0 ? (
               <div className="p-6">
-                <EmptyPanel
+                <EmptyState
                   icon={ScanSearch}
                   title="No scans yet"
                   body="A scan runs the full pipeline: parse → static analysis → knowledge graph → evidence validation."
@@ -422,7 +393,7 @@ export default function DashboardPage() {
                   const repoId = scan.repository_id;
                   const repo = repoName.get(repoId);
                   return (
-                    <Link key={scan.id} href={`/scans/${scan.id}`} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-accent/40">
+                    <Link key={scan.id} href={`/scans/${scan.id}`} className="data-row flex items-center gap-4 px-5 py-3">
                       <span
                         className={cn(
                           'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
@@ -458,10 +429,7 @@ export default function DashboardPage() {
                             {scan.error}
                           </span>
                         )}
-                        <Badge variant="outline" className={cn('gap-1', SCAN_CHIP[scan.status])}>
-                          {scan.status === 'running' && <Loader2 className="h-3 w-3 animate-spin" />}
-                          {scan.status.charAt(0).toUpperCase() + scan.status.slice(1)}
-                        </Badge>
+                        <ScanStatus status={scan.status} />
                       </div>
                     </Link>
                   );
@@ -485,7 +453,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-1.5">
             {repositories.length === 0 ? (
-              <EmptyPanel
+              <EmptyState
                 icon={FolderGit2}
                 title="Nothing imported yet"
                 body="Bring code in from GitHub, GitLab, an S3 archive link or a zip, then scan it."
@@ -539,31 +507,3 @@ export default function DashboardPage() {
   );
 }
 
-function EmptyPanel({
-  icon: Icon,
-  title,
-  body,
-  ctaHref,
-  ctaLabel,
-}: {
-  icon: typeof Bug;
-  title: string;
-  body: string;
-  ctaHref: string;
-  ctaLabel: string;
-}) {
-  return (
-    <div className="flex flex-col items-center py-8 text-center">
-      <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground/70">
-        <Icon className="h-5 w-5" />
-      </span>
-      <p className="font-medium">{title}</p>
-      <p className="mt-1 max-w-xs text-sm text-muted-foreground">{body}</p>
-      <Button asChild variant="outline" size="sm" className="mt-4 gap-1.5">
-        <Link href={ctaHref}>
-          <Plus className="h-3.5 w-3.5" /> {ctaLabel}
-        </Link>
-      </Button>
-    </div>
-  );
-}

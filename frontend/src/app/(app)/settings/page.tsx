@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { SettingsConnections } from '@/components/settings-connections';
+import { PageHeader } from '@/components/system/page-header';
 import { authService } from '@/services/api';
 import type { SecurityOverview } from '@/types/api';
 import { getApiErrorMessage } from '@/lib/api-error';
@@ -160,32 +161,33 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
-      </div>
+      <PageHeader
+        eyebrow="System"
+        title="Settings"
+        description="Identity, security, provider access, privacy and danger zone."
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="profile">
-            <User className="mr-2 h-4 w-4" />
-            Profile
+          <TabsTrigger value="profile" className="gap-1.5 px-2">
+            <User className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="hidden sm:inline">Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="security">
-            <Shield className="mr-2 h-4 w-4" />
-            Security
+          <TabsTrigger value="security" className="gap-1.5 px-2">
+            <Shield className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
-          <TabsTrigger value="connections">
-            <Link2 className="mr-2 h-4 w-4" />
-            Connections
+          <TabsTrigger value="connections" className="gap-1.5 px-2">
+            <Link2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="hidden sm:inline">Connections</span>
           </TabsTrigger>
-          <TabsTrigger value="privacy">
-            <Cookie className="mr-2 h-4 w-4" />
-            Privacy
+          <TabsTrigger value="privacy" className="gap-1.5 px-2">
+            <Cookie className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="hidden sm:inline">Privacy</span>
           </TabsTrigger>
-          <TabsTrigger value="danger">
-            <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-            Danger Zone
+          <TabsTrigger value="danger" className="gap-1.5 px-2">
+            <Trash2 className="h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+            <span className="hidden sm:inline">Danger Zone</span>
           </TabsTrigger>
         </TabsList>
 
@@ -269,11 +271,11 @@ export default function SettingsPage() {
                     {security.recent_events.length === 0 ? (
                       <p className="mt-2 text-sm text-muted-foreground">No recorded events yet.</p>
                     ) : (
-                      <ul className="mt-3 divide-y divide-border rounded-lg border">
+                      <ul className="mt-3 divide-y divide-border/60 rounded-lg border">
                         {security.recent_events.map((e, i) => (
-                          <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                          <li key={i} className="data-row flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                             <span>{EVENT_LABELS[e.event] ?? e.event}</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                               {e.ip ? `${e.ip} · ` : ''}
                               {e.at ? new Date(e.at).toLocaleString() : ''}
                             </span>
@@ -356,7 +358,16 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Connections Tab */}
-        <TabsContent value="connections">
+        <TabsContent value="connections" className="space-y-4">
+          <div className="rounded-xl border border-border/70 bg-card/60 p-4 text-sm leading-relaxed text-muted-foreground">
+            <p>
+              <span className="font-semibold text-foreground">Signing in</span> answers “who are
+              you?”. <span className="font-semibold text-foreground">Connecting a provider</span>{' '}
+              answers “what external resources may RepoVeriX access on your behalf?” — repository
+              contents for imports, never your credentials. Revoking removes access immediately;
+              already-imported data stays until you delete the repository.
+            </p>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>Connected accounts</CardTitle>

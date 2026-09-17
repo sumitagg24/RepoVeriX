@@ -80,6 +80,49 @@ export function CodeViewer({
 
 export type DiffLine = { kind: 'add' | 'del' | 'ctx' | 'hunk'; text: string; oldNo?: number; newNo?: number };
 
+/**
+ * Parse a unified diff into DiffLines with line numbers. Tolerates missing
+ * hunk headers — lines without @@ headers are numbered from 1 per side.
+ */
+export function parseUnifiedDiff(diff: string): DiffLine[] {
+  const out: DiffLine[] = [];
+  let oldNo = 0;
+  let newNo = 0;
+  for (const raw of diff.split('\n')) {
+    if (raw.startsWith('@@')) {
+      const m = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
+      if (m) {
+        oldNo = Number(m[1]);
+        newNo = Number(m[2]);
+      }
+      out.push({ kind: 'hunk', text: raw });
+      continue;
+    }
+    if (raw.startsWith('+++') || raw.startsWith('---')) {
+      out.push({ kind: 'hunk', text: raw });
+      continue;
+    }
+    if (raw.startsWith('+')) {
+      out.push({ kind: 'add', text: raw.slice(1), newNo: newNo || undefined });
+      if (newNo) newNo += 1;
+    } else if (raw.startsWith('-')) {
+      out.push({ kind: 'del', text: raw.slice(1), oldNo: oldNo || undefined });
+      if (oldNo) oldNo += 1;
+    } else {
+      const text = raw.startsWith(' ') ? raw.slice(1) : raw;
+      out.push({
+        kind: 'ctx',
+        text,
+        oldNo: oldNo || undefined,
+        newNo: newNo || undefined,
+      });
+      if (oldNo) oldNo += 1;
+      if (newNo) newNo += 1;
+    }
+  }
+  return out;
+}
+
 export function DiffViewer({ lines, className }: { lines: DiffLine[]; className?: string }) {
   const [copied, setCopied] = useState(false);
   const raw = lines.map((l) => `${l.kind === 'add' ? '+' : l.kind === 'del' ? '-' : ' '}${l.text}`).join('\n');

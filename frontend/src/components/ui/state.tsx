@@ -17,6 +17,7 @@ export function EmptyState({
   body,
   ctaHref,
   ctaLabel,
+  action,
   className,
 }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -24,6 +25,8 @@ export function EmptyState({
   body: string;
   ctaHref?: string;
   ctaLabel?: string;
+  /** Custom action (e.g. a button opening a dialog) — used instead of the link CTA. */
+  action?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -33,10 +36,14 @@ export function EmptyState({
       </span>
       <p className="font-medium">{title}</p>
       <p className="mt-1 max-w-xs text-sm text-muted-foreground">{body}</p>
-      {ctaHref && ctaLabel && (
-        <Button asChild variant="outline" size="sm" className="mt-4 gap-1.5">
-          <Link href={ctaHref}>{ctaLabel}</Link>
-        </Button>
+      {action ? (
+        <div className="mt-4">{action}</div>
+      ) : (
+        ctaHref && ctaLabel && (
+          <Button asChild variant="outline" size="sm" className="mt-4 gap-1.5">
+            <Link href={ctaHref}>{ctaLabel}</Link>
+          </Button>
+        )
       )}
     </div>
   );

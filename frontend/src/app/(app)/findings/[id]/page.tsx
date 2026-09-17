@@ -22,8 +22,6 @@ import {
   Bug,
   AlertTriangle,
   Shield,
-  FileCode,
-  Copy,
   CheckCircle,
   XCircle,
   Search,
@@ -40,39 +38,14 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import type { RunTestResponse } from '@/types/api';
-
-const severityColors: Record<string, string> = {
-  critical: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  high: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
-  medium: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-  low: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-  info: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-};
-
-const statusColors: Record<string, string> = {
-  verified: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  probable: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-  rejected: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-};
-
-const sourceColors: Record<string, string> = {
-  static: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-  llm: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
-  hybrid: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-};
-
-const evidenceKindIcons: Record<string, React.ReactNode> = {
-  source_input: <Search className="h-4 w-4" />,
-  transformation: <Shield className="h-4 w-4" />,
-  sink: <AlertTriangle className="h-4 w-4" />,
-  static_analysis: <FileCode className="h-4 w-4" />,
-  dependency: <Shield className="h-4 w-4" />,
-  test: <CheckCircle className="h-4 w-4" />,
-  llm_reasoning: <Bug className="h-4 w-4" />,
-  call_relationship: <Search className="h-4 w-4" />,
-};
+import { formatConfidence } from '@/lib/verdict';
+import { Breadcrumbs, PageHeader } from '@/components/system/page-header';
+import { EvidenceChain } from '@/components/system/evidence-chain';
+import { CodeViewer, DiffViewer, parseUnifiedDiff } from '@/components/system/code';
+import { VerificationTimeline } from '@/components/system/verification-timeline';
+import { VerificationBadge } from '@/components/system/status';
+import { EmptyState } from '@/components/ui/state';
 
 export default function FindingDetailPage() {
   const params = useParams();
@@ -122,56 +95,61 @@ export default function FindingDetailPage() {
 
   if (!finding) {
     return (
-      <div className="text-center py-12">
-        <Bug className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-        <h3 className="text-lg font-medium mb-2">Finding not found</h3>
-        <Link href="/findings">
-          <Button variant="outline" className="mt-4">Back to Findings</Button>
-        </Link>
+      <div className="space-y-6">
+        <Breadcrumbs items={[{ label: 'Findings', href: '/findings' }, { label: 'Not found' }]} />
+        <Card>
+          <EmptyState
+            icon={Bug}
+            title="Finding not found"
+            body="It may have been removed, or the link is stale. Findings live under the scan that produced them."
+            ctaHref="/findings"
+            ctaLabel="Back to findings"
+          />
+        </Card>
       </div>
     );
   }
 
+  const copyFindingLink = () => {
+    navigator.clipboard.writeText(window.location.href).catch(() => {
+      toast.error('Could not copy the link');
+    });
+    toast.success('Finding link copied');
+  };
+
   return (
     <div className="space-y-6">
       <FindingFeedbackBar findingId={finding.id} />
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Link href="/findings" className="text-sm text-muted-foreground hover:underline mb-2 inline-block">
-            ← Back to Findings
-          </Link>
-          <div className="flex items-start gap-4">
-            <div className={`p-4 rounded-lg ${severityColors[finding.severity]}`}>
-              <Bug className="h-8 w-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-bold tracking-tight">{finding.title}</h1>
-                <SeverityChip severity={finding.severity} variant="solid" />
-                <FindingStateChip state={finding.status} variant="solid" />
-                <Badge variant="outline" className={sourceColors[finding.source] ?? ''}>
-                  {finding.source}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {finding.file_path}:{finding.line_start || '?'} - {finding.category.replace('_', ' ')}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon">
-            <Clipboard className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/scans/${finding.scan_id}`}>
-              <ArrowUpRight className="mr-1 h-4 w-4" />
-              View Scan
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <Breadcrumbs items={[{ label: 'Findings', href: '/findings' }, { label: finding.title }]} />
+      <PageHeader
+        eyebrow={`${finding.file_path}:${finding.line_start || '?'} · ${finding.category.replace('_', ' ')}`}
+        title={finding.title}
+        meta={
+          <>
+            <SeverityChip severity={finding.severity} variant="solid" />
+            <FindingStateChip state={finding.status} variant="solid" />
+            <span className="chip state-insufficient-soft font-mono normal-case tracking-normal">
+              source · {finding.source}
+            </span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              confidence {formatConfidence(finding.confidence)}
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <Button variant="outline" size="icon" onClick={copyFindingLink} aria-label="Copy link to this finding">
+              <Clipboard className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={`/scans/${finding.scan_id}`}>
+                <ArrowUpRight className="mr-1 h-4 w-4" />
+                View Scan
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -181,7 +159,7 @@ export default function FindingDetailPage() {
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(finding.confidence * 100).toFixed(1)}%</div>
+            <div className="text-2xl font-bold tabular-nums">{formatConfidence(finding.confidence)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -208,7 +186,7 @@ export default function FindingDetailPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-sm">{formatDistanceToNow(new Date(finding.created_at), { addSuffix: true })}</div>
+            <div className="text-sm font-semibold">{formatDistanceToNow(new Date(finding.created_at), { addSuffix: true })}</div>
           </CardContent>
         </Card>
       </div>
@@ -282,30 +260,22 @@ export default function FindingDetailPage() {
                   <div>
                     <dt className="text-sm text-muted-foreground">Severity</dt>
                     <dd>
-                      <Badge variant="outline" className={severityColors[finding.severity]}>
-                        {finding.severity}
-                      </Badge>
+                      <SeverityChip severity={finding.severity} />
                     </dd>
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">Status</dt>
                     <dd>
-                      <Badge variant="outline" className={statusColors[finding.status]}>
-                        {finding.status}
-                      </Badge>
+                      <FindingStateChip state={finding.status} />
                     </dd>
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">Source</dt>
-                    <dd>
-                      <Badge variant="outline" className={sourceColors[finding.source]}>
-                        {finding.source}
-                      </Badge>
-                    </dd>
+                    <dd className="font-mono text-sm">{finding.source}</dd>
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">Confidence</dt>
-                    <dd>{(finding.confidence * 100).toFixed(1)}%</dd>
+                    <dd>{formatConfidence(finding.confidence)}</dd>
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">File</dt>
@@ -336,51 +306,62 @@ export default function FindingDetailPage() {
         <TabsContent value="evidence">
           <Card>
             <CardHeader>
-              <CardTitle>Evidence Graph</CardTitle>
-              <CardDescription>Ordered evidence chain from source to sink</CardDescription>
+              <CardTitle>Evidence chain</CardTitle>
+              <CardDescription>Ordered evidence from source to sink — every node is inspectable below</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
               {finding.evidence?.length === 0 ? (
-                <div className="text-center py-12">
-                  <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <h3 className="text-lg font-medium mb-2">No evidence recorded</h3>
-                </div>
+                <EmptyState
+                  icon={Search}
+                  title="No evidence recorded"
+                  body="Evidence nodes appear here once detectors and validators report them for this finding."
+                />
               ) : (
-                <div className="space-y-4">
-                  {finding.evidence
-                    .sort((a, b) => a.order_index - b.order_index)
-                    .map((evidence, index) => (
-                      <div key={evidence.id} className="flex gap-4 p-4 border rounded-lg">
-                        <div className="flex-shrink-0 w-12 text-center">
-                          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-muted mx-auto">
-                            {evidenceKindIcons[evidence.kind] || <Search className="h-5 w-5" />}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">Step {evidence.order_index + 1}</div>
-                        </div>
-                        <div className="flex-1 border-l-2 border-muted/50 pl-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="capitalize">{evidence.kind.replace('_', ' ')}</Badge>
-                            <span className="text-sm text-muted-foreground">
+                <>
+                  <EvidenceChain
+                    nodes={[...(finding.evidence ?? [])]
+                      .sort((a, b) => a.order_index - b.order_index)
+                      .map((e) => ({
+                        kind: e.kind.replaceAll('_', ' '),
+                        label: e.file_path ? `${e.file_path}:${e.line_start || '?'}` : 'No location',
+                        detail: e.description,
+                      }))}
+                  />
+                  <div className="space-y-4 border-t border-border/60 pt-6">
+                    {[...(finding.evidence ?? [])]
+                      .sort((a, b) => a.order_index - b.order_index)
+                      .map((evidence) => (
+                        <div key={evidence.id} className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="mono-label">
+                              Step {evidence.order_index + 1} · {evidence.kind.replaceAll('_', ' ')}
+                            </span>
+                            <span className="font-mono text-xs text-muted-foreground">
                               {evidence.file_path ? `${evidence.file_path}:${evidence.line_start || '?'}` : 'No location'}
                             </span>
                           </div>
                           <p className="whitespace-pre-wrap text-sm">{evidence.description}</p>
                           {evidence.snippet && (
-                            <details className="mt-2">
-                              <summary className="text-xs text-muted-foreground cursor-pointer">View Code Snippet</summary>
-                              <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto max-h-48"><code>{evidence.snippet}</code></pre>
-                            </details>
+                            <CodeViewer
+                              code={evidence.snippet}
+                              language={evidence.file_path?.split('.').pop()}
+                              maxHeight={220}
+                            />
                           )}
                           {Object.keys(evidence.metadata).length > 0 && (
-                            <details className="mt-2">
-                              <summary className="text-xs text-muted-foreground cursor-pointer">View Metadata</summary>
-                              <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto max-h-48">{JSON.stringify(evidence.metadata, null, 2)}</pre>
+                            <details>
+                              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                                View metadata
+                              </summary>
+                              <div className="mt-2">
+                                <CodeViewer code={JSON.stringify(evidence.metadata, null, 2)} language="json" maxHeight={220} />
+                              </div>
                             </details>
                           )}
                         </div>
-                      </div>
-                    ))}
-                </div>
+                      ))}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -441,30 +422,27 @@ export default function FindingDetailPage() {
                     <div key={patch.id} className="border rounded-lg overflow-hidden">
                       <div className="p-4 bg-muted/50 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${cn(
-                            patch.status === 'verified' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-                            patch.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400',
-                            patch.status === 'applied' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                            'bg-gray-500/10 text-gray-600 dark:text-gray-400'
-                          )}`}>
-                            <Shield className="h-5 w-5" />
-                          </div>
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <Shield className="h-4 w-4" aria-hidden="true" />
+                          </span>
                           <div>
-                            <p className="font-medium capitalize">{patch.status}</p>
-                            <p className="text-sm text-muted-foreground">Generated by: {patch.generated_by}</p>
+                            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                              Generated by {patch.generated_by}
+                            </p>
+                            <p className="font-mono text-xs text-muted-foreground/70">{patch.id.slice(0, 8)}</p>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           <PatchQualityBadge patchId={patch.id} />
-                          <Badge variant="outline" className={cn(
-                            patch.status === 'verified' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-                            patch.status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400',
-                            patch.status === 'applied' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                            patch.status === 'candidate' && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
-                            'bg-gray-500/10 text-gray-600 dark:text-gray-400'
-                          )}>
-                            {patch.status}
-                          </Badge>
+                          {patch.status === 'verified' ? (
+                            <VerificationBadge decision="VERIFIED_FIX" />
+                          ) : patch.status === 'failed' ? (
+                            <VerificationBadge decision="REJECTED_FIX" />
+                          ) : (
+                            <span className="chip state-probable-soft">
+                              {patch.status === 'applied' ? 'Applied — awaiting verification' : 'Candidate — not yet verified'}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {patch.explanation && (
@@ -472,14 +450,9 @@ export default function FindingDetailPage() {
                           <p className="text-sm text-muted-foreground">{patch.explanation}</p>
                         </div>
                       )}
-                      <div className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-mono text-sm">Diff</span>
-                          <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(patch.diff)}>
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <pre className="p-3 bg-muted rounded text-xs overflow-x-auto max-h-64"><code>{patch.diff}</code></pre>
+                      <div className="p-4 space-y-2">
+                        <p className="mono-label">Proposed diff — review before trusting</p>
+                        <DiffViewer lines={parseUnifiedDiff(patch.diff)} />
                       </div>
                       <VerificationSection patch={patch} />
                     </div>
@@ -560,7 +533,7 @@ export default function FindingDetailPage() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Badge variant="outline">{generated.generated_by}</Badge>
                   </div>
-                  <pre className="p-3 bg-muted rounded text-xs overflow-x-auto max-h-72"><code>{generated.test_code}</code></pre>
+                  <CodeViewer code={generated.test_code} language="python" maxHeight={300} />
                   {runResult && (() => {
                     const outcome = runResult.result?.outcome;
                     const color =
@@ -572,11 +545,17 @@ export default function FindingDetailPage() {
                     return (
                       <div className={`rounded-lg border p-4 ${color}`}>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="text-sm font-medium">
-                            {outcome === 'TEST_DOES_NOT_REPRODUCE' && '✓ Test passed — defect not present'}
-                            {outcome === 'TEST_REPRODUCES_BUG' && '✗ Test reproduced the defect (failed on vulnerable code)'}
-                            {outcome === 'TEST_FAILED_TO_EXECUTE' && '⚠ Test failed to execute (not a defect signal)'}
-                            {!outcome && (runResult.status === 'passed' ? '✓ Test passed' : '✗ Test failed')}
+                          <span className="flex items-center gap-1.5 text-sm font-medium">
+                            {outcome === 'TEST_DOES_NOT_REPRODUCE' && (
+                              <><CheckCircle className="h-4 w-4 text-emerald-500" aria-hidden="true" /> Test passed — defect not present</>
+                            )}
+                            {outcome === 'TEST_REPRODUCES_BUG' && (
+                              <><XCircle className="h-4 w-4 text-red-500" aria-hidden="true" /> Test reproduced the defect (failed on vulnerable code)</>
+                            )}
+                            {outcome === 'TEST_FAILED_TO_EXECUTE' && (
+                              <><AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" /> Test failed to execute (not a defect signal)</>
+                            )}
+                            {!outcome && (runResult.status === 'passed' ? 'Test passed' : 'Test failed')}
                           </span>
                           {runResult.result?.patch_applied && (
                             <Badge variant="outline">ran against fix{runResult.result.patched_files?.length ? ` (${runResult.result.patched_files.join(', ')})` : ''}</Badge>
@@ -711,19 +690,8 @@ export default function FindingDetailPage() {
                 <div className="space-y-4">
                   <div className="rounded-lg border p-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={
-                          validation.final_status === 'verified'
-                            ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
-                            : validation.final_status === 'rejected'
-                              ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                        }
-                      >
-                        {validation.final_status.toUpperCase()}
-                      </Badge>
-                      <span className="text-sm font-medium">
+                      <FindingStateChip state={validation.final_status} variant="solid" />
+                      <span className="text-sm font-medium tabular-nums">
                         {Math.round(validation.confidence * 100)}% confidence
                       </span>
                       <span className="text-xs text-muted-foreground ml-auto">
@@ -739,21 +707,7 @@ export default function FindingDetailPage() {
                     )}
                   </div>
 
-                  <div className="rounded-lg border divide-y">
-                    {validation.checks.map((check) => (
-                      <div key={check.key} className="flex items-start gap-2.5 px-4 py-2.5">
-                        {check.passed ? (
-                          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                        ) : (
-                          <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{check.label}</p>
-                          <p className="text-xs text-muted-foreground">{check.detail}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <VerificationTimeline checks={validation.checks} />
 
                   {validation.contradicting_evidence.length > 0 && (
                     <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-1.5">

@@ -14,6 +14,7 @@ import {
 import { useCreateWebsiteAudit, useDeleteWebsite, useRegisterWebsite, useWebsites } from '@/hooks/useWebsites';
 import { Globe, Globe2, Loader2, Plus, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { PageHeader } from '@/components/system/page-header';
 
 function normalizeInput(raw: string): string {
   const trimmed = raw.trim();
@@ -38,16 +39,12 @@ export default function WebsitesPage() {
   const detailFor = (id: string) => `/websites/${id}`;
 
   return (
-    <div className="space-y-6 p-6 animate-page">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Website Audits</h1>
-          <p className="text-sm text-muted-foreground">
-            Passive analysis of public pages: SEO, security headers, accessibility and
-            AI-search readiness signals.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6 animate-page">
+      <PageHeader
+        eyebrow="Analysis"
+        title="Website Audits"
+        description="Passive analysis of public pages: SEO, security headers, accessibility and AI-search readiness signals."
+      />
 
       <Card>
         <CardHeader>

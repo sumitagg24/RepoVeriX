@@ -34,6 +34,8 @@ import {
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import type { Repository, SourceType } from '@/types/api';
+import { PageHeader } from '@/components/system/page-header';
+import { EmptyState, ListSkeleton } from '@/components/ui/state';
 
 const SOURCE_META: Record<SourceType, { label: string; icon: typeof Github; className: string }> = {
   github: { label: 'GitHub', icon: Github, className: 'bg-foreground text-background' },
@@ -98,21 +100,17 @@ function RepositoriesContent() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-primary">Repositories</p>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-balance">
-            Code you want to audit
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            Import from GitHub, GitLab, AWS S3 or a zip — then run a scan.
-          </p>
-        </div>
-        <Button onClick={() => openImport('github')} className="gap-2 shadow-sm">
-          <Plus className="h-4 w-4" />
-          Import repository
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Workspace"
+        title="Code you want to audit"
+        description="Import from GitHub, GitLab, AWS S3 or a zip — then run a scan."
+        actions={
+          <Button onClick={() => openImport('github')} className="gap-2 shadow-sm">
+            <Plus className="h-4 w-4" />
+            Import repository
+          </Button>
+        }
+      />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -126,25 +124,29 @@ function RepositoriesContent() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted/70" />
-          ))}
-        </div>
+        <ListSkeleton rows={4} />
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed bg-card/40 py-16 text-center">
-          <FolderGit2 className="mx-auto mb-4 h-10 w-10 text-muted-foreground/60" />
-          <h3 className="font-display text-xl font-medium">{searchQuery ? 'No matches' : 'Nothing to audit yet'}</h3>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            {searchQuery
-              ? 'Try a different search term.'
-              : 'Bring in a repository from GitHub, GitLab, an S3 archive link, or a zip file.'}
-          </p>
-          {!searchQuery && (
-            <Button onClick={() => openImport('github')} className="mt-5 gap-2">
-              <Plus className="h-4 w-4" /> Import your first repository
-            </Button>
-          )}
+        <div className="rounded-2xl border border-dashed bg-card/40">
+          <EmptyState
+            icon={searchQuery ? Search : FolderGit2}
+            title={searchQuery ? `No repositories match “${searchQuery}”` : 'Nothing to audit yet'}
+            body={
+              searchQuery
+                ? 'Try a different search term.'
+                : 'Bring in a repository from GitHub, GitLab, an S3 archive link, or a zip file.'
+            }
+            action={
+              searchQuery ? (
+                <Button variant="outline" size="sm" onClick={() => setSearchQuery('')}>
+                  Clear search
+                </Button>
+              ) : (
+                <Button onClick={() => openImport('github')} className="gap-2">
+                  <Plus className="h-4 w-4" /> Import your first repository
+                </Button>
+              )
+            }
+          />
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
@@ -178,7 +180,10 @@ function RepositoriesContent() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100">
+                      <button
+                        aria-label={`Actions for ${repo.name}`}
+                        className="rounded-lg p-1.5 text-muted-foreground transition-opacity hover:bg-accent focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                     </DropdownMenuTrigger>
