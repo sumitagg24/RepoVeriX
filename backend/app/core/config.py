@@ -30,6 +30,19 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    # --- HTTP security hardening ---
+    # Hosts (bare hostnames; ports optional) whose ``Host`` header is accepted.
+    # Requests from any other host are rejected with 403 (DNS-rebinding /
+    # host-header poisoning defence). An empty list accepts every host — for
+    # deployments where the public hostname is not known at startup.
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "test", "testserver"]
+
+    # Serve the interactive API docs (/docs, /redoc, /openapi.json). These
+    # expose the full internal route + schema surface and should stay off in
+    # production unless explicitly needed. ``debug=True`` enables them too,
+    # matching FastAPI's classic default for local development.
+    expose_api_docs: bool = False
+
     repository_storage_dir: str = "./data/repositories"
 
     # --- repository intelligence (code health, git analytics, wiki) ---
@@ -54,6 +67,9 @@ class Settings(BaseSettings):
     # "none" disables container networking (pip/npm installs then fail); "bridge"
     # allows package downloads during dependency installation
     sandbox_network: str = "bridge"
+    # Hard cap on processes a verification container may spawn (fork bombs in
+    # untrusted code are a real DoS vector against the host).
+    sandbox_pids_limit: int = 256
 
     # --- rate limiting (see app/core/ratelimit.py) ---
     # Master switch. Keep disabled while running the test suite unless a test
@@ -73,6 +89,55 @@ class Settings(BaseSettings):
     auth_rate_limit_window_seconds: int = 300
     auth_backoff_base_seconds: int = 30
     auth_backoff_max_seconds: int = 3600
+
+    # --- authentication & account security (docs/AUTH.md) ---
+    # Identity provider. ``repoverix-local`` is the built-in email/password +
+    # OAuth system (bcrypt, stateless JWT). ``supabase`` is reserved for a
+    # future *planned* cutover: the inbound auth-webhook receiver already
+    # understands external identity events, but switching providers requires
+    # the documented migration procedure — never enable it without one.
+    auth_provider: str = "repoverix-local"
+    # Which social buttons are offered (subset of the configured OAuth specs).
+    auth_allowed_social_providers: list[str] = ["google", "github", "gitlab"]
+    # Password accounts must verify their email before provider connections,
+    # repository registration and scans are allowed (server-side gate).
+    auth_require_email_verification: bool = True
+    # Reject disposable/temporary email domains at signup (server-side,
+    # dataset-driven — see app/services/disposable.py).
+    auth_block_disposable_email: bool = True
+    # Extra blocked domains administrators can add without a code change.
+    auth_extra_blocked_email_domains: list[str] = []
+    # Persistent per-account progressive lockout (on top of the IP/account
+    # window limiter above): after auth_max_failed_attempts consecutive
+    # failures the account cools down for auth_lockout_minutes, multiplied by
+    # auth_lockout_backoff_multiplier per further failure, capped at
+    # auth_max_lockout_minutes. Never a permanent lock.
+    auth_max_failed_attempts: int = 5
+    auth_lockout_minutes: int = 5
+    auth_max_lockout_minutes: int = 120
+    auth_lockout_backoff_multiplier: int = 2
+    # One-time email tokens.
+    email_verification_token_minutes: int = 60 * 24
+    password_reset_token_minutes: int = 60
+    # Anti-abuse budgets for mail-generating endpoints (per email, per hour).
+    email_resend_per_hour: int = 3
+    password_reset_per_hour: int = 3
+    # Email delivery. ``console`` prints the message (development only — it
+    # includes one-time links, so never use it in production); ``smtp`` sends
+    # through the SMTP settings below.
+    email_backend: str = "console"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "RepoVeriX <no-reply@repoverix.local>"
+    # Optional breached-password screening via the HIBP k-anonymity range API:
+    # only the 5-character SHA-1 prefix of the password leaves the process —
+    # never the password itself. Off by default (outbound call at signup).
+    password_breach_check: bool = False
+    # HMAC secret for inbound auth-sync webhooks (POST /auth/webhooks/events).
+    # When unset the receiver answers 503 (disabled) instead of trusting.
+    auth_webhook_secret: str | None = None
 
     # Moderate tier for unauthenticated public endpoints (e.g. OAuth
     # entrypoints, provider listing) per client IP.
@@ -124,6 +189,21 @@ class Settings(BaseSettings):
     stripe_team_price_id: str | None = None
 
     # Absolute URL of the frontend, used as the post-OAuth landing origin.
+    # --- security: outbound fetches (SSRF) & secrets at rest ---
+    # Reject clones / archive downloads whose host resolves to a private,
+    # loopback, link-local or cloud-metadata address. Set true only for
+    # self-hosted deployments that intentionally import from an internal git
+    # server.
+    ssrf_allow_private_hosts: bool = False
+    # Fernet key (urlsafe base64, 32 bytes) used to encrypt third-party OAuth
+    # access/refresh tokens at rest. When unset (local dev only) tokens are
+    # stored as before; production must set it.
+    token_encryption_key: str | None = None
+
+    # --- database backups ---
+    backup_dir: str = "./data/backups"
+    backup_retention_days: int = 14
+
     frontend_url: str = "http://localhost:3000"
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
@@ -146,7 +226,30 @@ class Settings(BaseSettings):
     pr_worktree_dir: str = "./data/pr-worktrees"
 
 
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "test", "testserver", "0.0.0.0"}
+
+
+def ensure_production_safety(settings: Settings) -> None:
+    """Refuse to run with unsafe defaults in a production-like deployment.
+
+    A deployment that looks like production (a public Host allowlist) but still
+    runs the built-in ``jwt_secret`` default would let anyone forge session
+    tokens for any user, so configuration load fails loudly instead. Local
+    development is unaffected: its Host allowlist only contains
+    loopback/test values.
+    """
+    host_allowlist = {h.lower() for h in settings.allowed_hosts}
+    looks_production = not host_allowlist.issubset(_LOCAL_HOSTS)
+    if looks_production and settings.jwt_secret == Settings.model_fields["jwt_secret"].default:
+        raise RuntimeError(
+            "REPOVERIX_JWT_SECRET must be set in production: the default secret "
+            "would let anyone forge authentication tokens."
+        )
+
+
 @lru_cache
 def get_settings() -> Settings:
-    """Return the cached settings instance."""
-    return Settings()
+    """Return the cached settings instance, refusing unsafe production defaults."""
+    settings = Settings()
+    ensure_production_safety(settings)
+    return settings

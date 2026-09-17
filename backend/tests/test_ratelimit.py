@@ -156,14 +156,18 @@ class TestEndpointRateLimits:
                 "/api/v1/auth/signup",
                 json={
                     "email": f"bulk{i}@example.com",
-                    "password": "password123",
+                    "password": "S97x-strong-test-passphrase",
                     "full_name": "Bulk Signup",
                 },
             )
             assert response.status_code == 201
         response = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "bulk3@example.com", "password": "password123", "full_name": "Bulk Signup"},
+            json={
+                "email": "bulk3@example.com",
+                "password": "S97x-strong-test-passphrase",
+                "full_name": "Bulk Signup",
+            },
         )
         assert response.status_code == 429
         assert "Retry-After" in response.headers

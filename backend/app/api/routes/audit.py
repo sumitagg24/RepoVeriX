@@ -109,6 +109,10 @@ async def change_audit(
     """Audit a change: PR-style review over refs or a raw unified diff."""
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "change_audit"))
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "change-audit")
     repository = await _load_repository(repository_id, db, current_user)
     src = _working_copy(repository)
 
@@ -155,9 +159,7 @@ async def change_audit(
     )
     insight = insight_result.scalar_one_or_none()
     if insight is not None and insight.health:
-        health_by_file = {
-            f["path"]: float(f["score"]) for f in (insight.health.get("files") or [])
-        }
+        health_by_file = {f["path"]: float(f["score"]) for f in (insight.health.get("files") or [])}
 
     audit = await changes.analyze_change(
         src,
@@ -254,6 +256,10 @@ async def explain_change(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "change_audit"))
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "change-audit")
     repository = await _load_repository(repository_id, db, current_user)
     src = _working_copy(repository)
 

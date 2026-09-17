@@ -26,7 +26,9 @@ _FIX_SUBJECT_RE = re.compile(
     re.IGNORECASE,
 )
 
-_FINDING_FN_HINTS = re.compile(r"(search|login|auth|query|fetch|load|parse|exec|delete|upload|run)", re.IGNORECASE)
+_FINDING_FN_HINTS = re.compile(
+    r"(search|login|auth|query|fetch|load|parse|exec|delete|upload|run)", re.IGNORECASE
+)
 
 
 def _parse_blame_porcelain(stdout: str) -> dict[int, str]:
@@ -159,15 +161,10 @@ async def mine_vulnerability_history(
     fix_subjects = [s for s in subjects if _FIX_SUBJECT_RE.search(s)]
     ages = [a["age_days"] for a in introduced if a.get("age_days") is not None]
     repeated_roles = Counter(
-        path.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()
-        for a in introduced
-        for path in [a["file_path"]]
+        path.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower() for a in introduced for path in [a["file_path"]]
     )
 
-    top_authors = [
-        {"author": name, "introduced_findings": n}
-        for name, n in authors.most_common(10)
-    ]
+    top_authors = [{"author": name, "introduced_findings": n} for name, n in authors.most_common(10)]
     return {
         "available": True,
         "findings_analyzed": len(analyzed),

@@ -34,6 +34,9 @@ def is_cancelled(scan_id: uuid.UUID | str) -> bool:
 
 def schedule(name: str, coro_factory: Any) -> asyncio.Task:
     """Schedule ``coro_factory()`` (an awaitable factory) in the background loop."""
+    from app.core.metrics import inc
+
+    inc("repoverix_jobs_scheduled_total", {"kind": "generic"})
     loop = asyncio.get_running_loop()
     _cancel_events[name] = asyncio.Event()
 
@@ -55,6 +58,9 @@ def schedule(name: str, coro_factory: Any) -> asyncio.Task:
 
 def schedule_scan(scan_id: uuid.UUID, runner: Any) -> None:
     """Schedule ``runner(scan_id)`` in the background event loop."""
+    from app.core.metrics import inc
+
+    inc("repoverix_jobs_scheduled_total", {"kind": "scan"})
     schedule(str(scan_id), lambda: _scan_runner(scan_id, runner))
 
 

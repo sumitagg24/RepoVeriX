@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.ingest import archive_path, repository_dir
-from app.api.dependencies import get_current_user, get_db
+from app.api.dependencies import get_current_user, get_db, get_verified_user
 from app.core.config import get_settings
 from app.core.ratelimit import check_action, enforce
 from app.db.models import OAuthAccount, Repository, SourceType
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/repositories", tags=["repositories"])
 @router.post("", response_model=RepositoryRead, status_code=status.HTTP_201_CREATED)
 async def create_repository(
     payload: RepositoryCreate,
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Register a new repository for the current user."""
@@ -60,7 +60,7 @@ async def create_repository(
 async def create_repository_from_archive(
     payload: ArchiveImportRequest,
     request: Request,
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Register a repository from a hosted archive URL.
@@ -97,7 +97,7 @@ async def create_repository_from_archive(
 async def create_repository_from_oauth(
     payload: OAuthImportRequest,
     request: Request,
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Register a repository through a connected GitHub/GitLab account.
@@ -108,6 +108,7 @@ async def create_repository_from_oauth(
     """
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "import_oauth"))
+
     if get_settings().billing_enforce:
         from app.services.billing import assert_can_import_repository
 
@@ -214,7 +215,7 @@ async def create_repository_from_zip(
     request: Request,
     name: str = Form(min_length=1, max_length=200),
     file: UploadFile = File(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a repository from an uploaded ZIP archive (stored for scan-time extraction).

@@ -83,9 +83,11 @@ def _clone_or_409(repository: Repository):
 
 def _github_token(repository: Repository) -> str | None:
     settings = get_settings()
+    from app.core.crypto import decrypt_token
+
     oauth = repository.oauth_account
-    token = oauth.access_token if oauth is not None and oauth.provider == "github" else None
-    return gh.resolve_token(settings, oauth_access_token=token)
+    stored = oauth.access_token if oauth is not None and oauth.provider == "github" else None
+    return gh.resolve_token(settings, oauth_access_token=decrypt_token(stored))
 
 
 def _github_ident_or_409(repository: Repository, need_token: bool = False) -> tuple[str, str, str | None]:
@@ -122,6 +124,10 @@ async def analyze_pull_request(
     settings = get_settings()
     if settings.rate_limit_enabled:
         enforce(check_action(str(current_user.id), "change_audit"))
+    if settings.billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "pull-request-audit")
     repository = await _load_repository(repository_id, db, current_user)
     owner, repo, token = _github_ident_or_409(repository)
     src = _clone_or_409(repository)
@@ -301,6 +307,10 @@ async def post_pull_request_review(
     This never happens automatically — the UI shows a preview and the user
     clicks "Post review". Requires a GitHub token with write access.
     """
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "pull-request-audit")
     repository = await _load_repository(repository_id, db, current_user)
     result = await db.execute(
         select(PullRequestAudit).where(

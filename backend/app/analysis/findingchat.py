@@ -124,9 +124,9 @@ def answer_finding_question(
             )
             answer = f"Evidence chain ({len(rows)} nodes):\n{chain}"
     elif intent == "confidence":
-        basis = ", ".join(
-            {e.kind.value.replace("_", " ") for e in finding.evidence}
-        ) or "no evidence recorded"
+        basis = (
+            ", ".join({e.kind.value.replace("_", " ") for e in finding.evidence}) or "no evidence recorded"
+        )
         answer = (
             f"Confidence is {int(conf * 100)}% with status **{status}**. "
             f"This is computed from evidence, not model bravado. Evidence present: {basis}."
@@ -144,11 +144,17 @@ def answer_finding_question(
     elif intent == "verify":
         patches = _patch_state(finding)
         if not patches:
-            answer = "No patches have been verified for this finding yet — generate a fix and run the sandbox."
+            answer = (
+                "No patches have been verified for this finding yet — generate a fix and run the sandbox."
+            )
         else:
             lines = "\n".join(
                 f"- patch {p['patch_id'][:8]} → {p['verification']}"
-                + (f" (tests {'passed' if p['tests_passed'] else 'failed'})" if p["tests_passed"] is not None else "")
+                + (
+                    f" (tests {'passed' if p['tests_passed'] else 'failed'})"
+                    if p["tests_passed"] is not None
+                    else ""
+                )
                 for p in patches[:5]
             )
             answer = f"Verification state ({len(patches)} patch(es)):\n{lines}"

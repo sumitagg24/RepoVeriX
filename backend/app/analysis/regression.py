@@ -175,9 +175,7 @@ def compare_scans(
     still_ids.extend(sorted({a.external_id for _b, a in moved_pairs}))
     new_ids = sorted(f.external_id for f in leftover_after if f.external_id not in moved_after_ids)
     moved_before_ids = {b.external_id for b, _a in moved_pairs}
-    resolved_ids = sorted(
-        f.external_id for f in leftover_before if f.external_id not in moved_before_ids
-    )
+    resolved_ids = sorted(f.external_id for f in leftover_before if f.external_id not in moved_before_ids)
 
     pairs: dict[str, tuple[Finding, Finding]] = {}
     for key in still_ids:
@@ -242,15 +240,12 @@ def compare_scans(
     if earlier is not None:
         earlier_map = {f.external_id: f for f in earlier}
         earlier_after = [
-            f
-            for f in after
-            if f.external_id not in before_map and f.external_id not in moved_after_ids
+            f for f in after if f.external_id not in before_map and f.external_id not in moved_after_ids
         ]
         reintroduced = sorted(
             f.external_id
             for f in earlier_after
-            if f.external_id in earlier_map
-            and (f.external_id in set(new_ids))
+            if f.external_id in earlier_map and (f.external_id in set(new_ids))
         )
 
     def by_id(ids: list[str]) -> dict[str, Finding]:

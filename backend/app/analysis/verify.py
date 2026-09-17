@@ -132,6 +132,13 @@ class DockerRunner:
             "docker",
             "run",
             "--rm",
+            # Untrusted repository code runs inside a disposable container:
+            # cap the process count (fork-bomb DoS), forbid privilege
+            # escalation and keep the host out of reach.
+            "--pids-limit",
+            str(settings.sandbox_pids_limit),
+            "--security-opt",
+            "no-new-privileges",
             "--network",
             settings.sandbox_network,
             "-m",

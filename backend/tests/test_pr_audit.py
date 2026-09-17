@@ -34,11 +34,11 @@ SQLI_SOURCE = (
     "    return conn.execute(query).fetchall()\n"
     "\n"
     "def login(request):\n"
-    "    username = request.get(\"username\")\n"
+    '    username = request.get("username")\n'
     "    return search_users(username)\n"
     "\n"
     "def admin_check(user):\n"
-    "    return user.get(\"role\") == \"admin\"\n"
+    '    return user.get("role") == "admin"\n'
 )
 
 
@@ -255,10 +255,26 @@ class TestPrAuditor:
     def test_inline_comments_only_on_added_lines(self):
         hunks = [changes.DiffHunk(file="app.py", added_lines={6, 8}, removed_lines={3})]
         findings = [
-            {"file_path": "app.py", "line_start": 6, "severity": "high", "status": "probable",
-             "confidence": 0.5, "title": "SQLi", "description": "d", "rule": "RVX-SQLI-001"},
-            {"file_path": "app.py", "line_start": 3, "severity": "low", "status": "probable",
-             "confidence": 0.4, "title": "Old line", "description": "d", "rule": "RVX-X"},
+            {
+                "file_path": "app.py",
+                "line_start": 6,
+                "severity": "high",
+                "status": "probable",
+                "confidence": 0.5,
+                "title": "SQLi",
+                "description": "d",
+                "rule": "RVX-SQLI-001",
+            },
+            {
+                "file_path": "app.py",
+                "line_start": 3,
+                "severity": "low",
+                "status": "probable",
+                "confidence": 0.4,
+                "title": "Old line",
+                "description": "d",
+                "rule": "RVX-X",
+            },
         ]
         comments = pr_audit.build_inline_comments(findings, hunks)
         assert len(comments) == 1
@@ -279,9 +295,16 @@ class TestPrAuditor:
             )
         ]
         pr = SimpleNamespace(
-            number=7, title="Add search", body="", state="open", author="dev",
-            html_url="https://github.com/o/r/pull/7", base_ref="main", base_sha="b" * 40,
-            head_ref="feature", head_sha="h" * 40,
+            number=7,
+            title="Add search",
+            body="",
+            state="open",
+            author="dev",
+            html_url="https://github.com/o/r/pull/7",
+            base_ref="main",
+            base_sha="b" * 40,
+            head_ref="feature",
+            head_sha="h" * 40,
         )
         previous = [
             _finding(
@@ -401,6 +424,10 @@ class TestGithubService:
 
         with pytest.raises(gh.GithubApiError) as exc:
             await gh.fetch_pr(
-                "o", "r", 99, client=FakeClient(), settings=Settings(github_api_base_url="https://stub.invalid")
+                "o",
+                "r",
+                99,
+                client=FakeClient(),
+                settings=Settings(github_api_base_url="https://stub.invalid"),
             )
         assert exc.value.status == 404

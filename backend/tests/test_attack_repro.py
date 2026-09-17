@@ -43,9 +43,7 @@ def test_attack_path_entry_risk_and_categories():
         assert path["risk_level"] in ("LOW", "MEDIUM", "HIGH", "CRITICAL")
         assert path["sink_category"]
         assert isinstance(path["risk_factors"], dict)
-        assert all(
-            {"function", "file", "line"} <= set(step) for step in path["steps"]
-        )
+        assert all({"function", "file", "line"} <= set(step) for step in path["steps"])
 
 
 def test_attack_path_http_chain_verified(tmp_path: Path):
@@ -72,9 +70,7 @@ def test_attack_path_http_chain_verified(tmp_path: Path):
     graph = KnowledgeGraph(list(parsed.values()))
     result = attackpaths.find_attack_paths(graph, parsed)
     http_chains = [
-        p
-        for p in result["paths"]
-        if p["status"] == "VERIFIED" and p["entry_point"]["type"] == "http"
+        p for p in result["paths"] if p["status"] == "VERIFIED" and p["entry_point"]["type"] == "http"
     ]
     assert http_chains, "expected a VERIFIED HTTP-handler chain"
     chain = max(http_chains, key=lambda p: p["length"])
@@ -89,11 +85,7 @@ def test_attack_path_calls_unresolved_flagged_probable(tmp_path: Path):
     """An entry point whose data flow leaves the parsed graph is PROBABLE,
     never silently claimed as a verified exploit."""
     (tmp_path / "cli.py").write_text(
-        "import sys\n"
-        "\n"
-        "def main():\n"
-        "    arg = sys.argv[1]\n"
-        "    return process(arg)\n",
+        "import sys\n\ndef main():\n    arg = sys.argv[1]\n    return process(arg)\n",
         encoding="utf-8",
     )
     parsed = _parse(tmp_path)
@@ -161,9 +153,7 @@ def test_reachability_vulnerability_details(tmp_path: Path):
         root,
         parsed,
         vulnerability_counts={"flask": 1},
-        vulnerability_details={
-            "flask": [{"id": "CVE-2023-1234", "cvss": 9.8, "summary": "path traversal"}]
-        },
+        vulnerability_details={"flask": [{"id": "CVE-2023-1234", "cvss": 9.8, "summary": "path traversal"}]},
     )
     by_name = {r["name"]: r for r in result["dependencies"]}
     flask = by_name["flask"]
@@ -182,8 +172,7 @@ def test_reachability_transitive_lockfile(tmp_path: Path):
         json_lock({"express": "4.18.2", "axios": "0.27.2"}), encoding="utf-8"
     )
     (root / "index.js").write_text(
-        "import express from 'express';\n"
-        "const app = express();\n",
+        "import express from 'express';\nconst app = express();\n",
         encoding="utf-8",
     )
     parsed = _parse(root)
@@ -226,7 +215,7 @@ def _sql_vulnerable_app(root: Path) -> Path:
         "import sqlite3\n"
         "\n"
         "def search_users(username):\n"
-        "    query = f\"SELECT * FROM users WHERE username = {username}\"\n"
+        '    query = f"SELECT * FROM users WHERE username = {username}"\n'
         "    return sqlite3.connect('db.sqlite').execute(query)\n",
         encoding="utf-8",
     )
@@ -240,8 +229,8 @@ def _contract_test_code() -> str:
         "\n"
         "SOURCE = pathlib.Path(__file__).resolve().parent.parent / 'app.py'\n"
         "PATTERN = re.compile(\n"
-        "    r\"(execute|executemany|query)\\s*\\(\\s*f['\\\"]\"\n"
-        "    r\"|query\\s*=\\s*f['\\\"]\",\n"
+        '    r"(execute|executemany|query)\\s*\\(\\s*f[\'\\"]"\n'
+        '    r"|query\\s*=\\s*f[\'\\"]",\n'
         "    re.IGNORECASE,\n"
         ")\n"
         "\n"

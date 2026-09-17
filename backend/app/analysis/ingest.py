@@ -163,6 +163,16 @@ async def clone_github_repository(
     executed here, only cloned. ``token`` is optional and authenticates the
     clone for private repositories of the matching provider.
     """
+    # SSRF preflight: never let an attacker point the clone at internal hosts.
+    from app.core.ssrf import SSRFBlocked, assert_safe_url
+
+    try:
+        assert_safe_url(url)
+    except SSRFBlocked as exc:
+        raise AnalysisError(
+            f"This repository URL is blocked (SSRF guard): {exc}", code="ssrf_blocked"
+        ) from None
+
     clean = git_clone_url(url, provider=provider, token=token)
 
     settings = get_settings()
@@ -265,15 +275,51 @@ async def download_archive(
     if parsed.scheme not in ("http", "https"):
         raise AnalysisError("Invalid archive URL", code="invalid_url")
 
+    from app.core.ssrf import SSRFBlocked, assert_safe_url, preflight_and_pin, validate_url
+
+    try:
+        assert_safe_url(url)
+    except SSRFBlocked as exc:
+        raise AnalysisError(f"This archive URL is blocked (SSRF guard): {exc}", code="ssrf_blocked") from None
+
     settings = get_settings()
     max_bytes = settings.max_repo_size_mb * 1024 * 1024
     dest = archive_path(repo_id, storage_root)
     close = client is None
-    client = client or httpx.AsyncClient(
-        timeout=httpx.Timeout(settings.git_clone_timeout_seconds), follow_redirects=True
-    )
+
+    # Pin the connection to the exact IP the SSRF guard validated (single DNS
+    # resolution). Without this, the HTTP client re-resolves the host at
+    # connect time and a short-TTL record can swap a public address for a
+    # private one between the guard's lookup and the real fetch — DNS rebinding.
     try:
-        async with client.stream("GET", url) as resp:
+        plan = preflight_and_pin(url)
+    except SSRFBlocked as exc:
+        raise AnalysisError(f"This archive URL is blocked (SSRF guard): {exc}", code="ssrf_blocked") from None
+
+    fetch_url = plan.pinned_url if plan else url
+
+    async def _guard_redirects(request):
+        decision = validate_url(str(request.url))
+        if not decision.allowed:
+            raise SSRFBlocked(decision.reason)
+
+    async def _keep_host_pinned(request):
+        if plan is not None and request.url.host and plan.extensions["sni_hostname"] == request.url.host:
+            request.headers["Host"] = plan.headers["Host"]
+            request.extensions = {**request.extensions, **plan.extensions}
+
+    if client is None:
+        # Our own transport follows redirects, so each hop is preflighted too.
+        client = httpx.AsyncClient(
+            timeout=httpx.Timeout(settings.git_clone_timeout_seconds),
+            follow_redirects=True,
+            event_hooks={"request": [_guard_redirects, _keep_host_pinned]},
+        )
+    else:
+        # Injected client (tests / callers): still preflight every hop.
+        client.event_hooks["request"].extend([_guard_redirects, _keep_host_pinned])
+    try:
+        async with client.stream("GET", fetch_url) as resp:
             if resp.status_code >= 400:
                 raise AnalysisError(
                     f"Download failed ({resp.status_code}) for {url[:120]}", code="download_failed"
@@ -295,6 +341,9 @@ async def download_archive(
                             code="repo_too_large",
                         )
                     writer.write(chunk)
+    except SSRFBlocked as exc:
+        dest.unlink(missing_ok=True)
+        raise AnalysisError(f"Archive redirect is blocked (SSRF guard): {exc}", code="ssrf_blocked") from None
     finally:
         if close:
             await client.aclose()

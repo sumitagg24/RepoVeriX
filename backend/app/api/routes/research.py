@@ -27,6 +27,7 @@ from app.core.config import get_settings
 from app.core.ratelimit import check_action, enforce
 from app.db.models import (
     Finding,
+    FindingFeedback,
     FindingStatus,
     Patch,
     Repository,
@@ -77,9 +78,7 @@ def _parse_working_copy(src: Path) -> dict:
             continue
         rel = full.relative_to(src).as_posix()
         try:
-            parsed[rel] = parse_source(
-                full.read_text(encoding="utf-8", errors="replace"), lang, rel
-            )
+            parsed[rel] = parse_source(full.read_text(encoding="utf-8", errors="replace"), lang, rel)
         except Exception:
             continue
     return parsed
@@ -103,9 +102,7 @@ def _rule_of(finding: Any) -> str:
     return finding.external_id
 
 
-async def _findings_for_scan(
-    db: AsyncSession, scan_id: uuid.UUID, limit: int = 300
-) -> list[Finding]:
+async def _findings_for_scan(db: AsyncSession, scan_id: uuid.UUID, limit: int = 300) -> list[Finding]:
     result = await db.execute(
         select(Finding)
         .options(selectinload(Finding.evidence))
@@ -172,6 +169,10 @@ async def multi_agent_analysis(
 ):
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "multi_agent"))
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "research-llm")
     repository = await _load_repository(repository_id, db, current_user)
     bundle = await _insight_bundle(db, repository)
 
@@ -217,6 +218,10 @@ async def self_improvement(
 ):
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "self_improvement"))
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "research-llm")
     repository = await _load_repository(repository_id, db, current_user)
 
     scans_result = await db.execute(
@@ -246,20 +251,35 @@ async def self_improvement(
         )
         for patch, finding in patch_q.all():
             repairs = sum(
-                1
-                for r in patch.verification_runs
-                if r.status == VerificationStatus.verified_repair
+                1 for r in patch.verification_runs if r.status == VerificationStatus.verified_repair
             )
-            patch_results.append(
-                {"rule": _rule_of(finding), "patch_count": 1, "verified_repairs": repairs}
-            )
+            patch_results.append({"rule": _rule_of(finding), "patch_count": 1, "verified_repairs": repairs})
 
-    stats = ruleselection.compute_rule_stats(scan_results, patch_results)
+    # Human false-positive feedback per rule (the user-grounded signal).
+    # Rule attribution happens in Python (evidence JSON), grouping in SQL.
+    feedback_findings = (
+        await db.execute(
+            select(Finding, FindingFeedback.verdict)
+            .join(FindingFeedback, FindingFeedback.finding_id == Finding.id)
+            .join(Scan, Scan.id == Finding.scan_id)
+            .where(Scan.repository_id == repository.id)
+        )
+    ).all()
+    fb_counter: dict[tuple[str, str], int] = {}
+    for finding_row, verdict in feedback_findings:
+        key = (_rule_of(finding_row), verdict)
+        fb_counter[key] = fb_counter.get(key, 0) + 1
+    feedback_results = [
+        {"rule": rule, "verdict": verdict, "count": count} for (rule, verdict), count in fb_counter.items()
+    ]
+
+    stats = ruleselection.compute_rule_stats(scan_results, patch_results, feedback_results)
     recommendation = ruleselection.recommend_strategy(stats["rules"])
     return {
         "repository_id": str(repository.id),
         "scans_analyzed": len(scans),
         "finding_samples": len(scan_results),
+        "feedback_samples": sum(r["feedback_total"] for r in stats["rules"]),
         "stats": stats,
         "recommendation": recommendation,
     }
@@ -277,6 +297,10 @@ async def vuln_mining(
 ):
     if get_settings().rate_limit_enabled:
         enforce(check_action(str(current_user.id), "vuln_mining"))
+    if get_settings().billing_enforce:
+        from app.services.billing import require_premium
+
+        await require_premium(db, current_user, "research-llm")
     repository = await _load_repository(repository_id, db, current_user)
     src = _working_copy(repository)
     scan = await _latest_completed_scan(db, repository.id)
@@ -335,7 +359,9 @@ async def learning_patterns(
         enforce(check_action(str(current_user.id), "learning_patterns"))
 
     repos_result = await db.execute(
-        select(Repository).where(Repository.owner_id == current_user.id).order_by(Repository.created_at.desc())
+        select(Repository)
+        .where(Repository.owner_id == current_user.id)
+        .order_by(Repository.created_at.desc())
     )
     repositories = list(repos_result.scalars().all())
     if not repositories:
@@ -386,7 +412,7 @@ async def validation_stats(
     whose claim was refuted (flipped to REJECTED) are confirmed false
     positives of the original pipeline.
     """
-    from app.db.models import Repository, Scan, ValidationRun
+    from app.db.models import Finding, Repository, Scan, ValidationRun
 
     query = (
         select(ValidationRun)

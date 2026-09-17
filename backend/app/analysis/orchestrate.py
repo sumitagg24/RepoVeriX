@@ -346,7 +346,9 @@ async def _ingest_repository(db: AsyncSession, ctx: StageContext) -> dict[str, A
         if repo.source_type in (SourceType.github, SourceType.gitlab) and repo.oauth_account_id:
             account = await db.get(OAuthAccount, repo.oauth_account_id)
             if account is not None:
-                token = account.access_token
+                from app.core.crypto import decrypt_token
+
+                token = decrypt_token(account.access_token)
         src = await ingest.clone_github_repository(
             repo_id,
             repo.source_url or "",

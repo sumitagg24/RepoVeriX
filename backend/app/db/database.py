@@ -33,6 +33,40 @@ async def init_db() -> None:
             "CHAR(32)" if "sqlite" in str(engine.url) else "UUID",
         )
         # Subscription/usage columns added for pre-billing databases.
+        await _ensure_column(conn, "scans", "idempotency_key", "VARCHAR(128)")
+        # Organizations / RBAC (003): repositories optionally belong to an org.
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS organizations ("
+                "id VARCHAR(36) PRIMARY KEY, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, name VARCHAR(200) NOT NULL, "
+                "slug VARCHAR(200) NOT NULL UNIQUE, created_by VARCHAR(36))"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS organization_members ("
+                "id VARCHAR(36) PRIMARY KEY, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, organization_id VARCHAR(36) NOT NULL, "
+                "user_id VARCHAR(36) NOT NULL, role VARCHAR(30) NOT NULL DEFAULT 'member', "
+                "invited_by VARCHAR(36), UNIQUE (organization_id, user_id))"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS api_tokens ("
+                "id VARCHAR(36) PRIMARY KEY, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, user_id VARCHAR(36) NOT NULL, "
+                "name VARCHAR(100) NOT NULL, token_hash VARCHAR(64) NOT NULL UNIQUE, "
+                "token_prefix VARCHAR(12) NOT NULL, last_used_at DATETIME, revoked_at DATETIME, "
+                "expires_at DATETIME)"
+            )
+        )
+        await _ensure_column(
+            conn, "repositories", "org_id", "CHAR(32)" if "sqlite" in str(engine.url) else "UUID"
+        )
+        await _ensure_column(conn, "repositories", "webhook_secret", "VARCHAR(64)")
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_repositories_org_id ON repositories (org_id)"))
         _user_columns = {
             "plan": "VARCHAR(20)",
             "subscription_status": "VARCHAR(20)",
@@ -50,6 +84,26 @@ async def init_db() -> None:
         await conn.execute(text("UPDATE users SET scans_used = 0 WHERE scans_used IS NULL"))
         await conn.execute(text("UPDATE users SET fixes_used = 0 WHERE fixes_used IS NULL"))
         await conn.execute(text("UPDATE users SET verifications_used = 0 WHERE verifications_used IS NULL"))
+        # Composite indexes defined on the ORM models only apply to tables
+        # *created* after this change; existing deployments get them here so a
+        # hot-path query never falls back to per-row index hops. Statements are
+        # built from the constant list below only (no user input), and are
+        # no-ops when the index already exists on both SQLite and PostgreSQL.
+        for _index_name, _table, _columns in _COMPOSITE_INDEXES:
+            await conn.execute(text(f"CREATE INDEX IF NOT EXISTS {_index_name} ON {_table} ({_columns})"))
+
+
+# Hot-path composite indexes. Kept in sync with the ORM ``__table_args__``
+# declarations in ``app/db/models.py`` — this list exists only so pre-existing
+# databases (whose tables ``create_all`` skips) receive the same indexes.
+_COMPOSITE_INDEXES: list[tuple[str, str, str]] = [
+    ("ix_scans_idempotency_key", "scans", "idempotency_key"),
+    ("ix_scans_repository_created", "scans", "repository_id, created_at"),
+    ("ix_findings_scan_severity_status", "findings", "scan_id, severity, status"),
+    ("ix_findings_scan_file", "findings", "scan_id, file_path"),
+    ("ix_analysis_runs_scan_stage", "analysis_runs", "scan_id, stage"),
+    ("ix_evidence_finding_order", "evidence", "finding_id, order_index"),
+]
 
 
 async def _ensure_column(conn, table: str, column: str, column_ddl: str) -> None:

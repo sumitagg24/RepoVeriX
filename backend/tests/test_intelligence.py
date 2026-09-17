@@ -205,6 +205,52 @@ async def test_intelligence_endpoint_computes_and_caches(client, auth_headers, d
 
 
 @pytest.mark.asyncio
+async def test_ask_computes_index_on_demand(client, auth_headers, db_session, test_user):
+    """Ask works on an ingested repo without a prior Intelligence page visit.
+
+    Regression guard: the query endpoint used to 409 until the user happened
+    to open the Intelligence page. The index is now computed and persisted on
+    demand, which also records a health timeline snapshot.
+    """
+    from sqlalchemy import func, select
+
+    from app.db.models import HealthSnapshot, Repository, RepositoryInsight, SourceType
+
+    repo = Repository(
+        owner_id=test_user.id,
+        name="ask-fixture",
+        source_type=SourceType.zip,
+        storage_path=str(FIXTURES / "vulnerable_app"),
+        status="ingested",
+    )
+    db_session.add(repo)
+    await db_session.commit()
+    await db_session.refresh(repo)
+
+    response = await client.post(
+        f"/api/v1/repositories/{repo.id}/query",
+        headers=auth_headers,
+        json={"question": "Which files have the highest risk or health issues?"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["answer"]
+    assert body["mode"] == "deterministic"
+    assert body["sources"]
+
+    insight_count = await db_session.execute(
+        select(func.count())
+        .select_from(RepositoryInsight)
+        .where(RepositoryInsight.repository_id == repo.id, RepositoryInsight.status == "ready")
+    )
+    assert insight_count.scalar_one() == 1
+    snapshot_count = await db_session.execute(
+        select(func.count()).select_from(HealthSnapshot).where(HealthSnapshot.repository_id == repo.id)
+    )
+    assert snapshot_count.scalar_one() >= 1
+
+
+@pytest.mark.asyncio
 async def test_intelligence_404_for_foreign_repo(client, auth_headers, test_repository):
     response = await client.get(
         f"/api/v1/repositories/{test_repository.id}/intelligence", headers=auth_headers

@@ -36,8 +36,7 @@ async def billing_overview(
     db: AsyncSession = Depends(get_db),
 ):
     """Return the user's plan, entitlements and current-period usage."""
-    billing_service.rollover_if_needed(db, current_user)
-    await db.flush()
+    await billing_service.rollover_if_needed(db, current_user)
 
     plan = billing_service.get_plan(current_user.plan)
     repositories = await billing_service.repo_count(db, current_user.id)

@@ -410,9 +410,7 @@ async def analyze_change(
         },
         "risk_score": risk_score,
         "risk_level": level,
-        "risk_components": {
-            k: round(n * weight, 2) for k, _l, n, weight in factors
-        },
+        "risk_components": {k: round(n * weight, 2) for k, _l, n, weight in factors},
         "risk_factors": [
             {
                 "key": k,

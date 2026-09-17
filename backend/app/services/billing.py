@@ -134,11 +134,18 @@ def current_period(user) -> datetime:
     return datetime.now(UTC) + timedelta(days=PERIOD_DAYS)
 
 
-def rollover_if_needed(db, user) -> None:
+async def rollover_if_needed(db, user) -> None:
     """Reset monthly counters when the current period has lapsed.
 
     Called before every entitlement check so a user whose period flipped (or a
     Free user whose rolling window expired) starts a fresh budget.
+
+    Commits its own write when it actually rolls over: callers include GET-only
+    paths and assertion helpers that may raise right after, so the reset must
+    not depend on the caller committing later. Production ``get_db`` closes the
+    request session without committing — a flush-only rollover there is
+    silently lost (and recomputed, and re-lost, on every request). A no-op when
+    the period is still active.
     """
     period_end = _as_utc(user.current_period_end)
     if period_end and period_end <= datetime.now(UTC):
@@ -147,6 +154,7 @@ def rollover_if_needed(db, user) -> None:
         user.verifications_used = 0
         user.current_period_end = datetime.now(UTC) + timedelta(days=PERIOD_DAYS)
         db.add(user)
+        await db.commit()
 
 
 async def repo_count(db, user_id: uuid.UUID) -> int:
@@ -160,7 +168,7 @@ async def repo_count(db, user_id: uuid.UUID) -> int:
 
 async def assert_can_import_repository(db, user) -> None:
     """Block creating a repository when the plan's repository cap is reached."""
-    rollover_if_needed(db, user)
+    await rollover_if_needed(db, user)
     limits = get_plan(user.plan)
     if await repo_count(db, user.id) >= limits.max_repositories:
         _raise_upgrade("repository-cap", limits)
@@ -168,7 +176,7 @@ async def assert_can_import_repository(db, user) -> None:
 
 async def assert_can_scan(db, user) -> None:
     """Block starting a scan when the monthly scan budget is exhausted."""
-    rollover_if_needed(db, user)
+    await rollover_if_needed(db, user)
     limits = get_plan(user.plan)
     if user.scans_used >= limits.scans_per_month:
         _raise_upgrade("scan-quota", limits)
@@ -177,7 +185,7 @@ async def assert_can_scan(db, user) -> None:
 
 
 async def assert_can_generate_fix(db, user) -> None:
-    rollover_if_needed(db, user)
+    await rollover_if_needed(db, user)
     limits = get_plan(user.plan)
     if user.fixes_used >= limits.fixes_per_month:
         _raise_upgrade("fix-quota", limits)
@@ -186,7 +194,7 @@ async def assert_can_generate_fix(db, user) -> None:
 
 
 async def assert_can_verify(db, user) -> None:
-    rollover_if_needed(db, user)
+    await rollover_if_needed(db, user)
     limits = get_plan(user.plan)
     if user.verifications_used >= limits.verifications_per_month:
         _raise_upgrade("verify-quota", limits)
@@ -199,4 +207,65 @@ def _raise_upgrade(reason: str, limits: PlanLimits) -> None:
         status_code=status.HTTP_402_PAYMENT_REQUIRED,
         detail=f"You've reached your {limits.display_name} plan limit",
         headers={"X-Upgrade-Reason": reason},
+    )
+
+
+# --------------------------------------------------------------------------- premium tools
+#
+# Tool-level entitlements. Quotas (above) decide *how much* of a feature a
+# plan may use; these decide *whether* the feature exists on the plan at all.
+# Free accounts may import a few repositories, run static/hybrid scans and try
+# a couple of candidate fixes — but the flagship tools below require a paid
+# subscription, and the backend enforces that on every route that exposes them
+# (an attacker cannot reach them by calling the API directly).
+
+PREMIUM_FEATURES: dict[str, str] = {
+    "change-audit": "Change audit & impact analysis",
+    "pull-request-audit": "Pull-request auditor",
+    "sarif-export": "SARIF export",
+    "reports": "Audit reports (PDF / Markdown)",
+    "ai-assistant": "AI assistant & LLM reasoning",
+    "research-llm": "Multi-agent research",
+    "llm-scan-config": "Full LLM pipeline scans",
+}
+
+
+async def require_premium(db, user, feature: str) -> None:
+    """Block a premium tool unless the user holds a paid plan.
+
+    Raises ``402 Payment Required`` with an ``X-Upgrade-Reason`` header naming
+    the feature, so the UI can deep-link an upgrade prompt. A no-op for paid
+    plans (the quotas above still apply per-feature).
+    """
+    await rollover_if_needed(db, user)
+    limits = get_plan(user.plan)
+    if limits.name != "free":
+        return
+    label = PREMIUM_FEATURES.get(feature, feature.replace("-", " ").title())
+    raise HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail=f"{label} is a Pro feature — upgrade to unlock it",
+        headers={"X-Upgrade-Reason": feature},
+    )
+
+
+async def require_llm_scan_config(db, user, configuration) -> None:
+    """Block scan configurations that run the full LLM pipeline on plans that
+    do not include it.
+
+    Free scans run the static and static+LLM "hybrid" configurations. The
+    LLM-led configurations (``llm_only``, ``repoverix``) require
+    ``llm_enabled`` plans (Pro/Team).
+    """
+    from app.db.models import ScanConfiguration
+
+    if configuration not in (ScanConfiguration.llm_only, ScanConfiguration.repoverix):
+        return
+    await rollover_if_needed(db, user)
+    if get_plan(user.plan).llm_enabled:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail="Full LLM pipeline scans are a Pro feature — upgrade to unlock them",
+        headers={"X-Upgrade-Reason": "llm-scan-config"},
     )

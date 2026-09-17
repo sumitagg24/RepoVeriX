@@ -132,9 +132,7 @@ class TestBillingRoutes:
         assert body["subscription"]["period_end"] is not None
 
     @pytest.mark.asyncio
-    async def test_rollover_with_naive_period_end(
-        self, db_session, test_user, tiny_free, monkeypatch
-    ):
+    async def test_rollover_with_naive_period_end(self, db_session, test_user, tiny_free, monkeypatch):
         """Regression: values read back from SQLite are naive; rollover must
         treat them as UTC rather than raising a comparison TypeError."""
         test_user.scans_used = 2
@@ -174,7 +172,7 @@ class TestBillingRoutes:
         db_session,
     ):
         _enable_routes(monkeypatch)
-        svc.rollover_if_needed(db_session, test_user)
+        await svc.rollover_if_needed(db_session, test_user)
         # Exhaust the free plan's monthly scan budget.
         test_user.scans_used = svc.get_plan("free").scans_per_month
         db_session.add(test_user)

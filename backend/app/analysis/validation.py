@@ -141,9 +141,7 @@ def validate_finding(
             "key": "claim_grounding",
             "label": "Evidence traces a source to a sink",
             "passed": chain_ok,
-            "detail": (
-                f"source nodes: {len(source_nodes)}, sink nodes: {len(sink_nodes)}"
-            ),
+            "detail": (f"source nodes: {len(source_nodes)}, sink nodes: {len(sink_nodes)}"),
         }
     )
     if chain_ok:
@@ -318,9 +316,8 @@ def validate_finding(
     elif complete_chain:
         status = FindingStatus.verified
         confidence = min(0.97, 0.8 + (0.05 if strong else 0.0) + (0.05 if handled else 0.0))
-        explanation = (
-            "Evidence supports the claim: a full source→sink chain is present"
-            + (" with a deterministic strong rule." if strong else ".")
+        explanation = "Evidence supports the claim: a full source→sink chain is present" + (
+            " with a deterministic strong rule." if strong else "."
         )
     else:
         status = FindingStatus.probable

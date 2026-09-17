@@ -162,6 +162,51 @@ async def post_pr_review(
     return response.json()
 
 
+async def post_commit_status(
+    owner: str,
+    repo: str,
+    sha: str,
+    *,
+    state: str,
+    context: str,
+    description: str,
+    target_url: str | None = None,
+    token: str,
+    client: httpx.AsyncClient | None = None,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    """Create a commit status (the PR "checks" line on a commit/PR).
+
+    ``state``: ``success`` | ``failure`` | ``error`` | ``pending``. Idempotent
+    per ``(sha, context)`` — re-posting overwrites the previous status.
+    """
+    settings = settings or get_settings()
+    url = f"{settings.github_api_base_url}/repos/{owner}/{repo}/statuses/{sha}"
+    payload: dict[str, Any] = {
+        "state": state,
+        "context": context[:100],
+        "description": description[:140],
+    }
+    if target_url:
+        payload["target_url"] = target_url
+    owns_client = client is None
+    client = client or httpx.AsyncClient(
+        headers=_auth_headers(token),
+        timeout=settings.github_api_timeout_seconds,
+    )
+    try:
+        response = await client.post(url, json=payload)
+    finally:
+        if owns_client:
+            await client.aclose()
+    if response.status_code not in (200, 201):
+        raise GithubApiError(
+            f"GitHub rejected the commit status ({response.status_code}): {response.text[:300]}",
+            response.status_code,
+        )
+    return response.json()
+
+
 class GithubApiError(Exception):
     """Raised when the GitHub API call fails; carries an HTTP-ish status."""
 
