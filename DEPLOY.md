@@ -58,6 +58,21 @@ database volumes).
 
 ## 2. Production configuration
 
+### Artifact storage
+
+Uploaded archives and generated bundles are stored through the
+`ArtifactStorage` seam (`backend/app/core/artifacts.py`). Two adapters exist:
+
+| Backend | Selection | Use |
+| --- | --- | --- |
+| `LocalArtifactStorage` | `REPOVERIX_ARTIFACT_STORAGE=local` (default) | Development and single-instance deploys; artifacts live under `REPOVERIX_REPOSITORY_STORAGE_DIR`. |
+| `S3CompatibleArtifactStorage` | `REPOVERIX_ARTIFACT_STORAGE=s3` | Production / multi-replica; any S3-compatible store (AWS S3, Cloudflare R2, MinIO) via SigV4 — no SDK dependency. |
+
+The S3 adapter is **fail-closed**: with `s3` selected and missing credentials,
+the backend refuses to initialise storage rather than silently falling back to
+local disk (which would break multi-instance deployments). See
+`.env.prod.example` for the full `REPOVERIX_ARTIFACT_S3_*` matrix.
+
 Create a `.env` next to `docker-compose.prod.yml` with at least:
 
 ```bash

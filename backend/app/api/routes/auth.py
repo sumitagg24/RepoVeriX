@@ -379,6 +379,16 @@ async def delete_current_user(
         if target.exists():
             shutil.rmtree(target, ignore_errors=True)
 
+    # Durable artifact copies (object storage in production) must go too.
+    try:
+        from app.core.artifacts import get_artifact_storage
+
+        artifacts = get_artifact_storage()
+        for repo_id in repo_ids:
+            artifacts.delete(f"archives/{repo_id}/archive.zip")
+    except Exception:  # noqa: BLE001 - deletion best-effort, never blocks the flow
+        pass
+
     await db.delete(current_user)  # cascades repositories -> scans -> findings/etc.
     await db.commit()
     return {"detail": "Account and all associated data have been deleted."}
