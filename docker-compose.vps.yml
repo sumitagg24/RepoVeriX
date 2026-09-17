@@ -1,0 +1,90 @@
+# RepoVeriX — production stack: API on a VPS + Neon managed PostgreSQL.
+#
+# The VPS runs ONLY the backend service (this file). The frontend stays on
+# Vercel; PostgreSQL is Neon (managed, pooled, `ssl=require`).
+#
+# On the server:
+#   cp .env.prod.example .env    # fill in secrets (never commit .env)
+#   docker compose -f docker-compose.vps.yml pull
+#   docker compose -f docker-compose.vps.yml up -d
+#
+# Migrations run automatically on start (alembic upgrade head), then the API
+# comes up behind Caddy, which terminates TLS for api.<your-domain> using an
+# ACME (Let's Encrypt) certificate.
+#
+# Patch verification (Proof of Fix) runs untrusted code inside a fresh Docker
+# sandbox. To enable it on this host, uncomment the socket mount and `user:
+# root` under backend — only on a host dedicated to RepoVeriX. Without it,
+# verification reports an honest runner error instead of "verified".
+
+services:
+  backend:
+    image: ghcr.io/sumitagg24/repoverix-backend:latest
+    restart: unless-stopped
+    environment:
+      REPOVERIX_DATABASE_URL: ${REPOVERIX_DATABASE_URL}
+      REPOVERIX_JWT_SECRET: ${REPOVERIX_JWT_SECRET}
+      REPOVERIX_CORS_ORIGINS: ${REPOVERIX_CORS_ORIGINS}
+      REPOVERIX_ALLOWED_HOSTS: ${REPOVERIX_ALLOWED_HOSTS}
+      REPOVERIX_RATE_LIMIT_ENABLED: ${REPOVERIX_RATE_LIMIT_ENABLED:-true}
+      REPOVERIX_AUTH_REQUIRE_EMAIL_VERIFICATION: ${REPOVERIX_AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
+      REPOVERIX_REPOSITORY_STORAGE_DIR: /data/repositories
+      REPOVERIX_EMAIL_BACKEND: ${REPOVERIX_EMAIL_BACKEND:-console}
+      REPOVERIX_SMTP_HOST: ${REPOVERIX_SMTP_HOST:-}
+      REPOVERIX_SMTP_PORT: ${REPOVERIX_SMTP_PORT:-}
+      REPOVERIX_SMTP_USER: ${REPOVERIX_SMTP_USER:-}
+      REPOVERIX_SMTP_PASSWORD: ${REPOVERIX_SMTP_PASSWORD:-}
+      REPOVERIX_SMTP_FROM: ${REPOVERIX_SMTP_FROM:-}
+      REPOVERIX_LLM_PROVIDER: ${REPOVERIX_LLM_PROVIDER:-openai}
+      REPOVERIX_OPENAI_API_KEY: ${REPOVERIX_OPENAI_API_KEY:-}
+      REPOVERIX_ANTHROPIC_API_KEY: ${REPOVERIX_ANTHROPIC_API_KEY:-}
+      REPOVERIX_GEMINI_API_KEY: ${REPOVERIX_GEMINI_API_KEY:-}
+      REPOVERIX_SANDBOX_CPU_LIMIT: ${REPOVERIX_SANDBOX_CPU_LIMIT:-1.0}
+      REPOVERIX_SANDBOX_MEMORY_LIMIT: ${REPOVERIX_SANDBOX_MEMORY_LIMIT:-1g}
+      REPOVERIX_SANDBOX_TIMEOUT_SECONDS: ${REPOVERIX_SANDBOX_TIMEOUT_SECONDS:-600}
+    volumes:
+      - repoverix-data:/data/repositories
+      # Proof-of-Fix sandbox (see warning in the header):
+      # - /var/run/docker.sock:/var/run/docker.sock
+    # user: root
+    expose:
+      - "8000"
+    networks:
+      - repoverix
+
+  migrations:
+    image: ghcr.io/sumitagg24/repoverix-backend:latest
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      REPOVERIX_DATABASE_URL: ${REPOVERIX_DATABASE_URL}
+    depends_on: []
+    networks:
+      - repoverix
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    networks:
+      - repoverix
+
+volumes:
+  repoverix-data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  repoverix:
+    driver: bridge
