@@ -43,6 +43,10 @@ classic vulnerability scanners).
   repair fallback, then **Docker-sandboxed verification**: patch applied → tests
   run → ruff baseline check → original finding re-analysed → `VERIFIED REPAIR`
   or `REPAIR_FAILED`.
+- **Passive website audits** — bounded same-origin crawl (robots.txt-respecting,
+  SSRF-pinned) with measured SEO, security-header, accessibility, performance
+  and AI-search-readiness signals; analytical scores with honest
+  `insufficient-data` states. See `docs/website-audits.md`.
 - **Audit reports** — JSON and Markdown reports per scan.
 - **Benchmark framework** — seeded vulnerable repositories, ground truth,
   experiment runner, precision/recall/F1 metrics (no fabricated numbers).
@@ -185,8 +189,8 @@ experiment matrix on a broader benchmark.
 
 `docs/architecture.md` · `docs/analysis-pipeline.md` · `docs/evidence-model.md`
 · `docs/verification.md` · `docs/security.md` · `docs/database.md` ·
-`docs/api.md` · `docs/experiments.md` · `docs/development.md` ·
-`docs/implementation-plan.md`
+`docs/api.md` · `docs/website-audits.md` · `docs/experiments.md` ·
+`docs/development.md` · `docs/implementation-plan.md`
 
 **Operator checklist** (API keys, database, Docker, auth secret, deployment
 prereqs): **[MANUAL-SETUP.md](MANUAL-SETUP.md)** ·
