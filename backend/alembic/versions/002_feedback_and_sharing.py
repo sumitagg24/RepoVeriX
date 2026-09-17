@@ -7,6 +7,7 @@ Create Date: 2026-09-06 00:00:00.000000
 """
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -20,11 +21,11 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "finding_feedback",
-        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("finding_id", sa.String(length=36), nullable=False),
-        sa.Column("user_id", sa.String(length=36), nullable=False),
+        sa.Column("finding_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("verdict", sa.String(length=30), nullable=False),
         sa.Column("note", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(["finding_id"], ["findings.id"], ondelete="CASCADE"),
@@ -37,12 +38,12 @@ def upgrade() -> None:
 
     op.create_table(
         "report_shares",
-        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("scan_id", sa.String(length=36), nullable=False),
+        sa.Column("scan_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("token", sa.String(length=64), nullable=False),
-        sa.Column("created_by", sa.String(length=36), nullable=True),
+        sa.Column("created_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("view_count", sa.Integer(), nullable=False, server_default="0"),

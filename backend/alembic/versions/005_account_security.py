@@ -27,11 +27,25 @@ USER_STATUS = postgresql.ENUM(
     "suspended",
     "deleted",
     name="user_status",
-    create_type=True,
+    create_type=False,
 )
 
 
 def upgrade() -> None:
+    # Create the ENUM explicitly: when alembic runs through the asyncpg
+    # dialect, the SQLAlchemy ENUM's implicit checkfirst creation can be
+    # skipped, so rely on an idempotent DO block instead.
+    op.execute(
+        """
+        DO $$ BEGIN
+            CREATE TYPE user_status AS ENUM (
+                'active', 'email_unverified', 'suspended', 'deleted'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN NULL;
+        END $$;
+        """
+    )
     op.add_column("users", sa.Column("status", USER_STATUS, nullable=False, server_default="active"))
     op.add_column("users", sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True))
     op.add_column("users", sa.Column("failed_login_count", sa.Integer(), nullable=False, server_default="0"))
@@ -47,10 +61,10 @@ def upgrade() -> None:
 
     op.create_table(
         "auth_events",
-        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("user_id", sa.String(length=36), nullable=True),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("email", sa.String(length=320), nullable=True),
         sa.Column("event", sa.String(length=40), nullable=False),
         sa.Column("ip", sa.String(length=64), nullable=True),
@@ -63,7 +77,7 @@ def upgrade() -> None:
 
     op.create_table(
         "processed_auth_webhooks",
-        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("provider", sa.String(length=30), nullable=False, server_default="repoverix-local"),
