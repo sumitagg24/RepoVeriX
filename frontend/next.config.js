@@ -24,6 +24,10 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // E2E isolation: the Playwright webServer sets NEXT_DIST_DIR so its
+  // production build lives in .next-e2e — a concurrent `next dev` (or another
+  // build) sharing .next cannot invalidate the server's chunks mid-run.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Do not advertise the framework (server header fingerprinting).
   poweredByHeader: false,
   images: {

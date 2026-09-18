@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { toneCallout, toneInk } from '@/lib/tone';
 import { Input } from '@/components/ui/input';
 import { Loader2, GitPullRequest, ShieldAlert, ArrowRight } from 'lucide-react';
 import { useRepositories } from '@/hooks/useRepositories';
@@ -54,7 +55,7 @@ export default function PullRequestsPage() {
           <GitPullRequest className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Pull Request Auditor</h1>
+          <h1 className="type-page-title">Pull Request Auditor</h1>
           <p className="text-muted-foreground mt-1">
             Audit a GitHub PR against the repository&apos;s full context — impact, evidence-grounded findings,
             regression risks — then post the review as inline comments when you&apos;re ready.
@@ -146,7 +147,10 @@ export default function PullRequestsPage() {
                         {audit.repository_name ? `${audit.repository_name} · ` : ''}PR #{audit.pr_number}
                       </span>
                       {audit.posted && (
-                        <Badge variant="outline" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                        <Badge
+                          variant="outline"
+                          className={`${toneCallout('verified')} ${toneInk('verified')}`}
+                        >
                           Posted
                         </Badge>
                       )}

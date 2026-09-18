@@ -13,6 +13,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Breadcrumbs, PageHeader } from '@/components/system/page-header';
 import { ScanStatus } from '@/components/system/status';
 import { EmptyState, ListSkeleton } from '@/components/ui/state';
+import { toneHue } from '@/lib/tone';
 
 export default function RepositoryDetailPage() {
   const params = useParams();
@@ -100,10 +101,10 @@ export default function RepositoryDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircle className={`h-4 w-4 ${toneHue('verified')}`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+            <div className={`text-2xl font-bold ${toneHue('verified')}`}>
               {scans?.filter(s => s.status === 'completed').length || 0}
             </div>
           </CardContent>
@@ -111,10 +112,10 @@ export default function RepositoryDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Running</CardTitle>
-            <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+            <Loader2 className={`h-4 w-4 animate-spin ${toneHue('observed')}`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <div className={`text-2xl font-bold ${toneHue('observed')}`}>
               {scans?.filter(s => s.status === 'running').length || 0}
             </div>
           </CardContent>
@@ -122,10 +123,10 @@ export default function RepositoryDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Failed</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
+            <AlertTriangle className={`h-4 w-4 ${toneHue('critical')}`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+            <div className={`text-2xl font-bold ${toneHue('critical')}`}>
               {scans?.filter(s => s.status === 'failed').length || 0}
             </div>
           </CardContent>

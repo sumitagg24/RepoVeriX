@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
@@ -7,12 +8,12 @@ import { VULNERABILITY_CLASSES } from '@/lib/seo/vulnerabilities';
 import { SITE_URL } from '@/lib/site-url';
 
 export const metadata: Metadata = {
-  title: 'Vulnerability classes RepoVeriX detects — with proof, not guesses',
+  title: 'Vulnerability classes with proof, not guesses',
   description:
     'SQL injection, command injection, dynamic code execution, hardcoded secrets, weak cryptography and broad exception handling — how each is detected deterministically, what evidence proves a real finding, and how the fix is verified.',
   alternates: { canonical: '/vulnerabilities' },
   openGraph: {
-    title: 'Vulnerability classes RepoVeriX detects — with proof, not guesses',
+    title: 'Vulnerability classes with proof, not guesses',
     description:
       'Six vulnerability classes with deterministic detection logic, evidence chains and verified fixes.',
     url: `${SITE_URL}/vulnerabilities`,
@@ -40,24 +41,13 @@ const jsonLd = {
 
 export default function VulnerabilitiesHub() {
   return (
-    <div className="min-h-screen bg-background">
+    <MarketingShell>
       <script type="application/ld+json" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← RepoVeriX
-          </Link>
-          <Link href="/detections" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            Detection rules →
-          </Link>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Vulnerability classes
         </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="type-lead mt-2">
           What RepoVeriX detects — and how it proves it
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
@@ -108,6 +98,6 @@ export default function VulnerabilitiesHub() {
           </p>
         </section>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

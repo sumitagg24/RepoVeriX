@@ -5,14 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useArchitectureSmells } from '@/hooks/useAudit';
 import { AlertTriangle, GitBranch, Loader2, Workflow } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { smellTone, toneBorder, toneCallout, toneHue, toneInk } from '@/lib/tone';
 
-const SMELL_STYLES: Record<string, string> = {
-  hub_module: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
-  dependency_cycle: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  god_module: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  unstable_module: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  orphan_module: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-};
+/** Smell kind → tone. See `smellTone` for the mapping rationale. */
+function smellStyles(kind: string): string {
+  const tone = smellTone(kind);
+  return cn(toneCallout(tone), toneInk(tone));
+}
 
 const SMELL_LABELS: Record<string, string> = {
   hub_module: 'Hub module',
@@ -59,13 +58,13 @@ export function ArchitectureSmells({ repositoryId }: { repositoryId: string }) {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {Object.entries(data.by_type).map(([type, count]) => (
-            <Badge key={type} variant="outline" className={SMELL_STYLES[type]}>
+            <Badge key={type} variant="outline" className={smellStyles(type)}>
               {SMELL_LABELS[type] ?? type}: {count}
             </Badge>
           ))}
           {data.smell_count === 0 && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <AlertTriangle className="h-4 w-4 text-green-600 dark:text-green-400" /> No smells detected —
+              <AlertTriangle className={cn('h-4 w-4', toneHue('verified'))} /> No smells detected —
               the module structure is healthy.
             </p>
           )}
@@ -75,7 +74,7 @@ export function ArchitectureSmells({ repositoryId }: { repositoryId: string }) {
       {data.smells.map((smell, i) => (
         <Card key={i}>
           <CardContent className="flex flex-col gap-3 py-4 lg:flex-row lg:items-start lg:gap-4">
-            <Badge variant="outline" className={cn('w-fit shrink-0', SMELL_STYLES[smell.smell])}>
+            <Badge variant="outline" className={cn('w-fit shrink-0', smellStyles(smell.smell))}>
               {SMELL_LABELS[smell.smell] ?? smell.smell.replace('_', ' ')} · {smell.severity}
             </Badge>
             <div className="min-w-0 flex-1 space-y-2">

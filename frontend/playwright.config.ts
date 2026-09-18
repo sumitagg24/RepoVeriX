@@ -26,9 +26,14 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run start -- -p 3100',
+    // NEXT_DIST_DIR (read by next.config.js) isolates the production build in
+    // .next-e2e so a concurrently running `next dev` or rebuild sharing .next
+    // cannot invalidate this server's chunks mid-run. Build + start together
+    // so the server always serves the artifacts it just produced.
+    command: 'npm run build && npm run start -- -p 3100',
     port: 3100,
-    reuseExistingServer: true,
-    timeout: 120 * 1000,
+    reuseExistingServer: false,
+    timeout: 300 * 1000,
+    env: { ...process.env, NEXT_DIST_DIR: '.next-e2e' },
   },
 });

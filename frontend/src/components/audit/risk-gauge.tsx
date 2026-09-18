@@ -1,23 +1,39 @@
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { toneBorder, toneInk, toneSurface, type Tone } from '@/lib/tone';
 
-export const LEVEL_STYLES: Record<string, string> = {
-  low: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  medium: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  high: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
-  critical: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+/**
+ * Audit risk level → semantic tone. `low` is not an alarm, so it uses the
+ * calm `verified` face rather than a desaturated red.
+ */
+const LEVEL_TONE: Record<string, Tone> = {
+  low: 'verified',
+  medium: 'probable',
+  high: 'high',
+  critical: 'critical',
 };
 
+export function levelStyles(level: string): string {
+  const tone = LEVEL_TONE[level] ?? 'neutral';
+  return cn(toneSurface(tone), toneInk(tone), toneBorder(tone));
+}
+
+/**
+ * The gauge stroke. Returned as a CSS custom-property reference rather than a
+ * literal hex so the ring follows the severity tokens in both themes. This
+ * value only ever lands in an SVG presentation attribute, never in a className,
+ * so interpolation is safe here.
+ */
 export function levelColor(score: number): string {
-  if (score >= 75) return '#ef4444';
-  if (score >= 50) return '#f97316';
-  if (score >= 25) return '#eab308';
-  return '#22c55e';
+  if (score >= 75) return 'hsl(var(--sev-critical))';
+  if (score >= 50) return 'hsl(var(--sev-high))';
+  if (score >= 25) return 'hsl(var(--sev-medium))';
+  return 'hsl(var(--sev-low))';
 }
 
 export function RiskBadge({ level, score }: { level: string; score?: number }) {
   return (
-    <Badge variant="outline" className={LEVEL_STYLES[level] ?? ''}>
+    <Badge variant="outline" className={levelStyles(level)}>
       {level.toUpperCase()}
       {typeof score === 'number' ? ` · ${score.toFixed(0)}/100` : ''}
     </Badge>
@@ -63,7 +79,7 @@ export function RiskGauge({
       </div>
       {level && (
         <div className="flex flex-col gap-2">
-          <Badge variant="outline" className={LEVEL_STYLES[level] ?? ''}>
+          <Badge variant="outline" className={levelStyles(level)}>
             {level.toUpperCase()}
           </Badge>
           <span className="text-xs text-muted-foreground max-w-[110px]">

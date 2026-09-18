@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { CategoryView } from '@/components/help/category-view';
 
 export const metadata: Metadata = {
-  title: 'Security and privacy - RepoVeriX Help',
+  title: 'Security and privacy',
 };
 
 export default function HelpSecurityPage() {

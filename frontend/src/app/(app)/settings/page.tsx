@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { toneHue } from '@/lib/tone';
 import {
   User,
   Shield,
@@ -245,7 +246,7 @@ export default function SettingsPage() {
                   <div className="flex flex-wrap gap-4">
                     <div className="flex items-center gap-2 text-sm">
                       {security.email_verified ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <CheckCircle2 className={`h-4 w-4 ${toneHue('verified')}`} />
                       ) : (
                         <XCircle className="h-4 w-4 text-destructive" />
                       )}

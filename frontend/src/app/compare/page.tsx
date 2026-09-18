@@ -1,17 +1,18 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight, Scale } from 'lucide-react';
 import { COMPARISONS } from '@/lib/seo/comparisons';
 import { SITE_URL } from '@/lib/site-url';
 
 export const metadata: Metadata = {
-  title: 'Compare RepoVeriX — honest feature comparisons',
+  title: 'Honest scanner comparisons',
   description:
     'RepoVeriX vs Semgrep, Snyk and CodeQL: what pattern matchers, advisory databases and query frameworks do well, what they leave to humans, and where validated evidence and verified repair change the workflow.',
   alternates: { canonical: '/compare' },
   openGraph: {
-    title: 'Compare RepoVeriX — honest feature comparisons',
+    title: 'Honest scanner comparisons',
     description: 'Category-level comparisons with honest trade-offs, grounded in real pipeline behavior.',
     url: `${SITE_URL}/compare`,
     type: 'website',
@@ -32,22 +33,11 @@ const jsonLd = {
 
 export default function CompareHub() {
   return (
-    <div className="min-h-screen bg-background">
+    <MarketingShell>
       <script type="application/ld+json" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← RepoVeriX
-          </Link>
-          <Link href="/glossary" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            Glossary →
-          </Link>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comparisons</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="type-lead mt-2">
           Honest comparisons, no vendor bashing
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
@@ -87,6 +77,6 @@ export default function CompareHub() {
           </div>
         </section>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

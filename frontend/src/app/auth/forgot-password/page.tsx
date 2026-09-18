@@ -12,6 +12,7 @@ import { Mail, MailCheck } from 'lucide-react';
 import { authService } from '@/services/api';
 import { getApiErrorMessage as extractApiError } from '@/lib/api-error';
 import { AuthShell } from '@/components/auth-shell';
+import { toneHue } from '@/lib/tone';
 import { toast } from 'sonner';
 
 const schema = z.object({
@@ -59,7 +60,7 @@ export default function ForgotPasswordPage() {
     >
       {sent ? (
         <div className="flex flex-col items-center gap-3 py-6 text-center">
-          <MailCheck className="h-10 w-10 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          <MailCheck className={`h-10 w-10 ${toneHue('verified')}`} aria-hidden />
           <p className="font-medium">Check your inbox</p>
           <p className="text-sm text-muted-foreground">
             If an account exists for this email, you&apos;ll receive a message with the next

@@ -4,22 +4,23 @@ import { CheckCircle2, XCircle, MinusCircle, ShieldCheck, FileCode, FlaskConical
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useProofOfFix } from '@/hooks/useAudit';
+import { cn } from '@/lib/utils';
+import { decisionTone, toneCallout, toneHue, toneInk } from '@/lib/tone';
 import type { ProofCheck } from '@/types/api';
 
-const DECISION_STYLES: Record<string, string> = {
-  VERIFIED_FIX: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  REJECTED_FIX: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  PARTIALLY_VERIFIED: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  UNVERIFIABLE: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-};
+/** Proof-of-Fix decision → tone. Mirrors `decisionTone`. */
+function decisionStyles(decision: string): string {
+  const tone = decisionTone(decision);
+  return cn(toneCallout(tone), toneInk(tone));
+}
 
 function CheckRow({ check }: { check: ProofCheck }) {
   return (
     <li className="flex items-start gap-2 text-sm">
       {check.passed === true ? (
-        <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+        <CheckCircle2 className={cn('h-4 w-4 mt-0.5 shrink-0', toneHue('verified'))} />
       ) : check.passed === false ? (
-        <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+        <XCircle className={cn('h-4 w-4 mt-0.5 shrink-0', toneHue('critical'))} />
       ) : (
         <MinusCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
       )}
@@ -52,7 +53,7 @@ export function ProofOfFixPanel({ findingId }: { findingId: string }) {
           <>
             <div className="flex flex-wrap items-center gap-2">
               {proof.decision ? (
-                <Badge variant="outline" className={DECISION_STYLES[proof.decision] ?? ''}>
+                <Badge variant="outline" className={decisionStyles(proof.decision)}>
                   {proof.decision}
                 </Badge>
               ) : (
@@ -90,7 +91,7 @@ export function ProofOfFixPanel({ findingId }: { findingId: string }) {
                   <FileCode className="h-4 w-4 text-muted-foreground" />
                   <span className="font-mono text-xs">{patch.generated_by}</span>
                   {patch.decision && (
-                    <Badge variant="outline" className={DECISION_STYLES[patch.decision] ?? ''}>
+                    <Badge variant="outline" className={decisionStyles(patch.decision)}>
                       {patch.decision}
                     </Badge>
                   )}

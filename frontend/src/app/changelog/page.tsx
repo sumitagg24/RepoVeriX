@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { SITE_URL } from '@/lib/site-url';
@@ -159,26 +159,12 @@ const ENTRIES: Entry[] = [
 
 export default function ChangelogPage() {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← RepoVeriX
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-          >
-            Start free
-          </Link>
-        </div>
-      </header>
-
+    <MarketingShell>
       <main className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           Changelog
         </p>
-        <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight">
+        <h1 className="type-display mt-2">
           What shipped
         </h1>
         <p className="mt-3 max-w-2xl text-muted-foreground">
@@ -224,6 +210,6 @@ export default function ChangelogPage() {
           ))}
         </ol>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

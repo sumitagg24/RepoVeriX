@@ -29,26 +29,48 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  scoreTone,
+  toneBar,
+  toneHue,
+  toneInk,
+  toneRing,
+  toneSurface,
+  type Tone,
+} from '@/lib/tone';
 import type { FileHealth, GitInsights, GitFileStats } from '@/types/api';
 
-function scoreColor(score: number): string {
-  if (score <= 4) return 'bg-red-500/10 text-red-600 dark:text-red-400 ring-red-500/25';
-  if (score <= 7) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/25';
-  return 'bg-green-500/10 text-green-600 dark:text-green-400 ring-green-500/25';
+/**
+ * File health is scored 0–10. `scoreTone` works on 0–100, so the scale is
+ * normalised once here rather than re-banding the thresholds per call site.
+ */
+function healthTone(score: number): Tone {
+  return scoreTone(score * 10);
 }
 
+function scoreColor(score: number): string {
+  const tone = healthTone(score);
+  return cn(toneSurface(tone), toneInk(tone), toneRing(tone));
+}
+
+/** Analytical lens → tone. Performance risk is not the same as defect risk. */
+const LENS_TONE: Record<string, Tone> = {
+  defect_risk: 'critical',
+  maintainability: 'probable',
+  performance: 'observed',
+};
+
 function lensBadge(lens: string) {
-  const map: Record<string, string> = {
-    defect_risk: 'bg-red-500/10 text-red-600 dark:text-red-400',
-    maintainability: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    performance: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  };
-  return map[lens] ?? 'bg-muted text-muted-foreground';
+  const tone = LENS_TONE[lens] ?? 'neutral';
+  return cn(toneSurface(tone), toneInk(tone));
 }
 
 function ScoreRing({ score }: { score: number }) {
-  const color = score <= 4 ? 'text-red-500' : score <= 7 ? 'text-amber-500' : 'text-green-500';
-  return <span className={cn('font-display text-xl font-semibold tabular-nums', color)}>{score.toFixed(1)}</span>;
+  return (
+    <span className={cn('font-display text-xl font-semibold tabular-nums', toneHue(healthTone(score)))}>
+      {score.toFixed(1)}
+    </span>
+  );
 }
 
 function HealthSection({ files, avg, distribution }: { files: FileHealth[]; avg: number | null; distribution: Record<string, number> }) {
@@ -59,10 +81,10 @@ function HealthSection({ files, avg, distribution }: { files: FileHealth[]; avg:
   );
   const worst = [...files].sort((a, b) => a.score - b.score).slice(0, 6);
   const buckets = [
-    { label: '1–3', count: distribution['1-3'] ?? 0, cls: 'bg-red-500' },
-    { label: '4–6', count: distribution['4-6'] ?? 0, cls: 'bg-amber-500' },
-    { label: '7–8', count: distribution['7-8'] ?? 0, cls: 'bg-emerald-500' },
-    { label: '9–10', count: distribution['9-10'] ?? 0, cls: 'bg-green-500' },
+    { label: '1–3', count: distribution['1-3'] ?? 0, cls: toneBar('critical') },
+    { label: '4–6', count: distribution['4-6'] ?? 0, cls: toneBar('probable') },
+    { label: '7–8', count: distribution['7-8'] ?? 0, cls: toneBar('observed') },
+    { label: '9–10', count: distribution['9-10'] ?? 0, cls: toneBar('verified') },
   ];
   const total = buckets.reduce((s, b) => s + b.count, 0) || 1;
 
@@ -75,7 +97,13 @@ function HealthSection({ files, avg, distribution }: { files: FileHealth[]; avg:
             <HeartPulse className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className={cn('font-display text-3xl font-semibold', (avg ?? 0) <= 6 ? 'text-amber-500' : 'text-green-600 dark:text-green-400')}>
+            <div
+              className={cn(
+                'font-display text-3xl font-semibold',
+                // No score yet is "unknown", not "failing".
+                avg == null ? toneHue('neutral') : toneHue(healthTone(avg))
+              )}
+            >
               {avg?.toFixed(1) ?? '—'}
             </div>
             <p className="text-xs text-muted-foreground">/ 10 across {files.length} files</p>
@@ -492,7 +520,7 @@ export default function IntelligencePage() {
               <GitBranch className="h-7 w-7 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight">Repository intelligence</h1>
+              <h1 className="type-page-title">Repository intelligence</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {repository?.name} · deterministic health, git analytics, architecture & wiki
                 {data?.generated_at && (

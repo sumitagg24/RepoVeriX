@@ -3,7 +3,7 @@ import { Mail, MessageSquare, Clock, LifeBuoy } from 'lucide-react';
 import { HelpBreadcrumb } from '@/components/help/breadcrumb';
 
 export const metadata: Metadata = {
-  title: 'Contact support - RepoVeriX Help',
+  title: 'Contact support',
 };
 
 export default function ContactPage() {
@@ -11,7 +11,7 @@ export default function ContactPage() {
     <div className="mx-auto max-w-4xl">
       <HelpBreadcrumb category="Contact support" />
       <div className="mt-6">
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h1 className="type-lead">
           Talk to a human
         </h1>
         <p className="mt-1.5 max-w-2xl text-muted-foreground">
@@ -42,7 +42,7 @@ export default function ContactPage() {
               Many answers already exist there — search before you write.
             </p>
             <a
-              href="/community"
+              href="/help/community"
               className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
             >
               Visit the community →

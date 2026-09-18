@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { CategoryView } from '@/components/help/category-view';
 
 export const metadata: Metadata = {
-  title: 'Billing and plans - RepoVeriX Help',
+  title: 'Billing and plans',
 };
 
 export default function HelpBillingPage() {

@@ -83,3 +83,38 @@ export const PROOF_STAGE_LABELS: Record<ProofStageState, string> = {
   failed: 'Failed',
   skipped: 'Skipped',
 };
+
+/* ------------------------------------------------------------ formatting */
+
+/**
+ * Format a confidence value as a percentage.
+ *
+ * The API returns 0–1; already-percent values are tolerated so a wrong call
+ * site can never render "0%".
+ *
+ * (These two helpers used to live in `lib/verdict.ts`, alongside a full set of
+ * hand-written `bg-red-500/10`-style severity maps. The maps were dead — no file
+ * imported them — so the module was removed and the live helpers moved here,
+ * next to the rest of the label and band logic they belong with.)
+ */
+export function formatConfidence(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—';
+  const pct = value > 1 ? value : value * 100;
+  return `${pct.toFixed(0)}%`;
+}
+
+/** Short human duration: "45s", "3m 12s", "2h 5m". Never "0 min". */
+export function formatDuration(startedAt: string | null, finishedAt: string | null): string {
+  if (!startedAt) return 'Not started';
+  if (!finishedAt) return 'Running…';
+  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+  if (ms < 0) return '—';
+  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s`;
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) {
+    const secs = Math.round((ms % 60_000) / 1000);
+    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}

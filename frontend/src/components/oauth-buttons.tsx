@@ -3,13 +3,40 @@
 import { useQuery } from '@tanstack/react-query';
 import { authService } from '@/services/api';
 import { Button } from '@/components/ui/button';
-import { Github, Gitlab, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { Separator } from '@/components/ui/separator';
+import { Github, Gitlab } from 'lucide-react';
 import type { OAuthProviderName } from '@/types/api';
 
-function GoogleGlyph({ className }: { className?: string }) {
+/**
+ * OAuth provider buttons.
+ *
+ * Which providers exist is a *runtime* property of the deployment, not a
+ * frontend guess: `/auth/oauth/providers` reports which ones the server has
+ * credentials for. Two rules follow from that, and both were violated before:
+ *
+ *  1. Never render a provider the server cannot complete a login with. The
+ *     previous version rendered all three and merely *disabled* the
+ *     unconfigured ones, whose tooltip told end users to go read
+ *     `MANUAL-SETUP.md` and set `REPOVERIX_GOOGLE_OAUTH_CLIENT_ID` — internal
+ *     release instructions leaking onto a public sign-in page.
+ *  2. Never show three "Checking…" buttons while the config request is in
+ *     flight; that is a guaranteed layout shift in the middle of the auth flow.
+ *     One skeleton block resolves to the same footprint.
+ */
+
+/** Render order: the broadest-reach provider reads best as the primary button. */
+const PROVIDER_ORDER: OAuthProviderName[] = ['google', 'github', 'gitlab'];
+
+const LABELS: Record<OAuthProviderName, string> = {
+  google: 'Continue with Google',
+  github: 'Continue with GitHub',
+  gitlab: 'Continue with GitLab',
+};
+
+/** Google's mark is a fixed four-colour brand asset, not a themeable icon. */
+function GoogleMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" focusable="false">
       <path
         fill="#4285F4"
         d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"
@@ -30,14 +57,8 @@ function GoogleGlyph({ className }: { className?: string }) {
   );
 }
 
-const LABELS: Record<OAuthProviderName, string> = {
-  google: 'Continue with Google',
-  github: 'Continue with GitHub',
-  gitlab: 'Continue with GitLab',
-};
-
 const ICONS: Record<OAuthProviderName, React.ComponentType<{ className?: string }>> = {
-  google: GoogleGlyph,
+  google: GoogleMark,
   github: Github,
   gitlab: Gitlab,
 };
@@ -50,6 +71,84 @@ export function useOAuthProviders() {
   });
 }
 
+function ProviderButton({
+  provider,
+  next,
+  variant = 'outline',
+  className,
+}: {
+  provider: OAuthProviderName;
+  next: string;
+  variant?: 'outline' | 'secondary' | 'default';
+  className?: string;
+}) {
+  const Icon = ICONS[provider];
+  return (
+    <Button
+      // Not a submit button: these sit above an email form on the same screen.
+      type="button"
+      variant={variant}
+      className={`w-full justify-center gap-2.5 ${className ?? ''}`}
+      onClick={() => {
+        window.location.href = authService.oauthLoginUrl(provider, next);
+      }}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{LABELS[provider]}</span>
+    </Button>
+  );
+}
+
+export function OAuthProviderGroup({ next = '/dashboard' }: { next?: string }) {
+  const { data, isLoading } = useOAuthProviders();
+  const available = PROVIDER_ORDER.filter((provider) => data?.[provider]?.configured);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2.5" aria-busy="true" aria-label="Loading sign-in providers">
+        <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="h-10 animate-pulse rounded-md bg-muted" />
+          <div className="h-10 animate-pulse rounded-md bg-muted" />
+        </div>
+      </div>
+    );
+  }
+
+  // No configured provider: render nothing at all. An auth screen that offers
+  // email/password is complete on its own; a heading, an empty grid, or a
+  // disabled button would only signal that something is broken.
+  if (available.length === 0) return null;
+
+  const [primary, ...secondary] = available;
+
+  return (
+    <div>
+      <div className="space-y-2.5">
+        <ProviderButton provider={primary} next={next} />
+        {secondary.length > 0 && (
+          <div className={secondary.length > 1 ? 'grid grid-cols-2 gap-2.5' : undefined}>
+            {secondary.map((provider) => (
+              <ProviderButton key={provider} provider={provider} next={next} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="my-5 flex items-center gap-3">
+        <Separator className="flex-1" />
+        <span className="text-xs text-muted-foreground">or with email</span>
+        <Separator className="flex-1" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Single provider button, kept for callers that need one provider on its own
+ * (e.g. a sidebar "reconnect GitLab" action). Renders nothing when the server
+ * has no credentials for that provider.
+ */
 export function OAuthSignInButton({
   provider,
   next = '/dashboard',
@@ -61,43 +160,18 @@ export function OAuthSignInButton({
   next?: string;
   variant?: 'outline' | 'secondary' | 'default';
   className?: string;
-  /** Called right before the browser leaves for the provider (e.g. to record return context). */
   onRedirect?: () => void;
 }) {
   const { data, isLoading } = useOAuthProviders();
-  const configured = data?.[provider]?.configured ?? false;
-  const Icon = ICONS[provider];
 
   if (isLoading) {
-    return (
-      <Button variant={variant} className={`w-full gap-2 ${className ?? ''}`} disabled>
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Checking…
-      </Button>
-    );
+    return <div className="h-10 w-full animate-pulse rounded-md bg-muted" />;
   }
+  if (!data?.[provider]?.configured) return null;
 
   return (
-    <Button
-      variant={variant}
-      className={`w-full gap-2.5 ${className ?? ''}`}
-      disabled={!configured}
-      title={
-        configured
-          ? LABELS[provider]
-          : `Not configured — see MANUAL-SETUP.md (REPOVERIX_${provider.toUpperCase()}_OAUTH_CLIENT_ID)`
-      }
-      onClick={() => {
-        if (configured) {
-          onRedirect?.();
-          window.location.href = authService.oauthLoginUrl(provider, next);
-        } else {
-          toast.info(`${provider[0].toUpperCase()}${provider.slice(1)} OAuth isn't configured on this server yet.`);
-        }
-      }}
-    >
-      {provider === 'google' ? <GoogleGlyph className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-      {LABELS[provider]}
-    </Button>
+    <div onClickCapture={onRedirect} className={className ? `w-full ${className}` : 'w-full'}>
+      <ProviderButton provider={provider} next={next} variant={variant} />
+    </div>
   );
 }

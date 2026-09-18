@@ -25,6 +25,7 @@ import {
   FolderGit2,
   Globe,
   Wrench,
+  Plug,
 } from 'lucide-react';
 import { useRepositories } from '@/hooks/useRepositories';
 import { useScans } from '@/hooks/useScans';
@@ -103,6 +104,8 @@ export function CommandPalette({
       page('Repositories', 'Import or open a repository', '/repositories', GitBranch, 'github gitlab s3 zip archive'),
       page('Scans', 'All analysis runs', '/scans', ScanSearch, 'analysis pipeline runs'),
       page('Findings', 'Every evidence-backed issue', '/findings', Bug, 'vulnerabilities defects issues'),
+      page('Rules', 'Detection catalog and examples', '/rules', BookOpen, 'detections rule ids rvx'),
+      page('Integrations', 'GitHub, GitLab and sign-in providers', '/integrations', Plug, 'oauth github gitlab connections'),
       page('Pull Request Auditor', 'Analyze a GitHub PR', '/pull-requests', GitPullRequest, 'pr review audit'),
       page('Website Audits', 'Passive SEO + security + accessibility audits', '/websites', Globe, 'website seo security a11y performance'),
       page('Tools', 'Every capability in one catalog', '/tools', Wrench, 'tools catalog sarif export webhook api'),

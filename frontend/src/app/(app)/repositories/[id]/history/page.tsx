@@ -11,6 +11,7 @@ import { useIntelligence } from '@/hooks/useIntelligence';
 import { useHealthTimeline } from '@/hooks/useAudit';
 import { useScans } from '@/hooks/useScans';
 import { formatDistanceToNow } from 'date-fns';
+import { toneHue } from '@/lib/tone';
 
 export default function RepositoryHistoryPage() {
   const params = useParams();
@@ -32,7 +33,7 @@ export default function RepositoryHistoryPage() {
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Repository
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          <h1 className="type-page-title flex items-center gap-2">
             <History className="h-5 w-5 text-muted-foreground" /> Health History
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -82,9 +83,9 @@ export default function RepositoryHistoryPage() {
             <div className="text-2xl font-bold">
               {points.length >= 2 ? (
                 (points[points.length - 1].average_score ?? 0) >= (points[0].average_score ?? 0) ? (
-                  <span className="text-green-600 dark:text-green-400">improving ↗</span>
+                  <span className={toneHue('verified')}>improving ↗</span>
                 ) : (
-                  <span className="text-red-600 dark:text-red-400">declining ↘</span>
+                  <span className={toneHue('critical')}>declining ↘</span>
                 )
               ) : (
                 <span className="text-muted-foreground text-lg">not enough data</span>

@@ -7,35 +7,33 @@ import { Button } from '@/components/ui/button';
 import { usePatchVerifications, useVerificationRun, useVerifyPatch } from '@/hooks/usePatches';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
+import { toneCallout, toneHue, toneInk, type Tone } from '@/lib/tone';
 import type { Patch, VerificationRun } from '@/types/api';
 
-const runStatusMeta: Record<string, { label: string; badge: string; icon: React.ReactNode }> = {
-  pending: {
-    label: 'Pending',
-    badge: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-    icon: <MinusCircle className="h-4 w-4" />,
-  },
-  running: {
-    label: 'Running',
-    badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-    icon: <Loader2 className="h-4 w-4 animate-spin" />,
-  },
+/** Verification-run status → tone. Surfaces come from the shared token layer. */
+const runStatusMeta: Record<string, { label: string; tone: Tone; icon: React.ReactNode }> = {
+  pending: { label: 'Pending', tone: 'probable', icon: <MinusCircle className="h-4 w-4" /> },
+  running: { label: 'Running', tone: 'observed', icon: <Loader2 className="h-4 w-4 animate-spin" /> },
   verified_repair: {
     label: 'Verified Repair',
-    badge: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
+    tone: 'verified',
     icon: <ShieldCheck className="h-4 w-4" />,
   },
   repair_failed: {
     label: 'Repair Failed',
-    badge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+    tone: 'critical',
     icon: <ShieldX className="h-4 w-4" />,
   },
   repair_not_verified: {
     label: 'Not Verified',
-    badge: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
+    tone: 'high',
     icon: <AlertTriangle className="h-4 w-4" />,
   },
 };
+
+function statusFace(tone: Tone): string {
+  return cn(toneCallout(tone), toneInk(tone));
+}
 
 const stepMeta = [
   { key: 'patch_applied', label: 'Patch Applied', ok: (r: VerificationRun) => r.patch_applied === true },
@@ -60,14 +58,16 @@ function StepRow({ run, step }: { run: VerificationRun; step: (typeof stepMeta)[
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      {state === 'done' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-      {state === 'failed' && <XCircle className="h-4 w-4 text-red-500" />}
-      {state === 'pending' && <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />}
+      {state === 'done' && <CheckCircle2 className={cn('h-4 w-4', toneHue('verified'))} />}
+      {state === 'failed' && <XCircle className={cn('h-4 w-4', toneHue('critical'))} />}
+      {state === 'pending' && (
+        <Loader2 className={cn('h-4 w-4 animate-spin', toneHue('observed'))} />
+      )}
       {state === 'skipped' && <MinusCircle className="h-4 w-4 text-muted-foreground/50" />}
       <span
         className={cn(
           state === 'failed' && 'text-destructive',
-          state === 'done' && 'text-green-600 dark:text-green-400',
+          state === 'done' && toneInk('verified'),
           state === 'skipped' && 'text-muted-foreground',
         )}
       >
@@ -82,38 +82,36 @@ function RunLogs({ verificationId }: { verificationId: string }) {
   const [open, setOpen] = useState(false);
   if (!detail) return null;
   return (
-    <div className="mt-3">
+    <div className="mt-4 pt-4 border-t border-border/50">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
-        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         Execution Logs
       </button>
       {open && (
-        <div className="mt-2 space-y-3">
+        <div className="mt-3 space-y-3">
           {detail.logs && (
-            <pre className="p-3 bg-muted rounded text-xs overflow-x-auto max-h-72 whitespace-pre-wrap break-all">
-              <code>{detail.logs}</code>
-            </pre>
+            <div className="overflow-hidden rounded-lg border border-border/50 bg-muted/30">
+              <pre className="p-3 font-mono text-xs overflow-x-auto max-h-72 whitespace-pre-wrap break-all leading-relaxed">
+                <code>{detail.logs}</code>
+              </pre>
+            </div>
           )}
           {detail.test_results && detail.test_results.length > 0 && (
-            <div className="border rounded-lg overflow-hidden">
-              <div className="px-3 py-2 bg-muted/50 text-xs font-medium border-b">Test Results ({detail.test_results.length})</div>
-              <ul className="divide-y">
+            <div className="border border-border/50 rounded-lg overflow-hidden">
+              <div className="px-3 py-2.5 bg-muted/20 text-xs font-semibold uppercase tracking-wide border-b border-border/50">
+                Test Results ({detail.test_results.length})
+              </div>
+              <ul className="divide-y divide-border/30">
                 {detail.test_results.map((t) => (
-                  <li key={t.id} className="flex items-start justify-between gap-3 px-3 py-2 text-xs">
+                  <li key={t.id} className="flex items-start justify-between gap-3 px-3 py-2.5 text-xs hover:bg-muted/15 transition-colors">
                     <span className="font-mono truncate">{t.test_name}</span>
                     <Badge
                       variant="outline"
-                      className={cn(
-                        'flex-shrink-0',
-                        t.outcome === 'passed' && 'bg-green-500/10 text-green-600 border-green-500/20',
-                        t.outcome === 'failed' && 'bg-red-500/10 text-red-600 border-red-500/20',
-                        t.outcome === 'error' && 'bg-red-500/10 text-red-600 border-red-500/20',
-                        t.outcome === 'skipped' && 'bg-gray-500/10 text-gray-600 border-gray-500/20',
-                      )}
+                      className={cn('flex-shrink-0', statusFace(testOutcomeTone(t.outcome)))}
                     >
                       {t.outcome}
                     </Badge>
@@ -128,23 +126,36 @@ function RunLogs({ verificationId }: { verificationId: string }) {
   );
 }
 
+/** Test outcome → tone. `error` is not a pass and must not read as neutral. */
+function testOutcomeTone(outcome: string | null | undefined): Tone {
+  switch ((outcome ?? '').toLowerCase()) {
+    case 'passed':
+      return 'verified';
+    case 'failed':
+    case 'error':
+      return 'critical';
+    default:
+      return 'neutral';
+  }
+}
+
 function VerificationRunCard({ run }: { run: VerificationRun }) {
   const meta = runStatusMeta[run.status] || runStatusMeta.pending;
   return (
-    <div className="border rounded-lg p-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={meta.badge}>
+    <div className="border border-border/50 rounded-lg p-4 bg-muted/5 hover:bg-muted/10 transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className={statusFace(meta.tone)}>
             {meta.icon}
-            {meta.label}
+            <span className="font-semibold">{meta.label}</span>
           </Badge>
           {run.started_at && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground font-mono">
               {new Date(run.started_at).toLocaleString()}
             </span>
           )}
         </div>
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-x-6 gap-y-2">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-x-6 gap-y-3">
           {stepMeta.map((step) => (
             <StepRow key={step.key} run={run} step={step} />
           ))}
@@ -163,36 +174,36 @@ export function VerificationSection({ patch }: { patch: Patch }) {
   const verifiable = patch.status === 'candidate' || patch.status === 'failed' || patch.status === 'not_verified';
 
   return (
-    <div className="border-t p-4 space-y-3">
+    <div className="border-t border-border/50 p-4 space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Fix Verification</span>
+        <div className="flex items-center gap-2.5">
+          <Terminal className="h-4.5 w-4.5 text-primary" />
+          <span className="text-sm font-semibold uppercase tracking-wide">Fix Verification</span>
         </div>
         {verifiable && (
           <Button
             size="sm"
             disabled={busy}
             onClick={() => verify.mutate(patch.id)}
+            className="gap-2"
           >
-            {verify.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+            {verify.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
             Verify Fix
           </Button>
         )}
       </div>
 
       {verify.isError && (
-        <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-2">
+        <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded px-3 py-2.5 font-medium">
           {getApiErrorMessage(verify.error)}
         </p>
       )}
 
       {isLoading ? (
-        <div className="h-16 bg-muted animate-pulse rounded-lg" />
+        <div className="h-16 bg-muted/20 animate-pulse rounded-lg border border-border/50" />
       ) : runsDesc.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No verification runs yet. Verification applies this patch to an isolated copy of the
-          repository, runs the test suite, and re-analyses the finding before declaring the repair verified.
+        <p className="text-sm text-muted-foreground leading-relaxed italic">
+          No verification runs yet. Verification applies this patch to an isolated copy of the repository, runs the test suite, and re-analyzes the finding before declaring the repair verified.
         </p>
       ) : (
         <div className="space-y-3">

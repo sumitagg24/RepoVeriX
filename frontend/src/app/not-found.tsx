@@ -5,7 +5,7 @@ import { LogoMark } from '@/components/logo';
 import { SearchX, ArrowLeft, BookOpen } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Page not found - RepoVeriX',
+  title: 'Page not found',
   robots: { index: false, follow: true },
 };
 
@@ -16,7 +16,7 @@ export default function NotFound() {
       <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         404
       </p>
-      <h1 className="mt-2 flex items-center gap-2 font-display text-3xl font-semibold">
+      <h1 className="type-lead mt-2 flex items-center gap-2">
         <SearchX className="h-6 w-6 text-primary" aria-hidden />
         Page not found
       </h1>

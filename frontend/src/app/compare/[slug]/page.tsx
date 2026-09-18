@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { notFound } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Check, Minus } from 'lucide-react';
 import { SITE_URL } from '@/lib/site-url';
 import { COMPARISONS, getComparison } from '@/lib/seo/comparisons';
+import { toneHue } from '@/lib/tone';
 
 export function generateStaticParams() {
   return COMPARISONS.map((c) => ({ slug: c.slug }));
@@ -18,7 +20,10 @@ export async function generateMetadata({
   const c = getComparison(params.slug);
   if (!c) return { title: 'Not found' };
   return {
-    title: c.title,
+    // Every comparison title already names the product ("Semgrep vs RepoVeriX:
+    // …"), so the root layout's title template must not append the brand a
+    // second time. Non-branded titles keep the template's suffix.
+    title: c.title.includes('RepoVeriX') ? { absolute: c.title } : c.title,
     description: c.description,
     alternates: { canonical: `/compare/${c.slug}` },
     openGraph: {
@@ -80,19 +85,8 @@ export default function ComparisonPage({ params }: { params: { slug: string } })
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <MarketingShell>
       <script type="application/ld+json" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link href="/compare" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← All comparisons
-          </Link>
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            RepoVeriX
-          </Link>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
           <Link href="/" className="hover:text-foreground">Home</Link>
@@ -102,7 +96,7 @@ export default function ComparisonPage({ params }: { params: { slug: string } })
           <span aria-current="page">{c.vs}</span>
         </nav>
 
-        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{c.title}</h1>
+        <h1 className="type-lead mt-4">{c.title}</h1>
         <p className="mt-4 text-lg text-muted-foreground">{c.description}</p>
 
         <section className="mt-10">
@@ -155,7 +149,7 @@ export default function ComparisonPage({ params }: { params: { slug: string } })
           <Card>
             <CardContent className="p-5">
               <h2 className="flex items-center gap-2 font-semibold">
-                <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <Check className={`h-4 w-4 ${toneHue('verified')}`} aria-hidden />
                 Choose RepoVeriX when
               </h2>
               <ul className="mt-3 space-y-2">
@@ -201,6 +195,6 @@ export default function ComparisonPage({ params }: { params: { slug: string } })
           </div>
         </section>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

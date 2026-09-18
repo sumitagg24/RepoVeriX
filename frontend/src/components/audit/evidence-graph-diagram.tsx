@@ -1,6 +1,7 @@
 'use client';
 
 import type { EvidenceGraph } from '@/types/api';
+import { asSeverity } from '@/lib/evidence';
 
 const FINDING_W = 168;
 const EVIDENCE_W = 168;
@@ -9,16 +10,65 @@ const NODE_H = 36;
 const COL_GAP = 96;
 const ROW_GAP = 14;
 
-const KIND_COLORS: Record<string, string> = {
-  source_input: '#22c55e',
-  transformation: '#eab308',
-  sink: '#ef4444',
-  static_analysis: '#8b5cf6',
-  dependency: '#f97316',
-  test: '#06b6d4',
-  llm_reasoning: '#ec4899',
-  call_relationship: '#3b82f6',
+/**
+ * Evidence-node kind → design token.
+ *
+ * This used to be eight hardcoded hex values, which meant the graph ignored the
+ * theme completely (its nodes stayed dark-palette on a light page) and had a
+ * second colour language alongside the severity tokens. Mapping to token *names*
+ * lets the attributes below compose `hsl(var(--token))` — still an inline SVG
+ * value, but one that resolves from the same tokens as everything else.
+ *
+ * `call_relationship` is intentionally the muted hue: it is graph structure,
+ * not evidence, and should not compete with the evidence nodes for attention.
+ */
+const KIND_TOKEN: Record<string, string> = {
+  source_input: '--rvx-source',
+  transformation: '--rvx-transform',
+  sink: '--rvx-sink',
+  static_analysis: '--rvx-patch',
+  dependency: '--sev-high',
+  test: '--rvx-verified',
+  llm_reasoning: '--chain-node',
+  call_relationship: '--sev-info',
 };
+
+const FALLBACK_TOKEN = '--muted-foreground';
+
+function kindToken(subkind: string | null | undefined): string {
+  return KIND_TOKEN[subkind ?? ''] ?? FALLBACK_TOKEN;
+}
+
+/** `hsl(var(--rvx-sink))` — a paintable colour for an SVG attribute. */
+export function kindColor(subkind: string | null | undefined): string {
+  return `hsl(var(${kindToken(subkind)}))`;
+}
+
+/** `hsl(var(--rvx-sink) / 0.08)` — a tinted fill or hairline stroke. */
+function kindColorWithAlpha(subkind: string | null | undefined, alpha: number): string {
+  return `hsl(var(${kindToken(subkind)} / ${alpha}))`;
+}
+
+/** Finding severity → its own token hue (critical/high/medium/low/info). */
+function severityColor(severity: string | null | undefined): string {
+  return `hsl(var(--sev-${asSeverity(severity)}))`;
+}
+
+/**
+ * The legend, derived from the same map the nodes paint from. The graph page
+ * renders this instead of its own hand-written key, which is how the legend and
+ * the diagram previously drifted apart (the key listed six kinds; the diagram
+ * painted eight).
+ */
+export const EVIDENCE_LEGEND: { kind: string; label: string }[] = [
+  { kind: 'source_input', label: 'source input' },
+  { kind: 'transformation', label: 'transformation' },
+  { kind: 'sink', label: 'sink' },
+  { kind: 'static_analysis', label: 'static analysis' },
+  { kind: 'llm_reasoning', label: 'llm reasoning' },
+  { kind: 'call_relationship', label: 'call relationship' },
+  { kind: 'unknown', label: 'other evidence' },
+];
 
 /**
  * Evidence graph in three columns: finding -> evidence chain -> file.
@@ -118,12 +168,7 @@ export function EvidenceGraphDiagram({ graph }: { graph: EvidenceGraph }) {
         {findings.slice(0, 8).map((node) => {
           const p = pos.get(node.id);
           if (!p) return null;
-          const severityColor =
-            node.severity === 'critical' || node.severity === 'high'
-              ? '#ef4444'
-              : node.severity === 'medium'
-                ? '#eab308'
-                : '#3b82f6';
+          const accent = severityColor(node.severity);
           return (
             <g key={node.id}>
               <rect
@@ -132,8 +177,8 @@ export function EvidenceGraphDiagram({ graph }: { graph: EvidenceGraph }) {
                 width={FINDING_W}
                 height={NODE_H}
                 rx={9}
-                fill={`${severityColor}14`}
-                stroke={`${severityColor}55`}
+                fill={`hsl(var(--sev-${asSeverity(node.severity)}) / 0.08)`}
+                stroke={accent}
                 strokeWidth={1.1}
               />
               <text x={p.x + 10} y={p.y + 15} fontSize={11.5} fontWeight={600} fill="hsl(var(--foreground))">
@@ -149,7 +194,6 @@ export function EvidenceGraphDiagram({ graph }: { graph: EvidenceGraph }) {
         {evidence.slice(0, 40).map((node) => {
           const p = pos.get(node.id);
           if (!p) return null;
-          const accent = KIND_COLORS[node.subkind ?? ''] ?? '#94a3b8';
           return (
             <g key={node.id}>
               <rect
@@ -158,8 +202,8 @@ export function EvidenceGraphDiagram({ graph }: { graph: EvidenceGraph }) {
                 width={EVIDENCE_W}
                 height={NODE_H}
                 rx={9}
-                fill={`${accent}12`}
-                stroke={`${accent}50`}
+                fill={kindColorWithAlpha(node.subkind, 0.08)}
+                stroke={kindColorWithAlpha(node.subkind, 0.4)}
                 strokeWidth={1}
               />
               <text x={p.x + 10} y={p.y + 15} fontSize={11} fontWeight={600} fill="hsl(var(--foreground))">

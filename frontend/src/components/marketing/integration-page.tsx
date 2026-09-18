@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Check, KeyRound, Lock, RefreshCw, ShieldCheck, FileCode2 } from 'lucide-react';
@@ -21,21 +22,7 @@ export interface IntegrationProvider {
 
 export function IntegrationPage({ data }: { data: IntegrationProvider }) {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← RepoVeriX
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-          >
-            Connect {data.provider}
-          </Link>
-        </div>
-      </header>
-
+    <MarketingShell>
       <main className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
         {/* Hero */}
         <div className="max-w-3xl">
@@ -165,6 +152,6 @@ export function IntegrationPage({ data }: { data: IntegrationProvider }) {
           </div>
         </section>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

@@ -9,12 +9,12 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Mail, Lock, User, Check } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { OAuthSignInButton } from '@/components/oauth-buttons';
+import { OAuthProviderGroup } from '@/components/oauth-buttons';
 import { AuthShell } from '@/components/auth-shell';
 import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 const signupSchema = z
   .object({
@@ -56,7 +56,9 @@ function SignupPageInner() {
         router.push(`/billing?plan=${encodeURIComponent(planParam)}`);
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create account');
+      // Same contract as login/forgot-password: show the backend's message
+      // (e.g. "An account with this email already exists") instead of axios noise.
+      toast.error(getApiErrorMessage(error));
       setIsLoading(false);
     }
   };
@@ -74,19 +76,7 @@ function SignupPageInner() {
         </>
       }
     >
-      <div className="space-y-2.5">
-        <OAuthSignInButton provider="google" next="/dashboard" />
-        <div className="grid grid-cols-2 gap-2.5">
-          <OAuthSignInButton provider="github" next="/dashboard" />
-          <OAuthSignInButton provider="gitlab" next="/dashboard" />
-        </div>
-      </div>
-
-      <div className="my-5 flex items-center gap-3">
-        <Separator className="flex-1" />
-        <span className="text-xs text-muted-foreground">or with email</span>
-        <Separator className="flex-1" />
-      </div>
+      <OAuthProviderGroup next="/dashboard" />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">

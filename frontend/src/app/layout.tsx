@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Toaster } from 'sonner';
@@ -8,20 +8,16 @@ import { getNonce } from '@/lib/csp-server';
 import { SITE_URL } from '@/lib/site-url';
 
 /* Font system — all self-hosted at build time (no runtime CDN requests).
- *  - Inter      : UI / body copy
- *  - Fraunces   : display / hero headings (warm editorial serif, optical sizing)
- *  - JetBrains  : code, diffs, identifiers
+ *  - Inter      : everything (display headings + UI/body copy)
+ *  - JetBrains  : code, diffs, identifiers, technical labels
+ *
+ * The display serif (Fraunces) was retired: `--font-display` now derives from
+ * Inter, so `.font-display`, `h1` and body copy share one typeface. Loading a
+ * second family for headings fought the developer-infrastructure category.
  */
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
-});
-
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  style: ['normal', 'italic'],
-  variable: '--font-display',
-  display: 'swap',
 });
 
 const jetbrains = JetBrains_Mono({
@@ -59,8 +55,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#faf7f2' },
-    { media: '(prefers-color-scheme: dark)', color: '#171310' },
+    // Kept in sync with --background in globals.css (light 220 20% 98%,
+    // dark 220 15% 8%). Paints the browser chrome before CSS loads.
+    { media: '(prefers-color-scheme: light)', color: '#f9fafb' },
+    { media: '(prefers-color-scheme: dark)', color: '#111318' },
   ],
 };
 
@@ -80,7 +78,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.className} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} antialiased`}
+        className={`${inter.className} ${inter.variable} ${jetbrains.variable} antialiased`}
       >
         {/* suppressHydrationWarning: Fast Refresh re-renders cannot read
             request headers, so React diffs the nonce prop against the DOM and

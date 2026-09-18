@@ -16,24 +16,30 @@ import {
 import { orgService } from '@/services/api';
 import type { OrgRead, TeamDashboard, SecurityCenter } from '@/types/api';
 import { Loader2, Plus, ShieldCheck, Users, GitBranch, ScanSearch, Bug, Wrench } from 'lucide-react';
+import { SEVERITIES } from '@/lib/evidence';
+import { SeverityBadge } from '@/components/system/severity-badge';
 
-const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
-
+/**
+ * Severity distribution as labelled chips.
+ *
+ * The previous version collapsed `critical` and `high` onto the same
+ * `destructive` badge and everything else onto `secondary`, so the workspace
+ * dashboard showed five severities as two colours. Each level now keeps its own
+ * token face, and the label is always shown beside the count.
+ */
 function SeverityChips({ bySeverity }: { bySeverity: Record<string, number> }) {
+  const present = SEVERITIES.filter((s) => (bySeverity[s] ?? 0) > 0);
+  if (present.length === 0) {
+    return <span className="text-sm text-muted-foreground">No findings</span>;
+  }
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {SEVERITY_ORDER.filter((s) => (bySeverity[s] ?? 0) > 0).map((s) => (
-        <Badge
-          key={s}
-          variant={s === 'critical' ? 'destructive' : s === 'high' ? 'destructive' : 'secondary'}
-          className="capitalize"
-        >
-          {s}: {bySeverity[s] ?? 0}
-        </Badge>
+    <div className="flex flex-wrap gap-2">
+      {present.map((s) => (
+        <span key={s} className="inline-flex items-center gap-1.5">
+          <SeverityBadge severity={s} />
+          <span className="text-xs tabular-nums text-muted-foreground">{bySeverity[s] ?? 0}</span>
+        </span>
       ))}
-      {SEVERITY_ORDER.every((s) => (bySeverity[s] ?? 0) === 0) && (
-        <span className="text-sm text-muted-foreground">No findings</span>
-      )}
     </div>
   );
 }
@@ -103,7 +109,7 @@ export default function TeamPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Team &amp; Organizations</h1>
+          <h1 className="type-page-title">Team &amp; Organizations</h1>
           <p className="text-sm text-muted-foreground">
             Shared workspaces: members see org repositories, admins manage them.
           </p>

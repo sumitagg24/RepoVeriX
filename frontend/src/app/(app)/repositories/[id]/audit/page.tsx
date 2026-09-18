@@ -33,16 +33,21 @@ import {
   TestTube,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  reachabilityTone,
+  riskTone,
+  toneBorder,
+  toneCallout,
+  toneHue,
+  toneInk,
+  toneSoft,
+  type Tone,
+} from '@/lib/tone';
 
 function ExplanationCard({ explanation }: { explanation: ChangeExplanation }) {
-  const riskColor =
-    explanation.risk_score >= 75
-      ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-      : explanation.risk_score >= 50
-        ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
-        : explanation.risk_score >= 25
-          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-          : 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
+  // The score is 0–100; `riskTone` owns the thresholds so this card and the
+  // risk gauge above it cannot disagree about what "high" means.
+  const riskColor = `${toneSoft(riskTone(explanation.risk_score))} ${toneInk(riskTone(explanation.risk_score))}`;
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
@@ -85,7 +90,7 @@ function ExplanationCard({ explanation }: { explanation: ChangeExplanation }) {
                     {s.split(':').pop()}
                   </Badge>
                 ))}
-                {f.note && <span className="text-[11px] text-amber-600 dark:text-amber-400">{f.note}</span>}
+                {f.note && <span className={cn('text-[11px]', toneHue('probable'))}>{f.note}</span>}
               </div>
             </div>
           ))}
@@ -104,19 +109,26 @@ const DIRECTIVE_LABELS: Record<string, string> = {
   api_surface: 'API surface changed',
 };
 
-const RISK_STYLES: Record<string, string> = {
-  CRITICAL: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  HIGH: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
-  MEDIUM: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  LOW: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-};
+/** Attack-path risk level chip face (the API returns the level already). */
+function riskFace(level: string): string {
+  const key = (level ?? '').toLowerCase();
+  if (key === 'critical' || key === 'high' || key === 'medium' || key === 'low') {
+    return toneSoft(key as Tone);
+  }
+  return 'chip-outline';
+}
 
-const REACH_STYLES: Record<string, string> = {
-  DIRECTLY_REACHABLE: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  INDIRECTLY_REACHABLE: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-  UNKNOWN: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  NOT_REACHABLE: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-};
+/**
+ * Dependency/path reachability chip face.
+ *
+ * Reachability is its own axis — it is not a severity — so it reads through
+ * `reachabilityTone` rather than being folded into the severity ramp. The
+ * earlier mixed map gave "reachable" the green face and "unreachable" the grey
+ * one, which inverted the urgency of the very thing this screen exists to show.
+ */
+function reachFace(status: string): string {
+  return toneSoft(reachabilityTone(status));
+}
 
 function AttackPathCard({ path, index }: { path: AttackPath; index: number }) {
   const status = path.status ?? 'VERIFIED';
@@ -126,22 +138,18 @@ function AttackPathCard({ path, index }: { path: AttackPath; index: number }) {
       <div className="flex flex-wrap items-center gap-2 text-sm mb-3">
         <Badge variant="outline">Path {index + 1}</Badge>
         {typeof path.risk_score === 'number' && (
-          <Badge variant="outline" className={RISK_STYLES[riskLevel] ?? ''}>
+          <Badge variant="outline" className={riskFace(riskLevel)}>
             {riskLevel} risk · {path.risk_score}/100
           </Badge>
         )}
         <Badge
           variant="outline"
-          className={
-            status === 'VERIFIED'
-              ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
-              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-          }
+          className={status === 'VERIFIED' ? toneSoft('verified') : toneSoft('probable')}
         >
           {status}
         </Badge>
         {path.entry_point?.type && (
-          <Badge variant="outline" className="bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20">
+          <Badge variant="outline" className="sev-low-soft">
             {path.entry_point.type} entry
           </Badge>
         )}
@@ -150,9 +158,8 @@ function AttackPathCard({ path, index }: { path: AttackPath; index: number }) {
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
-          {path.source}
-        </Badge>
+        {/* The chain, in the graph's own hues: source (observed) → sink. */}
+        <Badge className={cn(toneCallout('observed'), toneInk('observed'))}>{path.source}</Badge>
         {path.steps.map((step, i) => (
           <span key={i} className="flex items-center gap-2">
             <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
@@ -163,24 +170,36 @@ function AttackPathCard({ path, index }: { path: AttackPath; index: number }) {
           </span>
         ))}
         <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-        <Badge className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
-          {path.sink}
-        </Badge>
+        <Badge className={cn(toneCallout('critical'), toneInk('critical'))}>{path.sink}</Badge>
       </div>
-      {path.note && <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{path.note}</p>}
+      {path.note && <p className={cn('mt-2 text-xs', toneHue('probable'))}>{path.note}</p>}
     </div>
   );
 }
 
-const TRIAGE_STYLES: Record<string, string> = {
-  'reachable-vulnerable': 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  'vulnerable-unreachable': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  'vulnerable-unknown': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  'indirectly-reachable': 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-  'not-reachable': 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-  unreachable: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-  reachable: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-};
+/**
+ * Triage verdict chip face. The verdicts combine two questions — is it
+ * vulnerable, and is it reachable — so each half reads from its own mapping
+ * instead of one shared palette standing in for both.
+ */
+function triageFace(triage: string): string {
+  switch (triage) {
+    case 'reachable-vulnerable':
+      return toneSoft('critical');
+    case 'vulnerable-unreachable':
+    case 'vulnerable-unknown':
+      return toneSoft('medium');
+    case 'indirectly-reachable':
+      return toneSoft(reachabilityTone('indirectly_reachable'));
+    case 'not-reachable':
+    case 'unreachable':
+      return toneSoft(reachabilityTone('unreachable'));
+    case 'reachable':
+      return toneSoft(reachabilityTone('reachable'));
+    default:
+      return 'chip-outline';
+  }
+}
 
 export default function AuditPage() {
   const params = useParams();
@@ -235,7 +254,7 @@ export default function AuditPage() {
               <GitCompare className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Change Audit</h1>
+              <h1 className="type-page-title">Change Audit</h1>
               <p className="text-muted-foreground mt-1">
                 PR risk, blast radius, attack paths, dependency triage and regression — one page
               </p>
@@ -490,7 +509,7 @@ export default function AuditPage() {
                   auditContext.dbSymbols.length > 0) && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                      <CardTitle className={cn('flex items-center gap-2', toneInk('probable'))}>
                         <ShieldAlert className="h-4 w-4" /> Security, API and database context
                       </CardTitle>
                     </CardHeader>
@@ -555,9 +574,9 @@ export default function AuditPage() {
                   </Card>
                 )}
                 {(audit.missing_companion_files.length > 0 || audit.untested_changed_files.length > 0) && (
-                  <Card className="border-amber-500/40">
+                  <Card className={cn('border', toneBorder('probable'))}>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                      <CardTitle className={cn('flex items-center gap-2', toneInk('probable'))}>
                         <AlertTriangle className="h-4 w-4" /> Gaps detected
                       </CardTitle>
                     </CardHeader>
@@ -653,7 +672,7 @@ export default function AuditPage() {
                 <CardTitle className="text-sm text-muted-foreground">Reachable</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                <div className={cn('text-2xl font-bold', toneHue(reachabilityTone('reachable'))) }>
                   {depReach.data?.reachable_count ?? '—'}
                 </div>
               </CardContent>
@@ -671,7 +690,7 @@ export default function AuditPage() {
                 <CardTitle className="text-sm text-muted-foreground">Vulnerable & reachable</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                <div className={cn('text-2xl font-bold', toneHue('critical'))}>
                   {depReach.data?.vulnerable_reachable ?? '—'}
                 </div>
               </CardContent>
@@ -710,14 +729,14 @@ export default function AuditPage() {
                             <span className="text-xs text-muted-foreground font-mono">{dep.version}</span>
                           )}
                           {dep.known_vulnerabilities > 0 && (
-                            <Badge variant="outline" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                            <Badge variant="outline" className={cn(toneCallout('critical'), toneInk('critical'))}>
                               {dep.known_vulnerabilities} known vuln{dep.known_vulnerabilities > 1 ? 's' : ''}
                             </Badge>
                           )}
                           {dep.reachability_status && (
                             <Badge
                               variant="outline"
-                              className={REACH_STYLES[dep.reachability_status] ?? ''}
+                              className={reachFace(dep.reachability_status)}
                             >
                               {dep.reachability_status.replace(/_/g, ' ')}
                             </Badge>
@@ -731,7 +750,7 @@ export default function AuditPage() {
                         {dep.vulnerabilities && dep.vulnerabilities.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {dep.vulnerabilities.map((vuln, vi) => (
-                              <p key={vi} className="text-xs text-red-600 dark:text-red-400">
+                              <p key={vi} className={cn('text-xs', toneHue('critical'))}>
                                 {vuln.id && <span className="font-mono">{vuln.id} · </span>}
                                 {typeof vuln.cvss === 'number' && <span>CVSS {vuln.cvss} · </span>}
                                 {vuln.summary ?? ''}
@@ -743,7 +762,7 @@ export default function AuditPage() {
                           <p className="text-xs text-muted-foreground mt-1 italic">{dep.recommendation}</p>
                         )}
                       </div>
-                      <Badge variant="outline" className={TRIAGE_STYLES[dep.triage] ?? ''}>
+                      <Badge variant="outline" className={triageFace(dep.triage)}>
                         {dep.triage.replace(/_/g, ' ')}
                       </Badge>
                     </div>
@@ -784,7 +803,7 @@ export default function AuditPage() {
                     <CardTitle className="text-sm text-muted-foreground">New</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                    <div className={cn('text-2xl font-bold', toneHue('critical'))}>
                       {regression.data.new.length}
                     </div>
                   </CardContent>
@@ -794,7 +813,7 @@ export default function AuditPage() {
                     <CardTitle className="text-sm text-muted-foreground">Resolved</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    <div className={cn('text-2xl font-bold', toneHue('verified'))}>
                       {regression.data.resolved.length}
                     </div>
                   </CardContent>
@@ -804,7 +823,7 @@ export default function AuditPage() {
                     <CardTitle className="text-sm text-muted-foreground">Still present</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                    <div className={cn('text-2xl font-bold', toneHue('probable'))}>
                       {regression.data.still_present.length}
                     </div>
                   </CardContent>
@@ -814,7 +833,7 @@ export default function AuditPage() {
                     <CardTitle className="text-sm text-muted-foreground">Reintroduced</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                    <div className={cn('text-2xl font-bold', toneHue('high'))}>
                       {regression.data.reintroduced.length}
                     </div>
                   </CardContent>
@@ -843,9 +862,9 @@ export default function AuditPage() {
               )}
 
               {regression.data.reintroduced_findings.length > 0 && (
-                <Card className="border-orange-500/40">
+                <Card className={cn('border', toneBorder('high'))}>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                    <CardTitle className={cn('flex items-center gap-2', toneInk('high'))}>
                       <AlertTriangle className="h-4 w-4" /> Reintroduced
                     </CardTitle>
                   </CardHeader>

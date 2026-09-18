@@ -1,6 +1,5 @@
-import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Logo } from '@/components/logo';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
@@ -11,19 +10,9 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <nav className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" aria-label="RepoVeriX home">
-            <Logo />
-          </Link>
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Back
-          </Link>
-        </div>
-      </nav>
-      <article className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-        <h1 className="font-display text-4xl font-semibold tracking-tight">Privacy Policy</h1>
+    <MarketingShell>
+      <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+        <h1 className="type-display">Privacy Policy</h1>
         <p className="mt-2 text-sm text-muted-foreground">Last updated: September 2026</p>
         <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted-foreground">
           <section>
@@ -58,7 +47,7 @@ export default function PrivacyPage() {
             </p>
           </section>
         </div>
-      </article>
-    </main>
+      </main>
+    </MarketingShell>
   );
 }
