@@ -2,6 +2,7 @@
 
 import { CheckCircle2, XCircle, MinusCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toneHue } from '@/lib/tone';
 import type { ProofCheck } from '@/types/api';
 
 /**
@@ -24,8 +25,10 @@ export const VERIFY_STEPS = [
 ] as const;
 
 function StepIcon({ state }: { state: boolean | null | undefined }) {
-  if (state === true) return <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />;
-  if (state === false) return <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />;
+  if (state === true)
+    return <CheckCircle2 className={cn('h-4 w-4', toneHue('verified'))} aria-hidden="true" />;
+  if (state === false)
+    return <XCircle className={cn('h-4 w-4', toneHue('critical'))} aria-hidden="true" />;
   return <MinusCircle className="h-4 w-4 text-muted-foreground/60" aria-hidden="true" />;
 }
 

@@ -3,6 +3,8 @@
 import { useHealthTimeline } from '@/hooks/useAudit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { toneCallout, toneInk } from '@/lib/tone';
 
 function Sparkline({ values }: { values: number[] }) {
   if (values.length < 2) return null;
@@ -19,7 +21,13 @@ function Sparkline({ values }: { values: number[] }) {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(' ');
-  const color = values[values.length - 1] >= values[0] ? '#22c55e' : '#ef4444';
+  // Token references, not literals: the trend line follows the verified /
+  // critical tokens in both themes. Safe to interpolate — this lands in a
+  // presentation attribute, not a className Tailwind has to discover.
+  const color =
+    values[values.length - 1] >= values[0]
+      ? 'hsl(var(--state-verified))'
+      : 'hsl(var(--sev-critical))';
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="h-28 w-full" role="img" aria-label="Health score over time">
       <defs>
@@ -84,11 +92,12 @@ export function HealthTimeline({ repositoryId }: { repositoryId: string }) {
           </CardDescription>
         </div>
         <span
-          className={
+          className={cn(
+            'flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium',
             improving
-              ? 'flex items-center gap-1 rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400'
-              : 'flex items-center gap-1 rounded-md bg-red-500/10 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400'
-          }
+              ? `${toneCallout('verified')} ${toneInk('verified')}`
+              : `${toneCallout('critical')} ${toneInk('critical')}`
+          )}
         >
           {improving ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
           {first.toFixed(1)} → {latest.toFixed(1)}

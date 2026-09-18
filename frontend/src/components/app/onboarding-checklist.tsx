@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCompleteOnboarding, useOnboardingStatus } from '@/hooks/useOnboarding';
 import type { OnboardingStepKey } from '@/types/api';
 import { CheckCircle2, Circle, FolderGit2, ScanSearch, X, Link2 } from 'lucide-react';
+import { toneHue } from '@/lib/tone';
 
 const STEP_ORDER: OnboardingStepKey[] = ['connect_provider', 'add_repository', 'run_first_scan'];
 
@@ -78,7 +79,7 @@ export function OnboardingChecklistCard() {
                   }
                 >
                   {done ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                    <CheckCircle2 className={`h-4 w-4 shrink-0 ${toneHue('verified')}`} aria-hidden />
                   ) : (
                     <Circle className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                   )}

@@ -12,64 +12,102 @@ import { SITE_URL } from '@/lib/site-url';
  * Public marketing/docs sitemap. App pages (dashboard, repositories, scans,
  * findings, billing, settings), auth pages and share links are intentionally
  * excluded — they are either private or per-user and must never be indexed
- * (see robots.ts for the complementary rules).
+ * (see robots.ts for the complementary allow/deny rules, and middleware.ts for
+ * the `X-Robots-Tag: noindex` header those private routes also carry).
  *
  * Detail pages are generated from the typed registries so adding an entry
  * (a rule, glossary term, comparison…) lands in the sitemap automatically.
  * Only pages without a registry are hand-listed here.
+ *
+ * Accuracy rules (claude-seo/skills/seo-sitemap):
+ *  - `<priority>` and `<changefreq>` are omitted. Google documents both as
+ *    ignored ranking/recrawl signals, so emitting hand-tuned numbers for 100+
+ *    URLs is noise that only invites the reader to trust numbers that do
+ *    nothing.
+ *  - `<lastmod>` is emitted only where a real content date exists (blog posts).
+ *    The previous version stamped `new Date()` on every URL, which made the
+ *    whole sitemap claim it changed on every single request — the one pattern
+ *    Google explicitly says causes it to stop trusting lastmod entirely. For
+ *    registry pages with no date field, omitting lastmod is correct; inventing
+ *    one is not.
  */
-const now = new Date();
 
-const page = (path: string, changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'], priority: number) => ({
+/** A sitemap entry. `lastModified` is omitted rather than fabricated. */
+const page = (path: string, lastModified?: string) => ({
   url: `${SITE_URL}${path}`,
-  lastModified: now,
-  changeFrequency,
-  priority,
+  ...(lastModified ? { lastModified } : {}),
 });
+
+/** Documentation pages. Hand-listed: they have no registry. */
+const DOCS_PAGES = [
+  '/docs',
+  '/docs/getting-started',
+  '/docs/concepts',
+  '/docs/features',
+  '/docs/configuration',
+  '/docs/api',
+  '/docs/research',
+  '/docs/faq',
+  '/docs/account-security',
+];
+
+/** Support/help pages. Hand-listed: they have no registry. */
+const HELP_PAGES = [
+  '/help',
+  '/help/get-started',
+  '/help/features',
+  '/help/api',
+  '/help/billing',
+  '/help/security',
+  '/help/troubleshooting',
+  '/help/contact',
+  '/help/community',
+];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     // Core pages (no registry)
-    page('/', 'weekly', 1),
-    page('/docs', 'weekly', 0.8),
-    page('/docs/account-security', 'monthly', 0.6),
-    page('/help', 'weekly', 0.7),
-    page('/blog', 'weekly', 0.7),
-    ...BLOG_POSTS.map((p) => page(`/blog/${p.slug}`, 'yearly', 0.6)),
-    page('/changelog', 'weekly', 0.6),
+    page('/'),
+    page('/tools'), // public tool catalog — was missing entirely
+    page('/changelog'),
+
+    // Documentation
+    ...DOCS_PAGES.map((path) => page(path)),
+
+    // Support
+    ...HELP_PAGES.map((path) => page(path)),
+
+    // Blog — the only section with real content dates, so the only section
+    // that carries lastmod.
+    page('/blog'),
+    ...BLOG_POSTS.map((p) => page(`/blog/${p.slug}`, p.date)),
 
     // Vulnerability-class knowledge base (programmatic SEO)
-    page('/vulnerabilities', 'weekly', 0.8),
-    ...VULNERABILITY_CLASSES.map((v) => page(`/vulnerabilities/${v.slug}`, 'monthly', 0.7)),
+    page('/vulnerabilities'),
+    ...VULNERABILITY_CLASSES.map((v) => page(`/vulnerabilities/${v.slug}`)),
 
     // Detection-rule reference
-    page('/detections', 'weekly', 0.8),
-    ...DETECTION_RULES.map((r) => page(`/detections/${r.slug}`, 'monthly', 0.6)),
+    page('/detections'),
+    ...DETECTION_RULES.map((r) => page(`/detections/${r.slug}`)),
 
     // Sample fixture repositories
-    page('/vulnerable-repos', 'monthly', 0.7),
-    ...SAMPLE_REPOS.map((r) => page(`/vulnerable-repos/${r.slug}`, 'monthly', 0.6)),
+    page('/vulnerable-repos'),
+    ...SAMPLE_REPOS.map((r) => page(`/vulnerable-repos/${r.slug}`)),
 
     // Glossary (DefinedTermSet)
-    page('/glossary', 'monthly', 0.7),
-    ...GLOSSARY_TERMS.map((t) => page(`/glossary/${t.slug}`, 'monthly', 0.6)),
+    page('/glossary'),
+    ...GLOSSARY_TERMS.map((t) => page(`/glossary/${t.slug}`)),
 
     // Comparisons (commercial intent)
-    page('/compare', 'monthly', 0.8),
-    ...COMPARISONS.map((c) => page(`/compare/${c.slug}`, 'monthly', 0.7)),
+    page('/compare'),
+    ...COMPARISONS.map((c) => page(`/compare/${c.slug}`)),
 
-    // Static marketing / help pages (no registry)
-    page('/integrations/github', 'monthly', 0.7),
-    page('/integrations/gitlab', 'monthly', 0.7),
-    page('/help/get-started', 'monthly', 0.6),
-    page('/help/features', 'monthly', 0.6),
-    page('/help/api', 'monthly', 0.6),
-    page('/help/billing', 'monthly', 0.6),
-    page('/help/security', 'monthly', 0.6),
-    page('/help/troubleshooting', 'monthly', 0.5),
-    page('/help/contact', 'monthly', 0.5),
-    page('/help/community', 'monthly', 0.4),
-    page('/privacy', 'yearly', 0.3),
-    page('/terms', 'yearly', 0.3),
+    // Integrations
+    page('/integrations/github'),
+    page('/integrations/gitlab'),
+
+    // Legal
+    page('/privacy'),
+    page('/terms'),
   ];
 }

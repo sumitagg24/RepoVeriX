@@ -4,6 +4,12 @@ module.exports = {
   content: [
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    // `src/lib` holds the semantic class tables (see src/lib/tone.ts). They are
+    // plain strings in a .ts file, so if this glob is missing those utilities
+    // are never generated and the styles vanish silently in production — the
+    // exact failure mode of class names built by a helper instead of written
+    // in a component.
+    './src/lib/**/*.{js,ts}',
   ],
   theme: {
     container: {
@@ -18,7 +24,7 @@ module.exports = {
         // --font-mono / --font-display are set on <body> by next/font
         sans: ['var(--font-inter)', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'SF Mono', 'Menlo', 'Consolas', 'monospace'],
-        display: ['var(--font-display)', 'Georgia', 'serif'],
+        display: ['var(--font-display)', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Helvetica Neue', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -78,9 +84,11 @@ module.exports = {
         },
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+        '2xl': 'var(--radius-2xl)',
       },
       keyframes: {
         'accordion-down': {

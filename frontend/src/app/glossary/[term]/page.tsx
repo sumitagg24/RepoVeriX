@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { SITE_URL } from '@/lib/site-url';
@@ -56,19 +57,8 @@ export default function GlossaryTermPage({ params }: { params: { term: string } 
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <MarketingShell>
       <script type="application/ld+json" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <Link href="/glossary" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← Glossary
-          </Link>
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            RepoVeriX
-          </Link>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
           <Link href="/" className="hover:text-foreground">Home</Link>
@@ -78,7 +68,7 @@ export default function GlossaryTermPage({ params }: { params: { term: string } 
           <span aria-current="page">{t.term}</span>
         </nav>
 
-        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="type-lead mt-4">
           What is {t.term.toLowerCase()}?
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">{t.short}</p>
@@ -119,6 +109,6 @@ export default function GlossaryTermPage({ params }: { params: { term: string } 
           </div>
         </section>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

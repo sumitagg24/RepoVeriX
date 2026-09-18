@@ -1,27 +1,56 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useCreateScan } from '@/hooks/useScans';
-import { useRepositories } from '@/hooks/useRepositories';
-import { usePlan, LLM_LEAD_CONFIGS } from '@/hooks/usePlan';
-import { Search, Loader2, ArrowLeft, GitBranch } from 'lucide-react';
+import { ArrowLeft, GitBranch, Loader2, Search, ScanSearch } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useCreateScan } from '@/hooks/useScans';
+import { useRepositories } from '@/hooks/useRepositories';
+import { LLM_LEAD_CONFIGS, usePlan } from '@/hooks/usePlan';
+import { StageTag } from '@/components/rvx/primitives';
+import { RvxHeader, RvxLedger, RvxSurface } from '@/components/rvx/surface';
+
 const scanConfigurations = [
-  { value: 'repoverix', label: 'RepoVeriX (Full Pipeline)', description: 'Complete evidence-grounded analysis with automated verification' },
-  { value: 'static_llm', label: 'Static + LLM', description: 'Hybrid static analysis and LLM reasoning' },
-  { value: 'static_only', label: 'Static Only', description: 'Traditional SAST tools only' },
-  { value: 'llm_only', label: 'LLM Only', description: 'Pure LLM-based semantic analysis' },
+  {
+    value: 'repoverix',
+    label: 'RepoVeriX full pipeline',
+    description: 'Evidence-grounded analysis with repair and verification affordances.',
+    depth: 'source, transform, sink, patch, verify',
+  },
+  {
+    value: 'static_llm',
+    label: 'Static + LLM',
+    description: 'Static detectors plus semantic reasoning over the repository context.',
+    depth: 'source, transform, sink',
+  },
+  {
+    value: 'static_only',
+    label: 'Static only',
+    description: 'Deterministic rules without LLM-led reasoning.',
+    depth: 'source, sink',
+  },
+  {
+    value: 'llm_only',
+    label: 'LLM only',
+    description: 'Semantic analysis without deterministic rule confirmation.',
+    depth: 'hypothesis, review',
+  },
 ] as const;
 
 const scanSchema = z.object({
@@ -35,7 +64,7 @@ function NewScanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preSelectedRepo = searchParams.get('repo');
-  
+
   const createMutation = useCreateScan();
   const { data: repositories, isLoading: reposLoading } = useRepositories();
   const { isFree, ready: planReady } = usePlan();
@@ -48,9 +77,6 @@ function NewScanPageContent() {
     },
   });
 
-  // Free accounts cannot run the LLM-led configurations — the submit path
-  // coerces a stale or defaulted premium selection to the best Free one.
-  // (Enforced again server-side; here it just spares Free users a 402.)
   const onSubmit = async (data: ScanForm) => {
     const payload: ScanForm =
       planReady && isFree && LLM_LEAD_CONFIGS.has(data.configuration)
@@ -58,84 +84,83 @@ function NewScanPageContent() {
         : data;
     try {
       await createMutation.mutateAsync(payload);
-      toast.success('Scan started successfully');
+      toast.success('Analysis started');
       router.push('/scans');
       router.refresh();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to start scan';
-      toast.error(message);
+      toast.error(error instanceof Error ? error.message : 'Failed to start analysis');
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <Link href="/scans" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:underline">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Scans
+    <div className="space-y-8">
+      <Link
+        href="/scans"
+        className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+        Back to analysis runs
       </Link>
 
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Start New Scan</h1>
-        <p className="text-muted-foreground">Select a repository and configuration to begin scanning</p>
-      </div>
+      <RvxHeader
+        kicker="Launch analysis"
+        title="Choose the repository and depth of evidence."
+        body="A scan is not just a background job. It determines how much of the source-to-verified path RepoVeriX can show when findings come back."
+      />
 
-      {reposLoading && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-            <p>Loading repositories...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {!reposLoading && repositories?.length === 0 && (
-        <Card className="border-destructive/50">
-          <CardContent className="pt-6">
-            <div className="text-center py-4">
-              <GitBranch className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <h3 className="text-lg font-medium mb-2">No repositories found</h3>
-              <p className="text-muted-foreground mb-4">You need to add a repository before starting a scan</p>
-              <Button asChild>
-                <Link href="/repositories/new">Add Repository</Link>
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <RvxSurface className="p-5 sm:p-6">
+          {reposLoading ? (
+            <div className="flex min-h-[18rem] items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              Loading repositories
+            </div>
+          ) : repositories?.length === 0 ? (
+            <div className="py-10 text-center">
+              <GitBranch className="mx-auto h-10 w-10 text-muted-foreground/50" aria-hidden="true" />
+              <h2 className="rvx-title mt-4 text-xl">Import a repository first</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+                RepoVeriX needs code to index before it can trace a finding or verify a repair.
+              </p>
+              <Button asChild className="mt-5">
+                <Link href="/repositories?import=1">Import repository</Link>
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {!reposLoading && repositories && repositories.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Scan Configuration</CardTitle>
-            <CardDescription>Select a repository and configuration to begin scanning</CardDescription>
-          </CardHeader>
-          <Form {...form}>              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  form.handleSubmit(onSubmit, (errs) => toast.error(Object.values(errs)[0]?.message ?? 'Please check the form'))();
+          ) : (
+            <Form {...form}>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  form.handleSubmit(onSubmit, (errors) =>
+                    toast.error(Object.values(errors)[0]?.message ?? 'Please check the form')
+                  )();
                 }}
                 className="space-y-6"
-                id="scan-form"
               >
-              <CardContent className="space-y-6">
                 <FormField
                   control={form.control}
                   name="repository_id"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Repository</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={createMutation.isPending}>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={createMutation.isPending}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a repository" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {repositories.map((repo) => (
+                          {repositories?.map((repo) => (
                             <SelectItem key={repo.id} value={repo.id}>
                               <div className="flex items-center gap-2">
-                                <GitBranch className="h-4 w-4" />
-                                <span>{repo.name} ({repo.source_type})</span>
+                                <GitBranch className="h-4 w-4" aria-hidden="true" />
+                                <span>
+                                  {repo.name} ({repo.source_type})
+                                </span>
                               </div>
                             </SelectItem>
                           ))}
@@ -151,8 +176,12 @@ function NewScanPageContent() {
                   name="configuration"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Scan Configuration</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={createMutation.isPending}>
+                      <FormLabel>Analysis depth</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={createMutation.isPending}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select configuration" />
@@ -167,82 +196,103 @@ function NewScanPageContent() {
                                 value={config.value}
                                 disabled={planReady && isFree && premium}
                               >
-                                <div className="flex items-center justify-between gap-3 min-w-[300px]">
-                                  <div className="space-y-1">
-                                    <p className="font-medium">{config.label}</p>
-                                    <p className="text-xs text-muted-foreground">{config.description}</p>
-                                  </div>
-                                  {premium && <Badge variant="outline" className="shrink-0 text-[10px]">Pro</Badge>}
+                                <div className="min-w-[18rem] space-y-1">
+                                  <p className="font-medium">{config.label}</p>
+                                  <p className="text-xs text-muted-foreground">{config.description}</p>
+                                  <p className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                                    {config.depth}
+                                    {premium ? ' - pro' : ''}
+                                  </p>
                                 </div>
                               </SelectItem>
                             );
                           })}
                         </SelectContent>
                       </Select>
-                      {planReady && isFree && (
+                      {planReady && isFree ? (
                         <FormDescription>
-                          The full-pipeline and LLM-only configurations are Pro features — Free scans run
-                          hybrid or static analysis.
+                          Free accounts run hybrid or static analysis. LLM-led modes unlock on Pro.
                         </FormDescription>
-                      )}
+                      ) : null}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Link href="/scans">
-                  <Button variant="outline">Cancel</Button>
-                </Link>
-                <Button type="button" onClick={form.handleSubmit(onSubmit, (errs) => toast.error(Object.values(errs)[0]?.message ?? 'Please check the form'))} disabled={createMutation.isPending || !repositories?.length} className="w-full sm:w-auto">
-                  {createMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Starting Scan...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      Start Scan
-                    </>
-                  )}
-                </Button>
-              </CardFooter>
-            </form>
-          </Form>
-        </Card>
-      )}
 
-      <Card className="border-info/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Scan Configurations Explained
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {scanConfigurations.map((config) => (
-            <div key={config.value} className="p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Search className="h-5 w-5 text-primary" />
+                <div className="flex flex-col-reverse gap-3 border-t pt-5 rvx-hairline sm:flex-row sm:justify-between">
+                  <Button asChild variant="outline">
+                    <Link href="/scans">Cancel</Link>
+                  </Button>
+                  <Button type="submit" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Search className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Start analysis
+                  </Button>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium">{config.label}</p>
-                  <p className="text-sm text-muted-foreground">{config.description}</p>
-                </div>
+              </form>
+            </Form>
+          )}
+        </RvxSurface>
+
+        <div className="space-y-5">
+          <RvxLedger
+            header={
+              <div className="flex items-center justify-between gap-3">
+                <span className="rvx-eyebrow">Pipeline preview</span>
+                <span className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  source to verified
+                </span>
+              </div>
+            }
+          >
+            {(['source', 'transform', 'sink', 'patch', 'verify'] as const).map((stage, index) => (
+              <div key={stage} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-4">
+                <StageTag stage={stage} />
+                <span className="text-sm capitalize">
+                  {stage === 'verify' ? 'sandbox verification' : `${stage} evidence`}
+                </span>
+                <span className="rvx-mono text-[10px] text-muted-foreground">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+              </div>
+            ))}
+          </RvxLedger>
+
+          <RvxSurface className="p-5">
+            <div className="flex items-start gap-3">
+              <ScanSearch
+                className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--rvx-source))]"
+                aria-hidden="true"
+              />
+              <div>
+                <h2 className="rvx-title text-base">What happens after launch</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  The scan starts server-side and appears in the analysis ledger. You can leave this
+                  screen; progress, findings and verification outcomes stay attached to the
+                  repository.
+                </p>
               </div>
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          </RvxSurface>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function NewScanPage() {
   return (
-    <Suspense fallback={<div className="max-w-2xl mx-auto space-y-6"><div className="h-8 bg-muted animate-pulse rounded w-1/4" /></div>}>
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <div className="h-8 w-56 animate-pulse rounded bg-muted" />
+          <div className="h-80 animate-pulse rounded-[var(--radius-lg)] bg-muted/50" />
+        </div>
+      }
+    >
       <NewScanPageContent />
     </Suspense>
   );

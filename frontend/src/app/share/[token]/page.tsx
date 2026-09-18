@@ -4,6 +4,7 @@ import { Logo } from '@/components/logo';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ShieldCheck, Clock, Ban, ArrowRight } from 'lucide-react';
+import { severityTone, toneCallout, toneHue, toneInk, verdictTone } from '@/lib/tone';
 
 export const metadata: Metadata = {
   title: 'Shared report',
@@ -39,19 +40,22 @@ interface PublicReport {
   share?: { view_count: number; expires_at: string | null };
 }
 
-const SEVERITY_STYLES: Record<string, string> = {
-  critical: 'bg-red-500/10 text-red-600 border-red-500/20',
-  high: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
-  medium: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
-  low: 'bg-sky-500/10 text-sky-600 border-sky-500/20',
-  info: 'bg-muted text-muted-foreground border-border',
-};
+/**
+ * Severity and verdict faces for the shared report.
+ *
+ * Both read the shared tone layer, so a report sent to someone outside the
+ * workspace uses exactly the colours the in-app surfaces use — a shared report
+ * that disagreed with the app it came from would be worse than no report.
+ */
+function severityFace(severity: string | null | undefined): string {
+  const tone = severityTone(severity);
+  return `${toneCallout(tone)} ${toneInk(tone)}`;
+}
 
-const STATUS_STYLES: Record<string, string> = {
-  verified: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-  probable: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-  rejected: 'bg-muted text-muted-foreground border-border',
-};
+function statusFace(status: string | null | undefined): string {
+  const tone = verdictTone(status);
+  return `${toneCallout(tone)} ${toneInk(tone)}`;
+}
 
 async function fetchReport(token: string): Promise<PublicReport | null> {
   const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -110,7 +114,7 @@ export default async function SharedReportPage({
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                   Audit report
                 </p>
-                <h1 className="mt-1 font-display text-3xl font-semibold">
+                <h1 className="type-page-title mt-1">
                   {report.repository.name}
                 </h1>
                 <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -152,7 +156,7 @@ export default async function SharedReportPage({
               <Card>
                 <CardContent className="pt-6">
                   <p className="text-sm text-muted-foreground">Verified</p>
-                  <p className="mt-1 text-3xl font-bold tabular-nums text-emerald-600">
+                  <p className={`mt-1 text-3xl font-bold tabular-nums ${toneHue('verified')}`}>
                     {report.summary.by_status.verified ?? 0}
                   </p>
                 </CardContent>
@@ -198,14 +202,19 @@ export default async function SharedReportPage({
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge variant="outline" className={`capitalize ${SEVERITY_STYLES[f.severity] ?? ''}`}>
+                            <Badge variant="outline" className={`capitalize ${severityFace(f.severity)}`}>
                               {f.severity}
                             </Badge>
-                            <Badge variant="outline" className={`capitalize ${STATUS_STYLES[f.status] ?? ''}`}>
+                            <Badge variant="outline" className={`capitalize ${statusFace(f.status)}`}>
                               {f.status}
                             </Badge>
                             {f.repair_attempted && (
-                              <Badge variant="outline" className={f.repair_verified ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : ''}>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  f.repair_verified ? `${toneCallout('verified')} ${toneInk('verified')}` : ''
+                                }
+                              >
                                 {f.repair_verified ? 'fix verified' : 'fix attempted'}
                               </Badge>
                             )}

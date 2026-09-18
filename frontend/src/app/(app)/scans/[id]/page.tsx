@@ -26,10 +26,11 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { formatDuration, formatConfidence } from '@/lib/verdict';
+import { formatDuration, formatConfidence } from '@/lib/evidence';
 import { useCancelScan } from '@/hooks/useScans';
 import { Breadcrumbs, PageHeader } from '@/components/system/page-header';
 import { ScanStatus } from '@/components/system/status';
+import { ScanProgress } from '@/components/system/scan-progress';
 import { SeverityChip, FindingStateChip } from '@/components/evidence';
 import { CodeViewer } from '@/components/system/code';
 import { EmptyState, ListSkeleton } from '@/components/ui/state';
@@ -134,6 +135,18 @@ export default function ScanDetailPage() {
           </>
         }
       />
+
+      {/* Pipeline state — real analysis-run stages when they are loaded, and
+          lifecycle-level progress otherwise. Never a fabricated percentage. */}
+      <Card>
+        <CardContent className="pt-4">
+          <ScanProgress
+            status={scan.status}
+            error={scan.error}
+            runs={scan.analysis_runs?.map((run) => ({ stage: run.stage, status: run.status }))}
+          />
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

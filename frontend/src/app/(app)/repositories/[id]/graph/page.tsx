@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useEvidenceGraph } from '@/hooks/useAudit';
-import { EvidenceGraphDiagram } from '@/components/audit/evidence-graph-diagram';
+import {
+  EVIDENCE_LEGEND,
+  EvidenceGraphDiagram,
+  kindColor,
+} from '@/components/audit/evidence-graph-diagram';
 import { GitBranch, Loader2, Network, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -28,11 +32,11 @@ export default function EvidenceGraphPage() {
             ← Back to Repository
           </Link>
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
+            <div className="rounded-lg bg-primary/10 p-3 text-primary">
               <Network className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Evidence Graph</h1>
+              <h1 className="type-page-title">Evidence Graph</h1>
               <p className="text-muted-foreground mt-1">
                 Findings → evidence chains → files, as a queryable graph
               </p>
@@ -99,25 +103,19 @@ export default function EvidenceGraphPage() {
             </CardHeader>
             <CardContent>
               <EvidenceGraphDiagram graph={data} />
+              {/* The key is derived from the diagram's own kind→token map, so it
+                  cannot describe colours the graph does not paint. */}
               <div className="mt-6 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-green-500" /> source input
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" /> transformation
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> sink
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-violet-500" /> static analysis
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> call relationship
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> other evidence
-                </span>
+                {EVIDENCE_LEGEND.map((entry) => (
+                  <span key={entry.kind} className="flex items-center gap-1.5">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: kindColor(entry.kind) }}
+                      aria-hidden="true"
+                    />
+                    {entry.label}
+                  </span>
+                ))}
               </div>
             </CardContent>
           </Card>

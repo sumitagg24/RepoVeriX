@@ -10,6 +10,13 @@ import { buildCsp } from '@/lib/csp';
  * and the response (so the browser enforces it). App-owned inline scripts read
  * the same nonce from the `x-nonce` request header via next/headers.
  *
+ * It also tags private, per-user routes with `X-Robots-Tag: noindex`.
+ * robots.txt already disallows these paths, which stops crawling — but a
+ * disallowed URL is never *fetched*, so a crawler could never see a noindex
+ * directive placed in the HTML. The response header closes that gap for
+ * crawlers that ignore robots.txt or arrive via a direct link, and stays
+ * correct if the disallow rules are ever relaxed.
+ *
  * Rollout canary: set REPOVERIX_CSP_REPORT_ONLY=true to emit the policy as
  * Content-Security-Policy-Report-Only instead of enforcing it.
  *
@@ -19,6 +26,26 @@ import { buildCsp } from '@/lib/csp';
  */
 
 /** 16 random bytes, base64 — the CSP3 nonce format (no padding needed). */
+/** Private, per-user surfaces. Kept in sync with the disallow list in robots.ts. */
+const PRIVATE_PREFIXES = [
+  '/dashboard',
+  '/onboarding',
+  '/repositories',
+  '/scans',
+  '/findings',
+  '/websites',
+  '/pull-requests',
+  '/billing',
+  '/settings',
+  '/team',
+  '/auth',
+  '/share',
+];
+
+function isPrivatePath(pathname: string): boolean {
+  return PRIVATE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 function makeNonce(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -45,6 +72,11 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set(header, value);
+
+  if (isPrivatePath(request.nextUrl.pathname)) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+
   return response;
 }
 

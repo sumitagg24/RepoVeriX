@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { CategoryView } from '@/components/help/category-view';
 
 export const metadata: Metadata = {
-  title: 'Troubleshooting and support - RepoVeriX Help',
+  title: 'Troubleshooting and support',
 };
 
 export default function HelpTroubleshootingPage() {

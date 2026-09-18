@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { SITE_URL } from '@/lib/site-url';
 import { VULNERABILITY_CLASSES, getVulnerability } from '@/lib/seo/vulnerabilities';
 import { DETECTION_RULES } from '@/lib/seo/rules';
+import { toneHue } from '@/lib/tone';
 
 export function generateStaticParams() {
   return VULNERABILITY_CLASSES.map((v) => ({ slug: v.slug }));
@@ -81,23 +83,12 @@ export default function VulnerabilityPage({ params }: { params: { slug: string }
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <MarketingShell>
       <script
         type="application/ld+json"
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <Link href="/vulnerabilities" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← Vulnerability classes
-          </Link>
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            RepoVeriX
-          </Link>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
           <Link href="/" className="hover:text-foreground">Home</Link>
@@ -107,7 +98,7 @@ export default function VulnerabilityPage({ params }: { params: { slug: string }
           <span aria-current="page">{v.name}</span>
         </nav>
 
-        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{v.title}</h1>
+        <h1 className="type-lead mt-4">{v.title}</h1>
         <p className="mt-4 text-lg text-muted-foreground">{v.description}</p>
 
         <div className="mt-6 flex flex-wrap gap-1.5">
@@ -183,7 +174,7 @@ export default function VulnerabilityPage({ params }: { params: { slug: string }
             </Card>
             <Card>
               <CardContent className="p-5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Fixed</p>
+                <p className={`text-xs font-semibold uppercase tracking-wider ${toneHue('verified')}`}>Fixed</p>
                 <p className="mt-1 text-sm text-muted-foreground">{v.fixedSample.caption}</p>
                 <pre className="mt-3 overflow-x-auto rounded-md bg-muted p-4 text-xs leading-relaxed">
                   <code>{v.fixedSample.code}</code>
@@ -265,6 +256,6 @@ export default function VulnerabilityPage({ params }: { params: { slug: string }
           </div>
         </section>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

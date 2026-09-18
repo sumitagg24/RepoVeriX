@@ -11,24 +11,36 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, History, ArrowRight, GitCommit, SearchX } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { regressionTone, toneBorder, toneCallout, toneHue, toneInk, type Tone } from '@/lib/tone';
 import type { RegressionReport, RegressionItem } from '@/types/api';
 
-const STATE_META: Record<string, { label: string; cls: string }> = {
-  new: { label: 'New', cls: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' },
-  resolved: { label: 'Resolved', cls: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' },
-  still_present: { label: 'Still present', cls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
-  reintroduced: { label: 'Reintroduced', cls: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20' },
-  severity_changed: { label: 'Severity changed', cls: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' },
+/**
+ * Human labels only. The chip *face* comes from `regressionTone` in lib/tone,
+ * so this page cannot drift from the token layer the way the old per-page
+ * colour map did.
+ */
+const STATE_LABEL: Record<string, string> = {
+  new: 'New',
+  resolved: 'Resolved',
+  still_present: 'Still present',
+  reintroduced: 'Reintroduced',
+  severity_changed: 'Severity changed',
 };
+
+function stateFace(state: string): string {
+  const tone = regressionTone(state);
+  return cn(toneCallout(tone), toneInk(tone));
+}
 
 function Row({ item }: { item: RegressionItem }) {
   const [open, setOpen] = useState(false);
-  const meta = STATE_META[item.state] ?? STATE_META.still_present;
+  const label = STATE_LABEL[item.state] ?? 'Still present';
   return (
     <div className="rounded-lg border">
       <button className="w-full text-left px-4 py-3 hover:bg-muted/40 flex flex-col gap-1.5" onClick={() => setOpen(!open)}>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={meta.cls}>{meta.label}</Badge>
+          <Badge variant="outline" className={stateFace(item.state)}>{label}</Badge>
           <Badge variant="outline" className="font-mono text-[10px]">{item.severity}</Badge>
           <span className="text-sm font-medium">{item.title}</span>
         </div>
@@ -138,7 +150,7 @@ export default function RegressionPage() {
             <History className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Scan comparison</h1>
+            <h1 className="type-page-title">Scan comparison</h1>
             <p className="text-muted-foreground mt-1">
               What changed between two scans of this repository — findings matched by stable evidence fingerprints,
               never by database id.
@@ -205,15 +217,15 @@ export default function RegressionPage() {
         <>
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-5">
             {[
-              { label: 'Resolved', value: summary.resolved, cls: 'text-green-600 dark:text-green-400' },
-              { label: 'New', value: summary.new, cls: 'text-red-600 dark:text-red-400' },
-              { label: 'Still present', value: summary.still_present, cls: 'text-amber-600 dark:text-amber-400' },
-              { label: 'Reintroduced', value: summary.reintroduced, cls: 'text-orange-600 dark:text-orange-400' },
-              { label: 'Severity changed', value: summary.severity_changed, cls: 'text-purple-600 dark:text-purple-400' },
+              { label: 'Resolved', value: summary.resolved, tone: 'verified' as Tone },
+              { label: 'New', value: summary.new, tone: 'critical' as Tone },
+              { label: 'Still present', value: summary.still_present, tone: 'probable' as Tone },
+              { label: 'Reintroduced', value: summary.reintroduced, tone: 'high' as Tone },
+              { label: 'Severity changed', value: summary.severity_changed, tone: 'recommendation' as Tone },
             ].map((s) => (
               <Card key={s.label}>
                 <CardContent className="pt-5">
-                  <div className={`text-3xl font-bold ${s.cls}`}>{s.value}</div>
+                  <div className={cn('text-3xl font-bold', toneHue(s.tone))}>{s.value}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
                 </CardContent>
               </Card>
@@ -221,9 +233,9 @@ export default function RegressionPage() {
           </div>
 
           {(report.moved?.length ?? 0) > 0 && (
-            <Card className="border-purple-500/40">
+            <Card className={cn('border', toneBorder('recommendation'))}>
               <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                <CardTitle className={cn('text-sm flex items-center gap-2', toneInk('recommendation'))}>
                   <ArrowRight className="h-4 w-4" /> Moved-code matches ({report.moved?.length})
                 </CardTitle>
               </CardHeader>
@@ -243,8 +255,8 @@ export default function RegressionPage() {
               <div className="flex flex-wrap gap-2">
                 <select className={filterCls} value={filterState} onChange={(e) => setFilterState(e.target.value)}>
                   <option value="all">All states</option>
-                  {Object.entries(STATE_META).map(([k, v]) => (
-                    <option key={k} value={k}>{v.label}</option>
+                  {Object.entries(STATE_LABEL).map(([k, label]) => (
+                    <option key={k} value={k}>{label}</option>
                   ))}
                 </select>
                 <select className={filterCls} value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>

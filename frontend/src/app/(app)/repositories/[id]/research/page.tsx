@@ -38,13 +38,27 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  riskTone,
+  toneBar,
+  toneBorder,
+  toneCallout,
+  toneHue,
+  toneInk,
+  toneSurface,
+  type Tone,
+} from '@/lib/tone';
+
+/** Research verdict → tone. Unknown verdicts render neutral, never green. */
+const VERDICT_TONE: Record<string, Tone> = {
+  ok: 'verified',
+  attention: 'probable',
+  critical: 'critical',
+};
 
 function verdictStyles(verdict: string) {
-  return {
-    ok: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-    attention: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    critical: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  }[verdict] ?? 'bg-muted text-muted-foreground';
+  const tone = VERDICT_TONE[verdict] ?? 'neutral';
+  return cn(toneCallout(tone), toneInk(tone));
 }
 
 function QueryError({ error }: { error: unknown }) {
@@ -113,7 +127,12 @@ function MultiAgentSection({ repositoryId }: { repositoryId: string }) {
           </CardHeader>
           <CardContent>
             <div className="flex items-end gap-3">
-              <span className={cn('font-display text-4xl font-semibold', data.overall_risk >= 7 ? 'text-red-500' : data.overall_risk >= 4 ? 'text-amber-500' : 'text-green-600 dark:text-green-400')}>
+              <span
+                className={cn(
+                  'font-display text-4xl font-semibold',
+                  toneHue(riskTone(data.overall_risk, 10))
+                )}
+              >
                 {data.overall_risk.toFixed(1)}
               </span>
               <span className="pb-1 text-sm text-muted-foreground">/ 10 overall risk</span>
@@ -223,7 +242,14 @@ function SelfImprovementSection({ repositoryId }: { repositoryId: string }) {
             <CardTitle className="text-sm text-muted-foreground">Selector mode</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge variant="outline" className={rec.exploring ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'}>
+            <Badge
+              variant="outline"
+              className={
+                rec.exploring
+                  ? cn(toneCallout('probable'), toneInk('probable'))
+                  : cn(toneCallout('verified'), toneInk('verified'))
+              }
+            >
               {rec.exploring ? 'Exploring' : 'Exploiting'}
             </Badge>
             <p className="mt-1.5 text-xs text-muted-foreground">{rec.mode}</p>
@@ -232,16 +258,21 @@ function SelfImprovementSection({ repositoryId }: { repositoryId: string }) {
       </div>
 
       {rec.deweighted_rules.length > 0 && (
-        <Card className="border-amber-500/30">
+        <Card className={cn('border', toneBorder('probable'))}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2 text-amber-600 dark:text-amber-400">
+            <CardTitle className={cn('text-sm flex items-center gap-2', toneInk('probable'))}>
               <RefreshCw className="h-4 w-4" /> De-weighted for the next scan
             </CardTitle>
             <CardDescription>Rules whose false-positive rate exceeded the threshold — their detector weight drops automatically.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-1.5">
             {rec.deweighted_rules.map((r) => (
-              <code key={r} className="rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-300">{r}</code>
+              <code
+                key={r}
+                className={cn('rounded-md px-2 py-1 text-xs', toneSurface('probable'), toneInk('probable'))}
+              >
+                {r}
+              </code>
             ))}
           </CardContent>
         </Card>
@@ -262,8 +293,8 @@ function SelfImprovementSection({ repositoryId }: { repositoryId: string }) {
             <div key={r.rule} className="flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3">
               <code className="min-w-0 flex-1 truncate text-xs font-medium">{r.rule}</code>
               <div className="flex items-center gap-2">
-                <span className="text-xs tabular-nums text-green-600 dark:text-green-400">{r.verified} ok</span>
-                <span className="text-xs tabular-nums text-red-600 dark:text-red-400">{r.rejected} fp</span>
+                <span className={cn('text-xs tabular-nums', toneHue('verified'))}>{r.verified} ok</span>
+                <span className={cn('text-xs tabular-nums', toneHue('critical'))}>{r.rejected} fp</span>
                 <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
                   <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(r.precision * 100)}%` }} />
                 </div>
@@ -454,7 +485,14 @@ function RiskModelSection({ repositoryId }: { repositoryId: string }) {
                 <code className="w-36 truncate">{c.feature}</code>
                 <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
-                    className={cn('absolute top-0 h-full rounded-full', c.weight >= 0 ? 'bg-red-500 left-1/2' : 'bg-green-500 right-1/2')}
+                    // A positive weight raises predicted risk, so it is painted
+                    // with the critical bar token; negative is the verified one.
+                    className={cn(
+                      'absolute top-0 h-full rounded-full',
+                      c.weight >= 0
+                        ? `${toneBar('critical')} left-1/2`
+                        : `${toneBar('verified')} right-1/2`
+                    )}
                     style={{ width: `${Math.min(50, Math.abs(c.weight) * 5)}%` }}
                   />
                   <div className="absolute left-1/2 top-0 h-full w-px bg-border" />
@@ -482,13 +520,16 @@ function RiskModelSection({ repositoryId }: { repositoryId: string }) {
                 <code className="min-w-0 flex-1 truncate">{p.path}</code>
                 <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
                   <div
-                    className={cn('h-full rounded-full', p.predicted_risk > 0.6 ? 'bg-red-500' : p.predicted_risk > 0.3 ? 'bg-amber-500' : 'bg-green-500')}
+                    className={cn('h-full rounded-full', toneBar(riskTone(p.predicted_risk, 1)))}
                     style={{ width: `${Math.min(100, p.predicted_risk * 100)}%` }}
                   />
                 </div>
                 <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">{p.predicted_risk.toFixed(2)}</span>
                 {p.actual_finding && (
-                  <Badge variant="outline" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-[10px]">
+                  <Badge
+                    variant="outline"
+                    className={cn('text-[10px]', toneCallout('critical'), toneInk('critical'))}
+                  >
                     actual
                   </Badge>
                 )}
@@ -626,7 +667,7 @@ export default function ResearchPage() {
             <FlaskConical className="h-7 w-7 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Research extensions</h1>
+            <h1 className="type-page-title">Research extensions</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               Multi-agent consensus, self-improving detection, cross-repo learning, vulnerability history and defect-risk modeling — all deterministic, no LLM required.
             </p>

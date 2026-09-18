@@ -1,94 +1,89 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { VerificationSection } from '@/components/patch-verification';
-import { ImpactPanel } from '@/components/findings/impact-panel';
-import { FindingChat } from '@/components/findings/finding-chat';
-import { PatchQualityBadge } from '@/components/findings/patch-quality-badge';
-import { FindingStateChip, SeverityChip } from '@/components/evidence';
-import { ProofOfFixPanel } from '@/components/findings/proof-of-fix';
-import { useFinding, useGenerateFix } from '@/hooks/useFindings';
-import { FindingFeedbackBar } from '@/components/app/finding-feedback-bar';
-import { usePatches } from '@/hooks/usePatches';
-import { useGeneratedTest, useCounterexample, useValidateFinding } from '@/hooks/useAudit';
-import { getApiErrorMessage } from '@/lib/api-error';
 import { useState } from 'react';
-import {
-  Bug,
-  AlertTriangle,
-  Shield,
-  CheckCircle,
-  XCircle,
-  Search,
-  ArrowUpRight,
-  Clipboard,
-  Clock,
-  Loader2,
-  Wand2,
-  TestTube,
-  ShieldCheck,
-  FlaskConical,
-  Compass,
-  MessageSquare,
-} from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { toast } from 'sonner';
-import type { RunTestResponse } from '@/types/api';
-import { formatConfidence } from '@/lib/verdict';
-import { Breadcrumbs, PageHeader } from '@/components/system/page-header';
-import { EvidenceChain } from '@/components/system/evidence-chain';
-import { CodeViewer, DiffViewer, parseUnifiedDiff } from '@/components/system/code';
-import { VerificationTimeline } from '@/components/system/verification-timeline';
-import { VerificationBadge } from '@/components/system/status';
-import { EmptyState } from '@/components/ui/state';
 
-export default function FindingDetailPage() {
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { Copy, Search } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { Breadcrumbs } from '@/components/system/page-header';
+import { CodeViewer } from '@/components/system/code';
+import { SeverityBadge } from '@/components/system/severity-badge';
+import { VerdictBadge } from '@/components/system/verdict-badge';
+import { FindingFeedbackBar } from '@/components/app/finding-feedback-bar';
+import { FindingChat } from '@/components/findings/finding-chat';
+import { ImpactPanel } from '@/components/findings/impact-panel';
+import { CodeContext } from '@/components/findings/detail/code-context';
+import { VerificationChecks } from '@/components/findings/detail/verification-checks';
+import { VerificationPanel } from '@/components/findings/detail/verification-panel';
+import { PatchesPanel } from '@/components/findings/detail/patches-panel';
+import { SignalSpine, type SpineStep } from '@/components/rvx/spine';
+import { ConsoleEmpty, Panel, Rule, StageTag } from '@/components/rvx/primitives';
+import { useFinding, useGenerateFix } from '@/hooks/useFindings';
+import { usePatches } from '@/hooks/usePatches';
+import { getApiErrorMessage } from '@/lib/api-error';
+import { formatConfidence } from '@/lib/evidence';
+import type { Evidence, FindingValidationResult, RunTestResponse } from '@/types/api';
+
+/**
+ * Finding investigation workspace.
+ *
+ * Replaces the previous version of this screen, which opened with a header and
+ * then hid its most important content — the reasoning, the evidence and the
+ * verification — behind a four-tab control. Tabs are the wrong affordance here:
+ * an investigation is read top to bottom, and every section answers the next
+ * question in that read.
+ *
+ * The document is therefore numbered, in the order an engineer actually asks:
+ *
+ *   01 what happened      the claim, and what it would cost
+ *   02 where it occurs    the real lines, in the real file
+ *   03 how it propagates  the signal spine — source, transforms, sink
+ *   04 repair             the candidate patch
+ *   05 verification       what a sandbox run actually proved
+ *   06 blast radius       what else depends on this
+ *   07 ask                interrogate the finding with its own context
+ *
+ * The right rail is a case file: a section index plus the provenance you
+ * reference repeatedly while reading. It is sticky, so the reader never has to
+ * scroll back to check a rule id or a line number.
+ */
+
+const SECTIONS = [
+  { id: 'happened', n: '01', label: 'What happened' },
+  { id: 'location', n: '02', label: 'Where it occurs' },
+  { id: 'propagation', n: '03', label: 'How it propagates' },
+  { id: 'repair', n: '04', label: 'Repair' },
+  { id: 'verification', n: '05', label: 'Verification' },
+  { id: 'impact', n: '06', label: 'Blast radius' },
+  { id: 'ask', n: '07', label: 'Ask RepoVeriX' },
+];
+
+export default function FindingInvestigationPage() {
   const params = useParams();
   const id = params.id as string;
-  const { data: finding, isLoading: findingLoading } = useFinding(id);
+
+  const { data: finding, isLoading } = useFinding(id);
   const { data: patches, isLoading: patchesLoading } = usePatches({ finding_id: id });
   const generateFix = useGenerateFix();
-  const { generate: generateTest, run: runTest } = useGeneratedTest();
-  const counterexample = useCounterexample();
-  const validateFinding = useValidateFinding();
-  const [generated, setGenerated] = useState<{ id: string; test_code: string; generated_by: string } | null>(null);
+
+  const [validation, setValidation] = useState<FindingValidationResult | null>(null);
   const [runResult, setRunResult] = useState<RunTestResponse | null>(null);
-  const fixPatch = (patches ?? []).find((p) => ['verified', 'applied', 'candidate'].includes(p.status));
 
-  const executeTest = (patchId?: string) => {
-    if (!generated) return;
-    runTest.mutate(
-      { testId: generated.id, patchId },
-      {
-        onSuccess: (data: RunTestResponse) => {
-          setRunResult(data);
-          if (data.proof_of_fix?.verdict === 'VERIFIED_FIX_PROOF') {
-            toast.success('Verified fix proof — test fails on vulnerable code, passes with the patch');
-          } else if (data.result?.outcome === 'TEST_REPRODUCES_BUG') {
-            toast.success('Test reproduced the defect (fails on this code, as expected for a vulnerable finding)');
-          } else if (data.result?.outcome === 'TEST_DOES_NOT_REPRODUCE') {
-            toast.success('Test passed — defect not present on this code');
-          } else if (data.result?.outcome === 'TEST_FAILED_TO_EXECUTE') {
-            toast.error('Test failed to execute — infrastructure issue, not a defect signal');
-          }
-        },
-      }
-    );
-  };
-
-  const [proof, setProof] = useState<{ counterexample: import('@/types/api').CounterexampleProof | null } | null>(null);
-  const [validation, setValidation] = useState<import('@/types/api').FindingValidationResult | null>(null);
-
-  if (findingLoading) {
+  if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 bg-muted animate-pulse rounded w-1/4" />
-        <Card><CardContent className="h-64 bg-muted animate-pulse rounded" /></Card>
+      <div className="space-y-8" aria-busy="true" aria-label="Loading finding">
+        <div className="space-y-3">
+          <div className="h-3 w-32 animate-pulse rounded-sm bg-muted/70" />
+          <div className="h-8 w-2/3 animate-pulse rounded-sm bg-muted/60" />
+          <div className="h-3 w-1/3 animate-pulse rounded-sm bg-muted/40" />
+        </div>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="h-80 animate-pulse rounded-[var(--radius-md)] bg-muted/40" />
+          <div className="h-64 animate-pulse rounded-[var(--radius-md)] bg-muted/30" />
+        </div>
       </div>
     );
   }
@@ -97,651 +92,409 @@ export default function FindingDetailPage() {
     return (
       <div className="space-y-6">
         <Breadcrumbs items={[{ label: 'Findings', href: '/findings' }, { label: 'Not found' }]} />
-        <Card>
-          <EmptyState
-            icon={Bug}
-            title="Finding not found"
-            body="It may have been removed, or the link is stale. Findings live under the scan that produced them."
-            ctaHref="/findings"
-            ctaLabel="Back to findings"
-          />
-        </Card>
+        <ConsoleEmpty
+          title="This finding is not available"
+          body="It may have been removed with its scan, or belong to another workspace. Findings are owned by the scan that produced them."
+          action={
+            <Button asChild size="sm">
+              <Link href="/findings">Back to the explorer</Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
 
-  const copyFindingLink = () => {
-    navigator.clipboard.writeText(window.location.href).catch(() => {
-      toast.error('Could not copy the link');
-    });
-    toast.success('Finding link copied');
+  const orderedEvidence: Evidence[] = [...(finding.evidence ?? [])].sort(
+    (a, b) => a.order_index - b.order_index
+  );
+
+  const spineSteps: SpineStep[] = orderedEvidence.map((evidence) => ({
+    id: evidence.id,
+    kind: evidence.kind,
+    label: evidence.description,
+    detail:
+      Object.keys(evidence.metadata ?? {}).length > 0
+        ? undefined
+        : evidence.file_path
+          ? `${evidence.file_path}${evidence.line_start ? `:${evidence.line_start}` : ''}`
+          : undefined,
+    location: evidence.file_path
+      ? `${evidence.file_path}${evidence.line_start ? `:${evidence.line_start}` : ''}`
+      : undefined,
+    snippet: evidence.snippet ?? undefined,
+    status: 'confirmed',
+    meta: Object.entries(evidence.metadata ?? {})
+      .slice(0, 6)
+      .map(([label, value]) => ({ label, value: String(value) })),
+  }));
+
+  const verifiedPatch = (patches ?? []).find((p) => p.status === 'verified');
+  const fixPatch = (patches ?? []).find((p) =>
+    ['verified', 'applied', 'candidate'].includes(p.status)
+  );
+  const location = `${finding.file_path}${finding.line_start ? `:${finding.line_start}` : ''}`;
+
+  const copyLink = () => {
+    navigator.clipboard
+      .writeText(window.location.href)
+      .then(() => toast.success('Investigation link copied'))
+      .catch(() => toast.error('Could not copy the link'));
   };
 
   return (
     <div className="space-y-6">
-      <FindingFeedbackBar findingId={finding.id} />
-      <Breadcrumbs items={[{ label: 'Findings', href: '/findings' }, { label: finding.title }]} />
-      <PageHeader
-        eyebrow={`${finding.file_path}:${finding.line_start || '?'} · ${finding.category.replace('_', ' ')}`}
-        title={finding.title}
-        meta={
-          <>
-            <SeverityChip severity={finding.severity} variant="solid" />
-            <FindingStateChip state={finding.status} variant="solid" />
-            <span className="chip state-insufficient-soft font-mono normal-case tracking-normal">
-              source · {finding.source}
-            </span>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              confidence {formatConfidence(finding.confidence)}
-            </span>
-          </>
-        }
-        actions={
-          <>
-            <Button variant="outline" size="icon" onClick={copyFindingLink} aria-label="Copy link to this finding">
-              <Clipboard className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/scans/${finding.scan_id}`}>
-                <ArrowUpRight className="mr-1 h-4 w-4" />
-                View Scan
-              </Link>
-            </Button>
-          </>
-        }
+      <Breadcrumbs
+        items={[{ label: 'Findings', href: '/findings' }, { label: finding.title }]}
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Confidence</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{formatConfidence(finding.confidence)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Evidence Nodes</CardTitle>
-            <Search className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{finding.evidence?.length || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Patches</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{patches?.length || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Created</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm font-semibold">{formatDistanceToNow(new Date(finding.created_at), { addSuffix: true })}</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* ------------------------------------------------------- verdict banner */}
+      <header className="border-b pb-5 rvx-hairline">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <SeverityBadge severity={finding.severity} variant="solid" size="lg" />
+          <VerdictBadge status={finding.status} size="lg" />
+          <span className="rvx-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            {finding.category.replace('_', ' ')}
+          </span>
+          <span className="rvx-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            {finding.external_id}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 gap-1.5 text-[11px]"
+            onClick={copyLink}
+          >
+            <Copy className="h-3 w-3" aria-hidden="true" />
+            Copy link
+          </Button>
+        </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="details">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="evidence">Evidence ({finding.evidence?.length || 0})</TabsTrigger>
-          <TabsTrigger value="impact">Impact</TabsTrigger>
-          <TabsTrigger value="patches">Patches ({patches?.length || 0})</TabsTrigger>
-          <TabsTrigger value="validation">Validation</TabsTrigger>
-          <TabsTrigger value="ask">Ask</TabsTrigger>
-        </TabsList>
+        <h1 className="rvx-title mt-4 text-2xl sm:text-[28px]">{finding.title}</h1>
 
-        <TabsContent value="details">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Description</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap">{finding.description}</p>
-              </CardContent>
-            </Card>
+        <p className="rvx-mono mt-2 break-all text-[11px] text-muted-foreground">
+          {location}
+          {finding.function_name ? ` · ${finding.function_name}()` : ''}
+          {' · '}
+          <Link
+            href={`/scans/${finding.scan_id}`}
+            className="underline decoration-border underline-offset-2 hover:text-foreground"
+          >
+            scan {finding.scan_id.slice(0, 8)}
+          </Link>
+        </p>
 
+        <div className="mt-4">
+          <FindingFeedbackBar findingId={finding.id} />
+        </div>
+      </header>
+
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+        {/* ------------------------------------------------------- the document */}
+        <div className="min-w-0 space-y-10">
+          {/* 01 ------------------------------------------------- what happened */}
+          <section id="happened" className="scroll-mt-[120px]">
+            <Rule label="01 · What happened" />
+            <p className="mt-4 max-w-[70ch] whitespace-pre-wrap text-[13.5px] leading-relaxed text-foreground/90">
+              {finding.description}
+            </p>
             {finding.impact && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Impact</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap">{finding.impact}</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {finding.recommendation && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recommendation</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap">{finding.recommendation}</p>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Metadata</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Finding ID</dt>
-                    <dd className="font-mono text-sm break-all">{finding.id}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">External ID</dt>
-                    <dd className="font-mono text-sm">{finding.external_id}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Scan ID</dt>
-                    <dd className="font-mono text-sm break-all">{finding.scan_id}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Category</dt>
-                    <dd className="capitalize">{finding.category.replace('_', ' ')}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Severity</dt>
-                    <dd>
-                      <SeverityChip severity={finding.severity} />
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Status</dt>
-                    <dd>
-                      <FindingStateChip state={finding.status} />
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Source</dt>
-                    <dd className="font-mono text-sm">{finding.source}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Confidence</dt>
-                    <dd>{formatConfidence(finding.confidence)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">File</dt>
-                    <dd className="font-mono text-sm truncate max-w-xs">{finding.file_path}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Function</dt>
-                    <dd className="font-mono text-sm truncate max-w-xs">{finding.function_name || 'N/A'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Lines</dt>
-                    <dd>{finding.line_start ? `${finding.line_start}-${finding.line_end || finding.line_start}` : 'N/A'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Created</dt>
-                    <dd>{new Date(finding.created_at).toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Updated</dt>
-                    <dd>{new Date(finding.updated_at).toLocaleString()}</dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="evidence">
-          <Card>
-            <CardHeader>
-              <CardTitle>Evidence chain</CardTitle>
-              <CardDescription>Ordered evidence from source to sink — every node is inspectable below</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {finding.evidence?.length === 0 ? (
-                <EmptyState
-                  icon={Search}
-                  title="No evidence recorded"
-                  body="Evidence nodes appear here once detectors and validators report them for this finding."
-                />
-              ) : (
-                <>
-                  <EvidenceChain
-                    nodes={[...(finding.evidence ?? [])]
-                      .sort((a, b) => a.order_index - b.order_index)
-                      .map((e) => ({
-                        kind: e.kind.replaceAll('_', ' '),
-                        label: e.file_path ? `${e.file_path}:${e.line_start || '?'}` : 'No location',
-                        detail: e.description,
-                      }))}
-                  />
-                  <div className="space-y-4 border-t border-border/60 pt-6">
-                    {[...(finding.evidence ?? [])]
-                      .sort((a, b) => a.order_index - b.order_index)
-                      .map((evidence) => (
-                        <div key={evidence.id} className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="mono-label">
-                              Step {evidence.order_index + 1} · {evidence.kind.replaceAll('_', ' ')}
-                            </span>
-                            <span className="font-mono text-xs text-muted-foreground">
-                              {evidence.file_path ? `${evidence.file_path}:${evidence.line_start || '?'}` : 'No location'}
-                            </span>
-                          </div>
-                          <p className="whitespace-pre-wrap text-sm">{evidence.description}</p>
-                          {evidence.snippet && (
-                            <CodeViewer
-                              code={evidence.snippet}
-                              language={evidence.file_path?.split('.').pop()}
-                              maxHeight={220}
-                            />
-                          )}
-                          {Object.keys(evidence.metadata).length > 0 && (
-                            <details>
-                              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                                View metadata
-                              </summary>
-                              <div className="mt-2">
-                                <CodeViewer code={JSON.stringify(evidence.metadata, null, 2)} language="json" maxHeight={220} />
-                              </div>
-                            </details>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="impact" className="mt-4">
-          <ImpactPanel findingId={id} />
-        </TabsContent>
-
-        <TabsContent value="ask" className="mt-4">
-          <FindingChat findingId={id} />
-        </TabsContent>
-
-        <TabsContent value="patches" className="space-y-4">
-          <ProofOfFixPanel findingId={id} />
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Candidate Patches</CardTitle>
-              <Button
-                size="sm"
-                onClick={() => generateFix.mutate(id)}
-                disabled={generateFix.isPending}
-              >
-                {generateFix.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Wand2 className="mr-2 h-4 w-4" />
-                )}
-                Generate Fix
-              </Button>
-            </CardHeader>
-            {generateFix.isError && (
-              <div className="px-6 pb-2">
-                <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-2">
-                  {getApiErrorMessage(generateFix.error)}
+              <Panel className="mt-5 p-4">
+                <p className="rvx-eyebrow">Why it matters</p>
+                <p className="mt-2 max-w-[70ch] whitespace-pre-wrap text-[13px] leading-relaxed text-muted-foreground">
+                  {finding.impact}
                 </p>
-              </div>
+              </Panel>
             )}
-            <CardContent>
-              {patchesLoading ? (
-                <div className="space-y-4 p-6">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="h-40 bg-muted animate-pulse rounded-lg" />
-                  ))}
-                </div>
-              ) : patches?.length === 0 ? (
-                <div className="text-center py-12">
-                  <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <h3 className="text-lg font-medium mb-2">No patches generated</h3>
-                  <p className="text-muted-foreground">
-                    Generate a candidate fix to see a reviewable diff. The patch is never applied
-                    to the original repository — verification runs on an isolated copy.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {patches?.map((patch) => (
-                    <div key={patch.id} className="border rounded-lg overflow-hidden">
-                      <div className="p-4 bg-muted/50 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <Shield className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <div>
-                            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                              Generated by {patch.generated_by}
-                            </p>
-                            <p className="font-mono text-xs text-muted-foreground/70">{patch.id.slice(0, 8)}</p>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                          <PatchQualityBadge patchId={patch.id} />
-                          {patch.status === 'verified' ? (
-                            <VerificationBadge decision="VERIFIED_FIX" />
-                          ) : patch.status === 'failed' ? (
-                            <VerificationBadge decision="REJECTED_FIX" />
-                          ) : (
-                            <span className="chip state-probable-soft">
-                              {patch.status === 'applied' ? 'Applied — awaiting verification' : 'Candidate — not yet verified'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {patch.explanation && (
-                        <div className="px-4 py-2 border-b bg-muted/30">
-                          <p className="text-sm text-muted-foreground">{patch.explanation}</p>
-                        </div>
-                      )}
-                      <div className="p-4 space-y-2">
-                        <p className="mono-label">Proposed diff — review before trusting</p>
-                        <DiffViewer lines={parseUnifiedDiff(patch.diff)} />
-                      </div>
-                      <VerificationSection patch={patch} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+          </section>
 
-        <TabsContent value="validation" className="space-y-4">
-          {/* Regression test generation */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <TestTube className="h-4 w-4" /> Automated regression test
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {generated && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => executeTest()}
-                      disabled={runTest.isPending}
-                    >
-                      {runTest.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <FlaskConical className="mr-2 h-4 w-4" />
-                      )}
-                      Run test
+          {/* 02 ------------------------------------------------------ location */}
+          <section id="location" className="scroll-mt-[120px]">
+            <Rule
+              label="02 · Where it occurs"
+              right={
+                <span className="rvx-mono text-[10px] text-muted-foreground">
+                  {finding.line_start
+                    ? `lines ${finding.line_start}${finding.line_end && finding.line_end !== finding.line_start ? `–${finding.line_end}` : ''}`
+                    : 'line not recorded'}
+                </span>
+              }
+            />
+            <div className="mt-4">
+              <CodeContext
+                filePath={finding.file_path}
+                lineStart={finding.line_start}
+                lineEnd={finding.line_end}
+                evidence={finding.evidence}
+              />
+            </div>
+          </section>
+
+          {/* 03 -------------------------------------------------- propagation */}
+          <section id="propagation" className="scroll-mt-[120px]">
+            <Rule
+              label="03 · How it propagates"
+              right={
+                <span className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {orderedEvidence.length} node{orderedEvidence.length === 1 ? '' : 's'}
+                </span>
+              }
+            />
+
+            {orderedEvidence.length === 0 ? (
+              <div className="mt-4">
+                <ConsoleEmpty
+                  title="No evidence recorded for this finding"
+                  body="A finding without evidence is a claim, not a result. Re-run the analysis to collect the chain, or treat this record as unconfirmed."
+                  action={
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/scans/new">Re-run analysis</Link>
                     </Button>
-                    {fixPatch && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => executeTest(fixPatch.id)}
-                        disabled={runTest.isPending}
-                        title="Run this reproduction test against the generated fix (Proof-of-Fix)"
-                      >
-                        <ShieldCheck className="mr-2 h-4 w-4" />
-                        Run against fix
-                      </Button>
-                    )}
-                  </>
-                )}
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    generateTest.mutate(id, {
-                      onSuccess: (data) => {
-                        setGenerated({ id: data.id, test_code: data.test_code, generated_by: data.generated_by });
-                        setRunResult(null);
-                        toast.success('Regression test generated');
-                      },
-                    });
-                  }}
-                  disabled={generateTest.isPending}
-                >
-                  {generateTest.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="mr-2 h-4 w-4" />
-                  )}
-                  Generate test
-                </Button>
+                  }
+                />
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                A contract test that asserts the vulnerable pattern is gone. It FAILS on the
-                vulnerable code (demonstrating the defect) and PASSES after a real fix — no
-                runtime, fixtures or network required.
-              </p>
-              {generated ? (
-                <>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">{generated.generated_by}</Badge>
-                  </div>
-                  <CodeViewer code={generated.test_code} language="python" maxHeight={300} />
-                  {runResult && (() => {
-                    const outcome = runResult.result?.outcome;
-                    const color =
-                      outcome === 'TEST_DOES_NOT_REPRODUCE'
-                        ? 'border-green-500/40 bg-green-500/5'
-                        : outcome === 'TEST_FAILED_TO_EXECUTE'
-                          ? 'border-amber-500/40 bg-amber-500/5'
-                          : 'border-red-500/40 bg-red-500/5';
-                    return (
-                      <div className={`rounded-lg border p-4 ${color}`}>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="flex items-center gap-1.5 text-sm font-medium">
-                            {outcome === 'TEST_DOES_NOT_REPRODUCE' && (
-                              <><CheckCircle className="h-4 w-4 text-emerald-500" aria-hidden="true" /> Test passed — defect not present</>
-                            )}
-                            {outcome === 'TEST_REPRODUCES_BUG' && (
-                              <><XCircle className="h-4 w-4 text-red-500" aria-hidden="true" /> Test reproduced the defect (failed on vulnerable code)</>
-                            )}
-                            {outcome === 'TEST_FAILED_TO_EXECUTE' && (
-                              <><AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" /> Test failed to execute (not a defect signal)</>
-                            )}
-                            {!outcome && (runResult.status === 'passed' ? 'Test passed' : 'Test failed')}
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <StageTag stage="source" />
+                  <span aria-hidden="true" className="rvx-mono text-[10px] text-muted-foreground">
+                    →
+                  </span>
+                  <StageTag stage="transform" />
+                  <span aria-hidden="true" className="rvx-mono text-[10px] text-muted-foreground">
+                    →
+                  </span>
+                  <StageTag stage="sink" />
+                </div>
+
+                <div className="mt-4">
+                  <SignalSpine
+                    steps={spineSteps}
+                    title="Evidence chain, in the order the detectors emitted it"
+                  />
+                </div>
+
+                {/* Full node detail stays available for copy/paste into a ticket,
+                    but the spine above is what carries the argument. */}
+                <details className="mt-6 border-t pt-4 rvx-hairline">
+                  <summary className="rvx-mono cursor-pointer text-[11px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+                    Raw evidence records ({orderedEvidence.length})
+                  </summary>
+                  <div className="mt-4 space-y-5">
+                    {orderedEvidence.map((evidence) => (
+                      <article key={evidence.id} className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                          <span className="rvx-eyebrow">
+                            {String(evidence.order_index + 1).padStart(2, '0')} ·{' '}
+                            {evidence.kind.replaceAll('_', ' ')}
                           </span>
-                          {runResult.result?.patch_applied && (
-                            <Badge variant="outline">ran against fix{runResult.result.patched_files?.length ? ` (${runResult.result.patched_files.join(', ')})` : ''}</Badge>
-                          )}
-                          {runResult.proof_of_fix?.verdict === 'VERIFIED_FIX_PROOF' && (
-                            <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
-                              VERIFIED FIX PROOF
-                            </Badge>
-                          )}
+                          <span className="rvx-mono text-[10px] text-muted-foreground">
+                            {evidence.file_path
+                              ? `${evidence.file_path}:${evidence.line_start ?? '?'}`
+                              : 'no location'}
+                          </span>
                         </div>
-                        {runResult.proof_of_fix?.explanation && (
-                          <p className="text-xs text-muted-foreground mb-2">{runResult.proof_of_fix.explanation}</p>
+                        <p className="max-w-[70ch] whitespace-pre-wrap text-[13px] leading-relaxed">
+                          {evidence.description}
+                        </p>
+                        {evidence.snippet && (
+                          <CodeViewer
+                            code={evidence.snippet}
+                            language={evidence.file_path?.split('.').pop()}
+                            maxHeight={240}
+                          />
                         )}
-                        {runResult.result?.outcome_detail && (
-                          <p className="text-xs text-muted-foreground mb-2">{runResult.result.outcome_detail}</p>
-                        )}
-                        <pre className="text-xs overflow-x-auto max-h-40 whitespace-pre-wrap">
-                          {String(runResult.result?.summary ?? '')}
-                        </pre>
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  No test generated yet for this finding.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </article>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
+          </section>
 
-          {/* Counterexample / proof-of-absence */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Counterexample check (proof-of-absence)
-              </CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  counterexample.mutate(id, {
-                    onSuccess: (data) => setProof(data),
-                  });
-                }}
-                disabled={counterexample.isPending}
-              >
-                {counterexample.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          {/* 04 --------------------------------------------------------- repair */}
+          <section id="repair" className="scroll-mt-[120px]">
+            <Rule
+              label="04 · Repair"
+              right={
+                verifiedPatch ? (
+                  <VerdictBadge status="verified" />
                 ) : (
-                  <Search className="mr-2 h-4 w-4" />
-                )}
-                Validate
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Walks the source → sink path looking for a sanitizer (escaping, parameterization,
-                validation, type coercion). If one guards the sink, the finding cannot manifest on
-                that path — negative evidence against the claim.
-              </p>
-              {counterexample.isError && (
-                <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-2">
-                  {getApiErrorMessage(counterexample.error)}
-                </p>
-              )}
-              {proof && (
-                proof.counterexample ? (
-                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
-                    <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
-                      Counterexample found — the claim may not hold on this path
-                    </p>
-                    <p className="text-sm">{proof.counterexample.explanation}</p>
-                    <div className="grid gap-2 text-xs font-mono bg-background rounded p-3 border">
-                      <p className="text-green-600 dark:text-green-400">
-                        {proof.counterexample.sanitizer_line}: {proof.counterexample.sanitizer_snippet}
-                      </p>
-                      <p className="text-red-600 dark:text-red-400">
-                        {proof.counterexample.sink_line}: {proof.counterexample.sink_snippet}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-green-500/40 bg-green-500/5 p-4">
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                      No sanitizer on the path — the claim stands
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      No counterexample found between source and sink.
-                    </p>
-                  </div>
+                  <span className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {patches?.length ?? 0} candidate{(patches?.length ?? 0) === 1 ? '' : 's'}
+                  </span>
                 )
-              )}
-            </CardContent>
-          </Card>
+              }
+            />
+            <div className="mt-4">
+              <PatchesPanel
+                findingId={id}
+                patches={patches}
+                loading={patchesLoading}
+                generating={generateFix.isPending}
+                onGenerate={() => generateFix.mutate(id)}
+                generateError={generateFix.isError ? getApiErrorMessage(generateFix.error) : null}
+              />
+            </div>
+          </section>
 
-          {/* Full validation battery (counterexample-based) */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-4 w-4" /> Validation battery
-              </CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  validateFinding.mutate(id, { onSuccess: setValidation });
-                }}
-                disabled={validateFinding.isPending}
+          {/* 05 --------------------------------------------------- verification */}
+          <section id="verification" className="scroll-mt-[120px]">
+            <Rule label="05 · Verification" />
+            <p className="mt-3 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+              Each check below is recorded only when something actually established it — a located
+              source, a traced reachability, a sandbox run. Unchecked rows are unknown, not passed.
+            </p>
+            <div className="mt-4 space-y-6">
+              <VerificationChecks
+                finding={finding}
+                evidence={finding.evidence}
+                validation={validation}
+                hasVerifiedPatch={Boolean(verifiedPatch)}
+                testRun={runResult}
+              />
+              <VerificationPanel
+                findingId={id}
+                fixPatch={fixPatch}
+                validation={validation}
+                onValidation={setValidation}
+                runResult={runResult}
+                onRunResult={setRunResult}
+              />
+            </div>
+          </section>
+
+          {/* 06 --------------------------------------------------------- impact */}
+          <section id="impact" className="scroll-mt-[120px]">
+            <Rule label="06 · Blast radius" />
+            <div className="mt-4">
+              <ImpactPanel findingId={id} />
+            </div>
+          </section>
+
+          {/* 07 ------------------------------------------------------------ ask */}
+          <section id="ask" className="scroll-mt-[120px]">
+            <Rule label="07 · Ask RepoVeriX" />
+            <p className="mt-3 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+              Questions are answered against this finding: its code, its evidence and its scan
+              context — not from general knowledge.
+            </p>
+            <div className="mt-4">
+              <FindingChat findingId={id} />
+            </div>
+          </section>
+
+          <p className="border-t pt-4 text-[11px] leading-relaxed text-muted-foreground rvx-hairline">
+            Everything on this page comes from the finding record, its evidence rows, or a run you
+            started. Nothing is estimated.{' '}
+            <Link
+              href="/docs/concepts"
+              className="underline decoration-border underline-offset-2 transition-colors hover:text-foreground"
+            >
+              How evidence works
+            </Link>
+          </p>
+        </div>
+
+        {/* ------------------------------------------------------- the case file */}
+        <aside className="min-w-0 lg:sticky lg:top-[104px] lg:self-start">
+          <Panel className="overflow-hidden">
+            <div className="border-b p-3 rvx-hairline">
+              <p className="rvx-eyebrow">On this page</p>
+              <ol className="mt-2 space-y-px">
+                {SECTIONS.map((section) => (
+                  <li key={section.id}>
+                    <a
+                      href={`#${section.id}`}
+                      className="flex items-baseline gap-2 rounded-[var(--radius-sm)] px-1.5 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                    >
+                      <span className="rvx-mono text-[10px] text-muted-foreground/70">
+                        {section.n}
+                      </span>
+                      {section.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="p-3">
+              <p className="rvx-eyebrow">Provenance</p>
+              <dl className="mt-2 divide-y rvx-hairline">
+                <ProvenanceRow label="Severity" value={finding.severity} />
+                <ProvenanceRow label="Verdict" value={finding.status} />
+                <ProvenanceRow label="Detector" value={finding.source} />
+                <ProvenanceRow label="Rule" value={finding.external_id} />
+                <ProvenanceRow label="File" value={finding.file_path} />
+                <ProvenanceRow
+                  label="Function"
+                  value={finding.function_name ? `${finding.function_name}()` : '—'}
+                />
+                <ProvenanceRow
+                  label="First detected"
+                  value={new Date(finding.created_at).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                />
+                <ProvenanceRow
+                  label="Last analyzed"
+                  value={new Date(finding.updated_at).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                />
+              </dl>
+            </div>
+
+            {/* Confidence is a bounded quantity, so it gets a scale rather than a
+                bare number — and it is explicitly not the verdict. */}
+            <div className="border-t p-3 rvx-hairline">
+              <div className="flex items-baseline justify-between">
+                <span className="rvx-eyebrow">Detector confidence</span>
+                <span className="rvx-mono text-[11px] tabular-nums">
+                  {formatConfidence(finding.confidence)}
+                </span>
+              </div>
+              <div
+                className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted"
+                role="img"
+                aria-label={`Detector confidence ${Math.round(finding.confidence * 100)} percent`}
               >
-                {validateFinding.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Clipboard className="mr-2 h-4 w-4" />
-                )}
-                Run validation
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                The validator opposes the claim: it checks the source → sink chain, sanitizer and
-                parameterization guards, authorization, exception handling, deterministic rules and
-                test references — then decides VERIFIED / PROBABLE / REJECTED with confidence. Every
-                run is logged for research metrics (false-positive reduction).
+                <div
+                  className="h-full rounded-full bg-[hsl(var(--rvx-source))]"
+                  style={{ width: `${Math.round(finding.confidence * 100)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Reported by the detector. The verdict above comes from evidence, not this number.
               </p>
-              {validateFinding.isError && (
-                <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded px-3 py-2">
-                  {getApiErrorMessage(validateFinding.error)}
-                </p>
-              )}
-              {validation && (
-                <div className="space-y-4">
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <FindingStateChip state={validation.final_status} variant="solid" />
-                      <span className="text-sm font-medium tabular-nums">
-                        {Math.round(validation.confidence * 100)}% confidence
-                      </span>
-                      <span className="text-xs text-muted-foreground ml-auto">
-                        before: {validation.original_status}
-                      </span>
-                    </div>
-                    <p className="text-sm">{validation.explanation}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{validation.claim}</p>
-                    {validation.rule && (
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {validation.rule}
-                      </Badge>
-                    )}
-                  </div>
+            </div>
 
-                  <VerificationTimeline checks={validation.checks} />
+            <div className="border-t p-3 rvx-hairline">
+              <Button asChild variant="outline" size="sm" className="w-full text-xs">
+                <Link href="/findings">
+                  <Search className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                  Back to the explorer
+                </Link>
+              </Button>
+            </div>
+          </Panel>
+        </aside>
+      </div>
+    </div>
+  );
+}
 
-                  {validation.contradicting_evidence.length > 0 && (
-                    <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-1.5">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-red-600 dark:text-red-400">
-                        Contradicting evidence
-                      </p>
-                      {validation.contradicting_evidence.map((c, i) => (
-                        <p key={i} className="text-xs text-muted-foreground">
-                          • {c.label}: {c.detail}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {validation.supporting_evidence.length > 0 && (
-                    <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-1.5">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-green-600 dark:text-green-400">
-                        Supporting evidence
-                      </p>
-                      {validation.supporting_evidence.map((s, i) => (
-                        <p key={i} className="text-xs text-muted-foreground">
-                          • {s.label}: {s.detail}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-[10px] text-muted-foreground">
-                    Validation run {validation.validation_run_id.slice(0, 8)} — recorded for research metrics.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+function ProvenanceRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <dt className="shrink-0 text-[11px] text-muted-foreground">{label}</dt>
+      <dd className="rvx-mono min-w-0 truncate text-right text-[11px]" title={value}>
+        {value}
+      </dd>
     </div>
   );
 }

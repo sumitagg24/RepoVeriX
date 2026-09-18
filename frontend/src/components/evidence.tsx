@@ -20,27 +20,25 @@ import { CheckCircle2, HelpCircle, Loader2, MinusCircle, ShieldAlert } from 'luc
 /* Severity chips — the canonical severity language across the product.       */
 /* -------------------------------------------------------------------------- */
 
-const SEVERITY_CHIP: Record<Severity, { solid: string; soft: string }> = {
-  critical: { solid: 'sev-critical', soft: 'sev-critical-soft' },
-  high: { solid: 'sev-high', soft: 'sev-high-soft' },
-  medium: { solid: 'sev-medium', soft: 'sev-medium-soft' },
-  low: { solid: 'sev-low', soft: 'sev-low-soft' },
-  info: { solid: 'sev-info', soft: 'sev-info-soft' },
+const SEVERITY_CHIP: Record<Severity, string> = {
+  critical: 'sev-critical',
+  high: 'sev-high',
+  medium: 'sev-medium',
+  low: 'sev-low',
+  info: 'sev-info',
 };
 
 export function SeverityChip({
   severity,
-  variant = 'soft',
   className,
 }: {
   severity: string | null | undefined;
-  variant?: 'solid' | 'soft';
   className?: string;
 }) {
   const sev = asSeverity(severity);
   const face = SEVERITY_CHIP[sev];
   return (
-    <span className={cn('chip', variant === 'solid' ? face.solid : face.soft, className)}>
+    <span className={cn('chip chip-lg', face, className)}>
       <span className="chip-dot" aria-hidden="true" />
       {SEVERITY_LABELS[sev]}
     </span>
@@ -51,29 +49,31 @@ export function SeverityChip({
 /* Finding state chips — VERIFIED / PROBABLE / REJECTED (repository)          */
 /* -------------------------------------------------------------------------- */
 
-const STATE_CHIP: Record<FindingState, { solid: string; soft: string; icon: typeof CheckCircle2 }> = {
-  verified: { solid: 'state-verified', soft: 'state-verified-soft', icon: CheckCircle2 },
-  probable: { solid: 'state-probable', soft: 'state-probable-soft', icon: HelpCircle },
-  rejected: { solid: 'state-rejected', soft: 'state-rejected-soft', icon: MinusCircle },
+const STATE_CHIP: Record<FindingState, { solid: string; icon: typeof CheckCircle2 }> = {
+  verified: { solid: 'state-verified', icon: CheckCircle2 },
+  probable: { solid: 'state-probable', icon: HelpCircle },
+  rejected: { solid: 'state-rejected', icon: MinusCircle },
 };
+
+export type ChipVariant = 'solid' | 'outline';
 
 export function FindingStateChip({
   state,
-  variant = 'soft',
   withIcon = true,
   className,
+  variant = 'solid',
 }: {
   state: string | null | undefined;
-  variant?: 'solid' | 'soft';
   withIcon?: boolean;
   className?: string;
+  variant?: ChipVariant;
 }) {
   const st = asFindingState(state);
   const face = STATE_CHIP[st];
   const Icon = face.icon;
   return (
-    <span className={cn('chip', variant === 'solid' ? face.solid : face.soft, className)}>
-      {withIcon && <Icon className="h-3 w-3" aria-hidden="true" />}
+    <span className={cn('chip chip-lg', variant === 'outline' ? 'chip-outline' : face.solid, className)}>
+      {withIcon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
       {FINDING_STATE_LABELS[st]}
     </span>
   );
@@ -83,33 +83,32 @@ export function FindingStateChip({
 /* Website finding states — OBSERVED / RECOMMENDATION / INSUFFICIENT          */
 /* -------------------------------------------------------------------------- */
 
-const WEBSITE_CHIP: Record<WebsiteState, { solid: string; soft: string; icon: typeof CheckCircle2 }> = {
-  observed: { solid: 'state-observed', soft: 'state-observed-soft', icon: CheckCircle2 },
+const WEBSITE_CHIP: Record<WebsiteState, { solid: string; icon: typeof CheckCircle2 }> = {
+  observed: { solid: 'state-observed', icon: CheckCircle2 },
   recommendation: {
     solid: 'state-recommendation',
-    soft: 'state-recommendation-soft',
     icon: ShieldAlert,
   },
-  insufficient: { solid: 'state-insufficient', soft: 'state-insufficient-soft', icon: HelpCircle },
+  insufficient: { solid: 'state-insufficient', icon: HelpCircle },
 };
 
 export function WebsiteStateChip({
   state,
-  variant = 'soft',
   withIcon = true,
   className,
+  variant = 'solid',
 }: {
   state: string | null | undefined;
-  variant?: 'solid' | 'soft';
   withIcon?: boolean;
   className?: string;
+  variant?: ChipVariant;
 }) {
   const st = asWebsiteState(state);
   const face = WEBSITE_CHIP[st];
   const Icon = face.icon;
   return (
-    <span className={cn('chip', variant === 'solid' ? face.solid : face.soft, className)}>
-      {withIcon && <Icon className="h-3 w-3" aria-hidden="true" />}
+    <span className={cn('chip chip-lg', variant === 'outline' ? 'chip-outline' : face.solid, className)}>
+      {withIcon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
       {WEBSITE_STATE_LABELS[st]}
     </span>
   );
@@ -228,12 +227,14 @@ export function EvidenceChain({
 }) {
   if (nodes.length === 0) return null;
   return (
-    <ol className={cn('flex flex-wrap items-center gap-y-2', className)} aria-label={ariaLabel}>
+    <ol className={cn('flex flex-wrap items-center gap-y-3', className)} aria-label={ariaLabel}>
       {nodes.map((node, i) => (
         <li key={`${node.label}-${i}`} className="flex items-center">
-          {i > 0 && <span className="chain-line mx-2 h-px w-6" aria-hidden="true" />}
-          <span className="flex items-center gap-2">
-            <span className="chain-node text-[10px] font-bold tabular-nums">{i + 1}</span>
+          {i > 0 && <span className="chain-line mx-2 h-px w-8 bg-border" aria-hidden="true" />}
+          <span className="flex items-center gap-2.5">
+            <span className="chain-node-lg flex items-center justify-center text-xs font-bold tabular-nums">
+              {i + 1}
+            </span>
             {node.href ? (
               <a
                 href={node.href}

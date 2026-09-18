@@ -23,10 +23,10 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Logo } from '@/components/logo';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { EvidenceLoopStrip } from '@/components/system/evidence-chain';
 import { cn } from '@/lib/utils';
+import { toneCallout, toneInk } from '@/lib/tone';
 
 /**
  * RVX Tools catalog — every entry maps to a REAL backend router + a REAL
@@ -237,40 +237,7 @@ export function ToolsCatalog() {
   }, [query, category]);
 
   return (
-    <>
-      <nav className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" aria-label="RepoVeriX home">
-            <Logo />
-          </Link>
-          <div className="hidden items-center gap-1 md:flex">
-            {[
-              { name: 'Product', href: '/#product' },
-              { name: 'Tools', href: '/tools' },
-              { name: 'Docs', href: '/docs' },
-              { name: 'Help', href: '/help' },
-            ].map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                {link.name}
-              </Link>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle className="border bg-card shadow-sm ring-1 ring-border hover:bg-card/80" />
-            <Link href="/auth/login">
-              <Button variant="ghost">Sign in</Button>
-            </Link>
-            <Link href="/auth/signup">
-              <Button className="shadow-sm">Start free</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
-
+    <MarketingShell>
       <section className="relative overflow-hidden">
         <div
           aria-hidden
@@ -279,7 +246,7 @@ export function ToolsCatalog() {
         <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-14 sm:px-6 lg:pt-20">
           <div className="max-w-2xl">
             <p className="mono-label">Tool catalog</p>
-            <h1 className="mt-2 text-balance font-display text-4xl font-semibold tracking-tight sm:text-5xl">
+            <h1 className="type-display mt-2 text-balance">
               Every capability. <span className="italic text-primary">Nothing invented.</span>
             </h1>
             <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted-foreground">
@@ -353,8 +320,8 @@ export function ToolsCatalog() {
                     className={cn(
                       'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
                       tool.status === 'Available'
-                        ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                        : 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                        ? cn(toneCallout('verified'), toneInk('verified'))
+                        : cn(toneCallout('probable'), toneInk('probable'))
                     )}
                   >
                     {tool.status}
@@ -413,38 +380,6 @@ export function ToolsCatalog() {
         </div>
       </section>
 
-      <footer className="border-t border-border/60 py-12">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-col justify-between gap-10 md:flex-row">
-            <div className="max-w-sm">
-              <Logo />
-              <p className="mt-4 text-sm text-muted-foreground">
-                Evidence-grounded repository auditing and verified automated repair.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
-              {[
-                { title: 'Product', links: [['Tools', '/tools'], ['Pricing', '/#pricing'], ['Start free', '/auth/signup']] },
-                { title: 'Resources', links: [['Docs', '/docs'], ['Help center', '/help'], ['API reference', '/docs/api'], ['Sign in', '/auth/login']] },
-                { title: 'Company', links: [['Contact', '/help/contact'], ['Privacy', '/privacy'], ['Terms', '/terms']] },
-              ].map((col) => (
-                <div key={col.title}>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{col.title}</p>
-                  <ul className="mt-3 space-y-2 text-sm">
-                    {col.links.map(([label, href]) => (
-                      <li key={label}>
-                        <Link href={href} className="text-muted-foreground transition-colors hover:text-foreground">
-                          {label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </footer>
-    </>
+    </MarketingShell>
   );
 }

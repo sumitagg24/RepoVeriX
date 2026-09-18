@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight } from 'lucide-react';
@@ -68,24 +69,13 @@ export default function DetectionsHub() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <MarketingShell>
       <script type="application/ld+json" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← RepoVeriX
-          </Link>
-          <Link href="/vulnerabilities" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            Vulnerability classes →
-          </Link>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Detection rules
         </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="type-lead mt-2">
           Every rule, exactly what it matches
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
@@ -107,6 +97,6 @@ export default function DetectionsHub() {
           </p>
         </section>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

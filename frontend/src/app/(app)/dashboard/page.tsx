@@ -1,509 +1,499 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { formatDistanceToNow } from 'date-fns';
+import { ArrowRight, Bug, GitBranch, Radar, ScanSearch, ShieldCheck } from 'lucide-react';
+
+import { cn } from '@/lib/utils';
+import { SEVERITIES } from '@/lib/evidence';
 import { useDashboardSummary } from '@/hooks/useDashboard';
-import { OnboardingChecklistCard } from '@/components/app/onboarding-checklist';
 import { useRepositories } from '@/hooks/useRepositories';
 import { useScans } from '@/hooks/useScans';
 import { useFindings } from '@/hooks/useFindings';
+import { Button } from '@/components/ui/button';
+import { SeverityBadge } from '@/components/system/severity-badge';
+import { VerdictBadge } from '@/components/system/verdict-badge';
+import { OnboardingChecklistCard } from '@/components/app/onboarding-checklist';
 import {
-  GitBranch,
-  ScanSearch,
-  Bug,
-  ArrowUpRight,
-  Loader2,
-  Plus,
-  ShieldCheck,
-  ShieldAlert,
-  FileSearch,
-  FolderGit2,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Activity,
-  FlaskConical,
-  ExternalLink,
-} from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+  ConsoleEmpty,
+  ConsoleSkeleton,
+  Figure,
+  LedgerRow,
+  Panel,
+  Rule,
+  StageMeter,
+  StageTag,
+} from '@/components/rvx/primitives';
 import type { Finding, Repository, Scan } from '@/types/api';
-import { cn } from '@/lib/utils';
-import { formatConfidence } from '@/lib/verdict';
-import { PageHeader } from '@/components/system/page-header';
-import { SeverityChip, FindingStateChip } from '@/components/evidence';
-import { ScanStatus } from '@/components/system/status';
-import { EmptyState } from '@/components/ui/state';
 
-const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
-const SEVERITY_BAR: Record<string, string> = {
-  critical: 'bg-red-500',
-  high: 'bg-orange-500',
-  medium: 'bg-amber-500',
-  low: 'bg-sky-500',
-  info: 'bg-muted-foreground/50',
-};
+/**
+ * Overview.
+ *
+ * Answers five questions, in this order, with nothing between the reader and the
+ * answer:
+ *
+ *   what is my exposure          → the figures + severity distribution
+ *   what needs me right now      → the investigation queue
+ *   what is the platform doing   → active analysis + verification ledger
+ *   what changed                 → repository activity with last-scan recency
+ *   what should I do next        → the single import/analyse action
+ *
+ * Deliberately absent: a grid of bordered statistic cards. The figures are
+ * typographic, the queue is a ledger, and hierarchy comes from rules rather than
+ * containers.
+ */
 
-function durationText(scan: Scan): string {
+function scanDuration(scan: Scan): string {
   if (!scan.started_at || !scan.finished_at) return scan.status === 'completed' ? '—' : 'in progress';
   const ms = new Date(scan.finished_at).getTime() - new Date(scan.started_at).getTime();
   if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s`;
   return `${Math.round(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
 }
 
-export default function DashboardPage() {
-  const { data: dashboard } = useDashboardSummary();
-  const { data: repositories } = useRepositories();
-  const { data: scans } = useScans();
-  const { data: findings } = useFindings({ limit: 15 });
+export default function OverviewPage() {
+  const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
+  const { data: reposRaw, isLoading: reposLoading } = useRepositories();
+  const { data: scansRaw, isLoading: scansLoading } = useScans();
+  const { data: findingsRaw, isLoading: findingsLoading } = useFindings({ limit: 60 });
 
-  const loading = !dashboard || !repositories || !scans || !findings;
+  // Normalise every list-shaped payload once — a malformed response degrades to
+  // an empty console instead of an error page. Memoised so the derived maps
+  // below keep a stable dependency identity between renders.
+  const repos = useMemo<Repository[]>(() => (Array.isArray(reposRaw) ? reposRaw : []), [reposRaw]);
+  const scans = useMemo<Scan[]>(() => (Array.isArray(scansRaw) ? scansRaw : []), [scansRaw]);
+  const findings = useMemo<Finding[]>(
+    () => (Array.isArray(findingsRaw) ? findingsRaw : []),
+    [findingsRaw]
+  );
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const loading = summaryLoading || reposLoading || scansLoading || findingsLoading;
+
+  const repoName = useMemo(
+    () => new Map(repos.map((repo) => [repo.id, repo.name])),
+    [repos]
+  );
+  const scanToRepo = useMemo(
+    () => new Map(scans.map((scan) => [scan.id, scan.repository_id])),
+    [scans]
+  );
+
+  const activeScans = scans.filter((s) => s.status === 'running' || s.status === 'pending');
+
+  const lastScanByRepo = useMemo(() => {
+    const map = new Map<string, Scan>();
+    for (const scan of scans) {
+      if (!map.has(scan.repository_id)) map.set(scan.repository_id, scan);
+    }
+    return map;
+  }, [scans]);
+
+  const findingsByStatus = summary?.findings?.by_status ?? ({} as Record<string, number>);
+  const findingsBySeverity = summary?.findings?.by_severity ?? ({} as Record<string, number>);
+  const total = summary?.findings?.total ?? 0;
+  const critical = findingsBySeverity.critical ?? 0;
+  const high = findingsBySeverity.high ?? 0;
+  const verified = findingsByStatus.verified ?? 0;
+  const probable = findingsByStatus.probable ?? 0;
+  const rejected = findingsByStatus.rejected ?? 0;
+
+  // The queue is the point of this screen: open, high-consequence, not refuted.
+  const queue = useMemo(
+    () =>
+      findings
+        .filter((f) => (f.severity === 'critical' || f.severity === 'high') && f.status !== 'rejected')
+        .sort((a, b) => {
+          const bySeverity =
+            SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity);
+          if (bySeverity !== 0) return bySeverity;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }),
+    [findings]
+  );
+
+  const selected = queue.find((f) => f.id === selectedId) ?? queue[0] ?? null;
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="h-4 w-40 rounded bg-muted/70 animate-pulse" />
-            <div className="h-8 w-72 rounded bg-muted/70 animate-pulse" />
-          </div>
-          <div className="h-9 w-28 rounded-xl bg-muted/70 animate-pulse" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="h-28 rounded-2xl bg-muted/70 animate-pulse" />)}
-        </div>
-        <div className="grid gap-5 lg:grid-cols-5">
-          <div className="h-72 rounded-2xl bg-muted/70 animate-pulse lg:col-span-3" />
-          <div className="h-72 rounded-2xl bg-muted/70 animate-pulse lg:col-span-2" />
-        </div>
+      <div className="space-y-8">
+        <ConsoleSkeleton rows={3} />
+        <ConsoleSkeleton rows={6} />
       </div>
     );
   }
 
-  const fs = dashboard.findings;
-  const total = fs.total ?? 0;
-  const critical = fs.by_severity.critical ?? 0;
-  const high = fs.by_severity.high ?? 0;
-  const verified = fs.by_status.verified ?? 0;
-  const probable = fs.by_status.probable ?? 0;
-  const rejected = fs.by_status.rejected ?? 0;
-  const hasData = total > 0;
-
-  const repoName = new Map((repositories ?? []).map((r) => [r.id, r.name]));
-  const scanMeta = new Map((scans ?? []).map((s) => [s.id, s]));
-  // newest scan timestamp per repository
-  const lastScanAt = new Map<string, string>();
-  for (const s of [...(scans ?? [])].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  )) {
-    if (!lastScanAt.has(s.repository_id)) lastScanAt.set(s.repository_id, s.created_at);
+  if (repos.length === 0) {
+    return (
+      <div className="space-y-6">
+        <header>
+          <p className="rvx-eyebrow">Overview</p>
+          <h1 className="rvx-statement mt-2 text-3xl sm:text-4xl">
+            No code under analysis yet.
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            RepoVeriX works on a repository: it indexes the tree, runs the deterministic detectors,
+            then traces each hit from its source through to the sink before it shows you anything.
+          </p>
+        </header>
+        <OnboardingChecklistCard />
+        <ConsoleEmpty
+          title="Import your first repository"
+          body="Connect GitHub or GitLab, paste a clone URL, or upload an archive. The first analysis runs server-side while you keep working."
+          action={
+            <Button asChild>
+              <Link href="/repositories?import=1">
+                Import repository
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          }
+          hint="Three repositories are included on the free plan."
+        />
+      </div>
+    );
   }
 
-  const attention = (findings ?? [])
-    .filter((f) => f.status !== 'rejected')
-    .sort((a, b) => {
-      const sev = (x: Finding) => SEVERITY_ORDER.indexOf(x.severity);
-      const st = (x: Finding) => (x.status === 'verified' ? 0 : 1);
-      return sev(a) - sev(b) || st(a) - st(b);
-    })
-    .slice(0, 8);
-
-  // Triage queue: critical + high first; if none exist fall back to any open findings.
-  const queue = attention.filter((f) => f.severity === 'critical' || f.severity === 'high');
-  const queueItems = (queue.length > 0 ? queue : attention).slice(0, 8);
-  const criticalAttention = queueItems.filter((f) => f.severity === 'critical').length;
-  const recentScans = [...(scans ?? [])]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 6);
-
-  const runningCount = scans?.filter((s) => s.status === 'running' || s.status === 'pending').length ?? 0;
-
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Dashboard"
-        title={
-          hasData && critical > 0
-            ? `${critical} critical finding${critical === 1 ? '' : 's'} need${critical === 1 ? 's' : ''} attention`
-            : hasData && high > 0
-              ? `${high} high-severity issue${high === 1 ? '' : 's'} to review`
-              : hasData
-                ? 'No critical issues — evidence looks clean'
-                : 'Your audit workspace'
-        }
-        description={`${repositories.length} ${repositories.length === 1 ? 'repository' : 'repositories'} · ${scans.length} scans · ${verified} verified finding${verified === 1 ? '' : 's'}${runningCount > 0 ? ` · ${runningCount} scan${runningCount === 1 ? '' : 's'} running` : ''}`}
-        actions={
-          <>
-            <Button variant="outline" size="sm" asChild className="h-8 gap-1.5 rounded-lg text-xs">
-              <Link href="/repositories?import=1">
-                <Plus className="h-3.5 w-3.5" /> Import
-              </Link>
-            </Button>
-            <Button size="sm" asChild className="h-8 gap-1.5 rounded-lg text-xs shadow-sm">
+    <div className="space-y-10">
+      {/* ---------------------------------------------------- risk landscape */}
+      <section>
+        <Rule
+          label="Risk landscape"
+          right={
+            <Button asChild size="sm" variant="outline" className="h-7 text-xs">
               <Link href="/scans/new">
-                <ScanSearch className="h-3.5 w-3.5" /> New scan
+                <ScanSearch className="mr-1.5 h-3 w-3" aria-hidden="true" />
+                Analyze a repository
               </Link>
             </Button>
-          </>
-        }
-      />
+          }
+        />
 
-      <OnboardingChecklistCard />
+        <div className="mt-6 grid gap-8 lg:grid-cols-[auto_1fr] lg:gap-12">
+          <div className="grid grid-cols-2 gap-x-10 gap-y-6 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+            <Figure value={repos.length} label="Repositories" tone="muted" />
+            <Figure value={total} label="Findings" />
+            <Figure
+              value={critical}
+              label="Critical"
+              tone={critical > 0 ? 'critical' : 'muted'}
+              sub={high > 0 ? `${high} high` : undefined}
+            />
+            <Figure value={verified} label="Verified" tone={verified > 0 ? 'verified' : 'muted'} />
+          </div>
 
-      {/* KPI row */}
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: 'Repositories', value: repositories.length, sub: 'under audit', icon: FolderGit2, tone: 'text-primary bg-primary/10' },
-          { label: 'Scans', value: scans.length, sub: 'analysis runs', icon: ScanSearch, tone: 'text-sky-600 bg-sky-500/10 dark:text-sky-400' },
-          { label: 'Findings', value: total, sub: `${verified} verified · ${probable} probable`, icon: Bug, tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400' },
-          { label: 'Critical', value: critical, sub: `${rejected} claims rejected`, icon: ShieldAlert, tone: 'text-red-600 bg-red-500/10 dark:text-red-400' },
-        ].map((k) => (
-          <Card key={k.label} className="transition-colors hover:border-border">
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="min-w-0">
-                <p className="mono-label">{k.label}</p>
-                <p className="mt-0.5 font-display text-3xl font-semibold tracking-tight tabular-nums">{k.value}</p>
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{k.sub}</p>
-              </div>
-              <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', k.tone)}>
-                <k.icon className="h-4.5 w-4.5" />
+          <div className="min-w-0 lg:border-l lg:pl-12 rvx-hairline">
+            <p className="rvx-eyebrow">Distribution</p>
+            <div className="mt-3">
+              <StageMeter counts={findingsBySeverity} />
+            </div>
+            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+              {total === 0
+                ? 'No findings recorded yet. Run an analysis to populate the queue.'
+                : `${probable} awaiting confirmation, ${rejected} refuted by counter-evidence. Refuted candidates are kept — they are how detection quality is measured.`}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------- attention */}
+      <section className="grid gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <Rule
+            label="01 · Investigation queue"
+            right={
+              <span className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {queue.length} open
               </span>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            }
+          />
 
-      {/* Group-style status pills (visual state, real counts) */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mono-label mr-1">
-          Group: Status
-        </span>
-        {hasData && (
-          <>
-            <Link
-              href="/findings?status=verified"
-              className="inline-flex items-center gap-1.5 rounded-full transition-transform hover:scale-[1.02]"
-            >
-              <FindingStateChip state="verified" /> <span className="text-xs font-semibold tabular-nums">{verified}</span>
-            </Link>
-            <Link
-              href="/findings?status=probable"
-              className="inline-flex items-center gap-1.5 rounded-full transition-transform hover:scale-[1.02]"
-            >
-              <FindingStateChip state="probable" /> <span className="text-xs font-semibold tabular-nums">{probable}</span>
-            </Link>
-            <Link
-              href="/findings?severity=critical"
-              className="inline-flex items-center gap-1.5 rounded-full transition-transform hover:scale-[1.02]"
-            >
-              <SeverityChip severity="critical" /> <span className="text-xs font-semibold tabular-nums">{critical}</span>
-            </Link>
-            {runningCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400">
-                <Loader2 className="h-3 w-3 animate-spin" /> {runningCount} running
-              </span>
-            )}
-          </>
-        )}
-        {!hasData && (
-          <span className="text-xs text-muted-foreground">
-            No findings yet — run a scan to populate status groups.
-          </span>
-        )}
-      </div>
-
-      {/* Posture + attention */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        {/* Evidence posture */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              Evidence posture
-            </CardTitle>
-            {hasData && (
-              <Button variant="ghost" size="sm" asChild className="gap-1 text-muted-foreground">
-                <Link href="/findings">
-                  All findings <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {!hasData ? (
-              <EmptyState
-                icon={FileSearch}
-                title="No findings yet"
-                body="Verified, probable and rejected counts appear once a scan completes."
-                ctaHref="/scans/new"
-                ctaLabel="Run a scan"
+          {queue.length === 0 ? (
+            <div className="mt-4">
+              <ConsoleEmpty
+                title="Nothing critical is open"
+                body="No unresolved critical or high findings. Run a new analysis after your next merge to keep it that way."
+                action={
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/findings">Browse all findings</Link>
+                  </Button>
+                }
               />
-            ) : (
-              <>
-                {/* Status split — the core claim: verified evidence is what matters */}
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Validation status</p>
-                  {(
-                    [
-                      ['verified', verified, 'VERIFIED', 'evidence-backed'],
-                      ['probable', probable, 'PROBABLE', 'needs confirmation'],
-                      ['rejected', rejected, 'REJECTED', 'refuted by counterexample'],
-                    ] as const
-                  ).map(([key, value, label, note]) => (
-                    <div key={key} className="flex items-center gap-3 py-1">
-                      <span className="w-24 text-xs font-medium capitalize text-foreground/80">{label}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={cn('h-full rounded-full transition-all duration-500', key === 'verified' ? 'bg-emerald-500' : key === 'probable' ? 'bg-amber-500' : 'bg-muted-foreground/40')}
-                          style={{ width: `${total ? Math.round((value / total) * 100) : 0}%` }}
-                        />
-                      </div>
-                      <span className="w-8 text-right font-mono text-xs font-semibold tabular-nums">{value}</span>
-                    </div>
-                  ))}
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {rejected > 0
-                      ? `${rejected} rejected — the validator refuted those claims with counterexamples`
-                      : 'Every finding here carries evidence, validation and confidence.'}
-                  </p>
-                </div>
-                <div className="border-t border-border/60 pt-4">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Severity</p>
-                  {SEVERITY_ORDER.map((sev) => {
-                    const count = fs.by_severity[sev] ?? 0;
-                    const pct = total ? Math.round((count / total) * 100) : 0;
-                    return (
-                      <div key={sev} className="flex items-center gap-3 py-0.5">
-                        <span className="w-16 text-xs capitalize text-muted-foreground">{sev}</span>
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                          <div className={cn('h-full rounded-full', SEVERITY_BAR[sev])} style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="w-8 text-right font-mono text-xs tabular-nums text-foreground/80">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Needs attention */}
-        <Card className="lg:col-span-3">
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              {criticalAttention > 0 ? (
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              )}
-              Needs attention
-            </CardTitle>
-            <Badge variant="outline" className="gap-1 font-normal">
-              <Activity className="h-3 w-3" />
-              {queueItems.length} shown
-            </Badge>
-          </CardHeader>
-          <CardContent className="p-0">
-            {queueItems.length === 0 ? (
-              <div className="p-6">
-                <EmptyState
-                  icon={CheckCircle2}
-                  title={hasData ? 'No open critical or high findings' : 'Nothing to triage yet'}
-                  body={
-                    hasData
-                      ? 'When a critical or high finding is VERIFIED or PROBABLE it is triaged here first.'
-                      : 'Import a repository and run a scan to surface issues with evidence.'
-                  }
-                  ctaHref={hasData ? '/findings' : '/repositories?import=1'}
-                  ctaLabel={hasData ? 'Review all findings' : 'Import a repository'}
-                />
-              </div>
-            ) : (
-              <div className="divide-y divide-border/60">
-                {queueItems.map((f) => {
-                  const scan = scanMeta.get(f.scan_id);
-                  const repoId = scan?.repository_id;
-                  const repo = repoId ? repoName.get(repoId) : null;
+            </div>
+          ) : (
+            <>
+              <div className="mt-3 overflow-hidden rounded-[var(--radius-md)] border rvx-hairline">
+                {queue.slice(0, 8).map((finding) => {
+                  const isSelected = selected?.id === finding.id;
                   return (
-                    <div key={f.id} className="data-row flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:gap-4">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <SeverityChip severity={f.severity} />
-                        <div className="min-w-0">
-                          <Link href={`/findings/${f.id}`} className="block truncate text-sm font-medium hover:text-primary">
-                            {f.title}
-                          </Link>
-                          <p className="truncate font-mono text-[11px] text-muted-foreground">
-                            {f.file_path}
-                            {f.line_start ? `:${f.line_start}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3 text-xs">
-                        {repo && (
-                          <Link href={repoId ? `/repositories/${repoId}` : '#'} className="hidden items-center gap-1 font-medium text-muted-foreground hover:text-foreground md:flex">
-                            <GitBranch className="h-3 w-3" />
-                            {repo}
-                          </Link>
-                        )}
-                        <FindingStateChip state={f.status} />
-                        <span className="text-xs tabular-nums text-muted-foreground">{formatConfidence(f.confidence)}</span>
-                        <Link href={repo ? (scan ? `/scans/${scan.id}` : '#') : '#'} className="text-muted-foreground hover:text-foreground" title="Open the scan that found this">
-                          <ArrowUpRight className="h-3.5 w-3.5" />
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent scans + repositories */}
-      <div className="grid gap-5 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Activity className="h-4 w-4 text-primary" />
-              Recent scans
-            </CardTitle>
-            <Button variant="ghost" size="sm" asChild className="gap-1 text-muted-foreground">
-              <Link href="/scans">
-                View all <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {recentScans.length === 0 ? (
-              <div className="p-6">
-                <EmptyState
-                  icon={ScanSearch}
-                  title="No scans yet"
-                  body="A scan runs the full pipeline: parse → static analysis → knowledge graph → evidence validation."
-                  ctaHref="/scans/new"
-                  ctaLabel="Start your first scan"
-                />
-              </div>
-            ) : (
-              <div className="divide-y divide-border/60">
-                {recentScans.map((scan) => {
-                  const repoId = scan.repository_id;
-                  const repo = repoName.get(repoId);
-                  return (
-                    <Link key={scan.id} href={`/scans/${scan.id}`} className="data-row flex items-center gap-4 px-5 py-3">
-                      <span
-                        className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-                          scan.status === 'completed'
-                            ? 'bg-emerald-500/10 text-emerald-600'
-                            : scan.status === 'failed'
-                              ? 'bg-red-500/10 text-red-600'
-                              : 'bg-sky-500/10 text-sky-600'
-                        )}
-                      >
-                        {scan.status === 'running' || scan.status === 'pending' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : scan.status === 'failed' ? (
-                          <XCircle className="h-4 w-4" />
-                        ) : (
-                          <ScanSearch className="h-4 w-4" />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium">{repo ?? 'Repository'}</span>
-                          <span className="hidden text-xs text-muted-foreground sm:inline">
-                            {scan.configuration.replaceAll('_', ' · ').toUpperCase()}
-                          </span>
-                        </div>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(scan.created_at), { addSuffix: true })} · ran {durationText(scan)}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {scan.status === 'failed' && scan.error && (
-                          <span title={scan.error} className="hidden max-w-[180px] truncate text-xs text-red-600/80 lg:block">
-                            {scan.error}
-                          </span>
-                        )}
-                        <ScanStatus status={scan.status} />
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <FolderGit2 className="h-4 w-4 text-primary" />
-              Repositories
-            </CardTitle>
-            <Button variant="ghost" size="sm" asChild className="gap-1 text-muted-foreground">
-              <Link href="/repositories">
-                View all <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            {repositories.length === 0 ? (
-              <EmptyState
-                icon={FolderGit2}
-                title="Nothing imported yet"
-                body="Bring code in from GitHub, GitLab, an S3 archive link or a zip, then scan it."
-                ctaHref="/repositories?import=1"
-                ctaLabel="Import your first repository"
-              />
-            ) : (
-              (repositories.slice(0, 6) as Repository[]).map((repo) => {
-                const lastScan = lastScanAt.get(repo.id);
-                return (
-                  <div key={repo.id}>
-                    <Link href={`/repositories/${repo.id}`} className="group flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition-colors hover:bg-accent/60">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <GitBranch className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium group-hover:text-primary">{repo.name}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {repo.source_type.toUpperCase()} · {repo.default_branch}
-                          {lastScan ? ` · scanned ${formatDistanceToNow(new Date(lastScan), { addSuffix: true })}` : ' · not scanned yet'}
+                    <LedgerRow
+                      key={finding.id}
+                      as="div"
+                      columns="auto minmax(0,1fr) auto auto"
+                      selected={isSelected}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedId(finding.id)}
+                    >
+                      <SeverityBadge severity={finding.severity} />
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] font-medium">
+                          {finding.title}
+                        </span>
+                        <span className="rvx-mono block truncate text-[10px] text-muted-foreground">
+                          {finding.file_path}
+                          {finding.line_start ? `:${finding.line_start}` : ''}
+                          {finding.function_name ? ` · ${finding.function_name}()` : ''}
                         </span>
                       </span>
-                      <span className={cn('h-2 w-2 shrink-0 rounded-full', repo.status === 'active' || repo.status === 'ingested' ? 'bg-emerald-500' : 'bg-muted-foreground/50')} title={repo.status} />
-                    </Link>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                      <span className="rvx-mono hidden truncate text-[10px] text-muted-foreground sm:block">
+                        {repoName.get(scanToRepo.get(finding.scan_id) ?? '') ?? '—'}
+                      </span>
+                      <Link
+                        href={`/findings/${finding.id}`}
+                        className="rvx-mono shrink-0 text-[10px] uppercase tracking-wider text-[hsl(var(--rvx-source))] hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        open
+                      </Link>
+                    </LedgerRow>
+                  );
+                })}
+              </div>
 
-      {/* Quick path strip */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: 'Audit a change', hint: 'Impact & risk of a diff or branch', href: repositories[0] ? `/repositories/${repositories[0].id}/audit` : '/repositories', icon: FlaskConical },
-          { label: 'Analyze a PR', hint: 'Evidence-based PR review', href: '/pull-requests', icon: ExternalLink },
-          { label: 'Ask RepoVeriX', hint: 'Grounded answers from the index', href: repositories[0] ? `/repositories/${repositories[0].id}/intelligence?tab=ask` : '/repositories', icon: Bug },
-          { label: 'Open docs', hint: 'Guides, configuration, API', href: '/docs', icon: FileSearch },
-        ].map((q) => (
-          <Link key={q.label} href={q.href} className="group rounded-2xl border border-border/70 bg-card/60 p-4 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">{q.label}</p>
-              <ArrowUpRight className="h-4 w-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
-            </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">{q.hint}</p>
-          </Link>
-        ))}
-      </div>
+              {queue.length > 8 && (
+                <Link
+                  href="/findings"
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {queue.length - 8} more in the queue
+                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                </Link>
+              )}
+
+              {/* Inline evidence preview for the selected queue item. */}
+              {selected && (
+                <Panel className="mt-4 p-4">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <SeverityBadge severity={selected.severity} variant="solid" />
+                    <VerdictBadge status={selected.status} />
+                    <span className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {selected.category}
+                    </span>
+                  </div>
+                  <h3 className="rvx-title mt-3 text-base">{selected.title}</h3>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    {selected.impact || selected.description}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <StageTag stage="source" />
+                    <span aria-hidden="true" className="rvx-mono text-muted-foreground">
+                      →
+                    </span>
+                    <StageTag stage="sink" />
+                    <Button asChild size="sm" variant="outline" className="ml-auto h-7 text-xs">
+                      <Link href={`/findings/${selected.id}`}>
+                        Trace the evidence
+                        <ArrowRight className="ml-1.5 h-3 w-3" aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  </div>
+                </Panel>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ------------------------------------------- platform activity */}
+        <div className="min-w-0">
+          <Rule
+            label="02 · Analysis & verification"
+            right={
+              <span className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {activeScans.length} live
+              </span>
+            }
+          />
+
+          <div className="mt-3 space-y-4">
+            {activeScans.length > 0 ? (
+              <Panel className="p-3">
+                <p className="rvx-eyebrow">Running now</p>
+                <div className="mt-2 space-y-2">
+                  {activeScans.slice(0, 4).map((scan) => (
+                    <Link
+                      key={scan.id}
+                      href={`/scans/${scan.id}`}
+                      className="flex items-center gap-2 text-xs transition-colors hover:text-foreground"
+                    >
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[hsl(var(--rvx-source))]"
+                        aria-hidden="true"
+                      />
+                      <span className="rvx-mono min-w-0 flex-1 truncate">
+                        {repoName.get(scan.repository_id) ?? 'repository'}
+                      </span>
+                      <span className="rvx-mono shrink-0 text-[10px] uppercase text-muted-foreground">
+                        {scan.configuration.replace(/_/g, ' ')}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </Panel>
+            ) : null}
+
+            <Panel className="p-3">
+              <p className="rvx-eyebrow">Verification ledger</p>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Every candidate is graded by evidence, not by how plausible the patch looked.
+              </p>
+              <div className="mt-3 divide-y rvx-hairline">
+                {(
+                  [
+                    { key: 'verified', count: verified, note: 'chain complete and patch survived tests' },
+                    { key: 'probable', count: probable, note: 'chain partial — needs a human verdict' },
+                    { key: 'rejected', count: rejected, note: 'counter-evidence found' },
+                  ] as const
+                ).map((row) => (
+                  <div key={row.key} className="flex items-start gap-3 py-2.5">
+                    <VerdictBadge status={row.key} />
+                    <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted-foreground">
+                      {row.note}
+                    </span>
+                    <span className="rvx-num shrink-0 text-sm">{row.count}</span>
+                  </div>
+                ))}
+              </div>
+              <Link
+                href="/findings"
+                className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              >
+                <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                Review the ledger
+              </Link>
+            </Panel>
+
+            <Panel className="p-3">
+              <p className="rvx-eyebrow">Recent analysis runs</p>
+              <div className="mt-2 space-y-1.5">
+                {scans.slice(0, 5).map((scan) => (
+                  <Link
+                    key={scan.id}
+                    href={`/scans/${scan.id}`}
+                    className="flex items-center gap-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <span className="rvx-mono w-14 shrink-0 uppercase">{scan.status}</span>
+                    <span className="rvx-mono min-w-0 flex-1 truncate">
+                      {repoName.get(scan.repository_id) ?? 'repository'}
+                    </span>
+                    <span className="rvx-mono shrink-0 tabular-nums">
+                      {scanDuration(scan)}
+                    </span>
+                  </Link>
+                ))}
+                {scans.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">No analysis runs yet.</p>
+                )}
+              </div>
+            </Panel>
+          </div>
+        </div>
+      </section>
+
+      {/* -------------------------------------------------- repo activity */}
+      <section>
+        <Rule
+          label="03 · Repository activity"
+          right={
+            <Link
+              href="/repositories"
+              className="rvx-mono text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+            >
+              all {repos.length} →
+            </Link>
+          }
+        />
+        <div className="mt-3 overflow-hidden rounded-[var(--radius-md)] border rvx-hairline">
+          <div
+            className="rvx-row rvx-eyebrow bg-[hsl(var(--rvx-surface-2)/0.5)]"
+            style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto auto' }}
+          >
+            <span>Repository</span>
+            <span className="hidden sm:block">Languages</span>
+            <span>Last run</span>
+            <span className="text-right">Findings</span>
+          </div>
+          {repos.map((repo) => {
+            const lastScan = lastScanByRepo.get(repo.id);
+            const repoFindings = findings.filter(
+              (f) => scanToRepo.get(f.scan_id) === repo.id
+            ).length;
+            return (
+              <Link
+                key={repo.id}
+                href={`/repositories/${repo.id}`}
+                className="rvx-row group"
+                style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto auto' }}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <GitBranch
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span className="truncate text-[13px] font-medium group-hover:underline">
+                    {repo.name}
+                  </span>
+                  <span className="rvx-mono hidden shrink-0 text-[10px] uppercase text-muted-foreground md:inline">
+                    {repo.source_type}
+                  </span>
+                </span>
+                <span className="rvx-mono hidden truncate text-[10px] text-muted-foreground sm:block">
+                  {repo.primary_languages?.length
+                    ? repo.primary_languages.slice(0, 2).join(' · ')
+                    : '—'}
+                </span>
+                <span className="rvx-mono text-[10px] text-muted-foreground">
+                  {lastScan
+                    ? formatDistanceToNow(new Date(lastScan.created_at), { addSuffix: true })
+                    : 'never analysed'}
+                </span>
+                <span
+                  className={cn(
+                    'rvx-num text-right text-[13px]',
+                    repoFindings === 0 && 'text-muted-foreground'
+                  )}
+                >
+                  {repoFindings}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Radar className="h-3 w-3" aria-hidden="true" />
+          Findings counts here reflect the most recent {findings.length} records loaded; open a
+          repository for its full history.
+        </p>
+      </section>
+
+      <section className="border-t pt-6 rvx-hairline">
+        <Rule label="Next step" />
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button asChild>
+            <Link href="/scans/new">
+              <ScanSearch className="mr-2 h-4 w-4" aria-hidden="true" />
+              Analyze a repository
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/findings">
+              <Bug className="mr-2 h-4 w-4" aria-hidden="true" />
+              Open the findings explorer
+            </Link>
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }
-

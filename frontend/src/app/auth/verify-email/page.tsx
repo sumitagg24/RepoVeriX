@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { BadgeCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { authService } from '@/services/api';
 import { AuthShell } from '@/components/auth-shell';
+import { toneHue } from '@/lib/tone';
 
 type VerifyState = 'verifying' | 'verified' | 'invalid';
 
@@ -66,7 +67,7 @@ function VerifyEmailContent() {
       )}
       {state === 'verified' && (
         <>
-          <BadgeCheck className="h-12 w-12 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          <BadgeCheck className={`h-12 w-12 ${toneHue('verified')}`} aria-hidden />
           <p className="font-medium">Your email is verified.</p>
           <p className="text-sm text-muted-foreground">
             Repository connections, scans and verified repairs are now unlocked.

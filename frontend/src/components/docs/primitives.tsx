@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { toneBorder, toneSurface } from '@/lib/tone';
 
 export function H1({ children, id }: { children: ReactNode; id?: string }) {
   return (
@@ -88,10 +89,12 @@ export function Callout({
   kind?: 'info' | 'warn' | 'tip';
   children: ReactNode;
 }) {
+  // Docs callouts use the same semantic faces as product callouts, so a "Tip"
+  // reads as verified and a "Heads up" as probable everywhere in the app.
   const tones = {
     info: 'border-primary/30 bg-primary/5 text-foreground/90',
-    warn: 'border-amber-500/40 bg-amber-500/5 text-foreground/90',
-    tip: 'border-green-500/40 bg-green-500/5 text-foreground/90',
+    warn: `${toneBorder('probable')} ${toneSurface('probable')} text-foreground/90`,
+    tip: `${toneBorder('verified')} ${toneSurface('verified')} text-foreground/90`,
   };
   const labels = { info: 'Note', warn: 'Heads up', tip: 'Tip' };
   return (

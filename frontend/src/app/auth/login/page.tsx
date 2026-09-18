@@ -9,11 +9,10 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Mail, Lock, AlertCircle } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { OAuthSignInButton } from '@/components/oauth-buttons';
-import { AuthShell } from '@/components/auth-shell';
+import { OAuthProviderGroup } from '@/components/oauth-buttons';
+import { AuthNotice, AuthShell } from '@/components/auth-shell';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { toast } from 'sonner';
 
@@ -64,25 +63,13 @@ function LoginContent() {
       }
     >
       {oauthError && (
-        <div className="mb-5 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          {decodeURIComponent(oauthError)}
-        </div>
+        <AuthNotice className="mb-5">
+          {decodeURIComponent(oauthError)} — you can retry the provider, or sign in with your email
+          and password below.
+        </AuthNotice>
       )}
 
-      <div className="space-y-2.5">
-        <OAuthSignInButton provider="google" next="/dashboard" />
-        <div className="grid grid-cols-2 gap-2.5">
-          <OAuthSignInButton provider="github" next="/dashboard" />
-          <OAuthSignInButton provider="gitlab" next="/dashboard" />
-        </div>
-      </div>
-
-      <div className="my-5 flex items-center gap-3">
-        <Separator className="flex-1" />
-        <span className="text-xs text-muted-foreground">or with email</span>
-        <Separator className="flex-1" />
-      </div>
+      <OAuthProviderGroup next="/dashboard" />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">

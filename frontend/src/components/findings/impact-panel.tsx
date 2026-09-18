@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useFindingImpact } from '@/hooks/useAudit';
 import { ArrowRight, Compass, Loader2, Siren, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { severityTone, toneCallout, toneInk } from '@/lib/tone';
 
 export function ImpactPanel({ findingId }: { findingId: string }) {
   const { data, isLoading, isError, error } = useFindingImpact(findingId);
@@ -37,16 +38,15 @@ export function ImpactPanel({ findingId }: { findingId: string }) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
-                className={cn(
-                  data.severity === 'critical' || data.severity === 'high'
-                    ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                )}
+                className={cn(toneCallout(severityTone(data.severity)), toneInk(severityTone(data.severity)))}
               >
                 <Target className="mr-1 h-3 w-3" /> {data.severity} {data.category}
               </Badge>
               {data.entrypoint_reachable ? (
-                <Badge variant="outline" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                <Badge
+                  variant="outline"
+                  className={cn(toneCallout('critical'), toneInk('critical'))}
+                >
                   Reachable from an entry point
                 </Badge>
               ) : (
@@ -57,8 +57,13 @@ export function ImpactPanel({ findingId }: { findingId: string }) {
               )}
             </div>
 
-            <div className="rounded-xl border bg-red-500/5 p-4">
-              <p className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-red-600 dark:text-red-400">
+            <div className={cn('rounded-xl border p-4', toneCallout('critical'))}>
+              <p
+                className={cn(
+                  'mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest',
+                  toneInk('critical')
+                )}
+              >
                 <Siren className="h-3.5 w-3.5" /> Worst realistic outcome
               </p>
               <p className="text-sm leading-relaxed">{data.worst_case}</p>

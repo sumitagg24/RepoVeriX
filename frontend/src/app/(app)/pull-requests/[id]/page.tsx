@@ -10,21 +10,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, GitPullRequest, ArrowRight, ShieldAlert, Bug, TestTube, MessageSquare, ExternalLink, RefreshCw } from 'lucide-react';
 import { usePullRequestAudit, usePostPullRequestReview } from '@/hooks/usePullRequests';
 import { RiskGauge } from '@/components/audit/risk-gauge';
+import { toneBorder, toneCallout, toneHue, toneInk, verdictTone } from '@/lib/tone';
 import type { PrAuditFinding } from '@/types/api';
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-  high: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
-  medium: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  low: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
-  info: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
+  critical: 'sev-critical-soft',
+  high: 'sev-high-soft',
+  medium: 'sev-medium-soft',
+  low: 'sev-low-soft',
+  // `info` has no filled face — the outline chip is its honest neutral.
+  info: 'chip-outline',
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  verified: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-  probable: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-  rejected: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-};
+/** Finding verdict face — one mapping, via the shared tone layer. */
+function statusFace(status: string | null | undefined): string {
+  const tone = verdictTone(status);
+  return `${toneCallout(tone)} ${toneInk(tone)}`;
+}
 
 function FindingCard({ finding }: { finding: PrAuditFinding }) {
   const [open, setOpen] = useState(false);
@@ -35,7 +37,7 @@ function FindingCard({ finding }: { finding: PrAuditFinding }) {
           <Badge variant="outline" className={SEVERITY_STYLES[finding.severity] ?? ''}>
             {finding.severity}
           </Badge>
-          <Badge variant="outline" className={STATUS_STYLES[finding.status] ?? ''}>
+          <Badge variant="outline" className={statusFace(finding.status)}>
             {finding.status}
           </Badge>
           <span className="text-sm font-medium">{finding.title}</span>
@@ -54,7 +56,7 @@ function FindingCard({ finding }: { finding: PrAuditFinding }) {
         <div className="px-4 pb-4 space-y-3">
           <p className="text-sm text-muted-foreground">{finding.description}</p>
           {finding.recommendation && (
-            <p className="text-sm text-green-600 dark:text-green-400">Suggested fix: {finding.recommendation}</p>
+            <p className={`text-sm ${toneHue('verified')}`}>Suggested fix: {finding.recommendation}</p>
           )}
           {finding.evidence.length > 0 && (
             <div className="space-y-1.5">
@@ -141,7 +143,7 @@ export default function PullRequestAuditPage() {
                 <GitPullRequest className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                <h1 className="type-page-title">
                   PR #{pr.number}
                   {pr.title ? ` — ${pr.title}` : ''}
                 </h1>
@@ -159,7 +161,10 @@ export default function PullRequestAuditPage() {
             </div>
           </div>
           {detail.posted ? (
-            <Badge variant="outline" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 py-1 px-3">
+            <Badge
+              variant="outline"
+              className={`${toneCallout('verified')} ${toneInk('verified')} py-1 px-3`}
+            >
               Review posted to GitHub
             </Badge>
           ) : (
@@ -309,9 +314,9 @@ export default function PullRequestAuditPage() {
             )}
             {(detail.security_context?.auth_and_security_symbols.length ||
               detail.security_context?.database_symbols.length) ? (
-              <Card className="border-amber-500/40">
+              <Card className={`border ${toneBorder('probable')}`}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                  <CardTitle className={`flex items-center gap-2 ${toneInk('probable')}`}>
                     <ShieldAlert className="h-4 w-4" /> Security & database context
                   </CardTitle>
                 </CardHeader>
@@ -393,13 +398,13 @@ export default function PullRequestAuditPage() {
                   <Badge variant="outline" className={SEVERITY_STYLES[r.severity] ?? ''}>{r.severity}</Badge>
                   <span className="text-sm font-medium">{r.title}</span>
                   {r.line_touched && (
-                    <Badge variant="outline" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                    <Badge variant="outline" className="sev-critical-soft">
                       lines modified
                     </Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground font-mono">{r.file_path}:{r.line_start ?? '?'}</p>
-                <p className="text-xs text-amber-600 dark:text-amber-400">{r.note}</p>
+                <p className={`text-xs ${toneHue('probable')}`}>{r.note}</p>
               </div>
             ))
           )}

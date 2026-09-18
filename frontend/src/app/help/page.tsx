@@ -14,7 +14,7 @@ import { HelpSearch, PopularArticles } from '@/components/help/help-search';
 import { HELP_CATEGORIES } from '@/components/help/data';
 
 export const metadata: Metadata = {
-  title: 'Help Center - RepoVeriX',
+  title: 'Help center',
   description: 'Search RepoVeriX help articles, browse categories, or reach the team.',
 };
 
@@ -23,19 +23,19 @@ const resources = [
     icon: LifeBuoy,
     title: 'Contact us',
     body: 'Talk to a human about scans, billing or anything else.',
-    href: '/contact',
+    href: '/help/contact',
   },
   {
     icon: Users,
     title: 'Community',
     body: 'Ask questions and share workflows with other users.',
-    href: '/community',
+    href: '/help/community',
   },
   {
     icon: MessageSquare,
     title: 'Request a feature',
     body: 'Suggest and vote on what RepoVeriX builds next.',
-    href: '/community#request-a-feature',
+    href: '/help/community#request-a-feature',
   },
   {
     icon: Youtube,
@@ -59,7 +59,7 @@ export default function HelpPage() {
               <BookOpen className="h-3.5 w-3.5" />
               Help Center
             </span>
-            <h1 className="mt-5 text-balance font-display text-4xl font-semibold tracking-tight sm:text-5xl">
+            <h1 className="type-display mt-5 text-balance">
               How can we help?
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
@@ -133,13 +133,13 @@ export default function HelpPage() {
                   reply within a business day.
                 </p>
                 <div className="mt-5 space-y-2.5">
-                  <Link href="/contact">
+                  <Link href="/help/contact">
                     <span className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
                       <Contact className="h-4 w-4" /> Contact support
                     </span>
                   </Link>
                   <Link
-                    href="/community"
+                    href="/help/community"
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
                   >
                     Join the community

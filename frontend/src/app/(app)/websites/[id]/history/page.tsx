@@ -12,6 +12,7 @@ import { WebsiteStateChip } from '@/components/evidence';
 import { useWebsiteAudit, useWebsiteAudits, useWebsites } from '@/hooks/useWebsites';
 import { History } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toneHue } from '@/lib/tone';
 import type { WebsiteAuditDetail, WebsiteFinding } from '@/types/api';
 
 const SCORE_LABELS: Record<string, string> = {
@@ -209,7 +210,7 @@ function AuditComparison({
                 )}
                 {delta !== null && delta !== 0 && (
                   <span
-                    className={`font-mono text-[11px] tabular-nums ${delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+                    className={`font-mono text-[11px] tabular-nums ${delta > 0 ? toneHue('verified') : toneHue('critical')}`}
                     title={`Previous completed audit: ${prev}`}
                   >
                     {delta > 0 ? '+' : ''}{delta}

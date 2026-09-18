@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketingShell } from '@/components/marketing/marketing-shell';
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { CalendarDays, Clock } from 'lucide-react';
@@ -50,23 +51,12 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <MarketingShell>
       <script
         type="application/ld+json"
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <Link href="/blog" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            ← Blog
-          </Link>
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-            RepoVeriX
-          </Link>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
@@ -83,7 +73,7 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
             {post.readMinutes} min read
           </span>
         </div>
-        <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-balance">
+        <h1 className="type-display mt-3 text-balance">
           {post.title}
         </h1>
         <p className="mt-3 text-lg leading-relaxed text-muted-foreground">{post.description}</p>
@@ -138,6 +128,6 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
           </Link>
         </div>
       </main>
-    </div>
+    </MarketingShell>
   );
 }

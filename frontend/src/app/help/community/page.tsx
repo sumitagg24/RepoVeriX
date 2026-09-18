@@ -4,7 +4,7 @@ import { BookOpen, Lightbulb, Mail, MessagesSquare } from 'lucide-react';
 import { HelpBreadcrumb } from '@/components/help/breadcrumb';
 
 export const metadata: Metadata = {
-  title: 'Community - RepoVeriX Help',
+  title: 'Community',
 };
 
 export default function CommunityPage() {
@@ -12,7 +12,7 @@ export default function CommunityPage() {
     <div className="mx-auto max-w-4xl">
       <HelpBreadcrumb category="Community" />
       <div className="mt-6">
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h1 className="type-lead">
           Learn together
         </h1>
         <p className="mt-1.5 max-w-2xl text-muted-foreground">
@@ -29,7 +29,7 @@ export default function CommunityPage() {
             live on the community boards — search there first, many topics are already covered.
           </p>
           <Link
-            href="/contact"
+            href="/help/contact"
             className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
           >
             Send a question →
@@ -43,7 +43,7 @@ export default function CommunityPage() {
             replies within one business day.
           </p>
           <Link
-            href="/contact"
+            href="/help/contact"
             className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
           >
             Contact support →
@@ -60,7 +60,7 @@ export default function CommunityPage() {
             roadmap and announced when shipped.
           </p>
           <Link
-            href="/contact"
+            href="/help/contact"
             className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
           >
             Suggest a feature →

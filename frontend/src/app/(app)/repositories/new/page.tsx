@@ -21,7 +21,7 @@ export default function NewRepositoryPage() {
           <FolderGit2 className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Import a repository</h1>
+          <h1 className="type-page-title">Import a repository</h1>
           <p className="mt-1 text-muted-foreground">
             Pick a source — GitHub or GitLab with a connected account, an S3 archive link, a git URL, or a local zip upload.
           </p>

@@ -54,7 +54,7 @@ export function CategoryView({
             Browse all categories
           </Link>{' '}
           or{' '}
-          <Link href="/contact" className="font-medium text-primary hover:underline">
+          <Link href="/help/contact" className="font-medium text-primary hover:underline">
             contact us
           </Link>{' '}
           — include your repository or scan id and we’ll dig in.

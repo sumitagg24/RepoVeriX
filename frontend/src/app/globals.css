@@ -4,81 +4,137 @@
 
 @layer base {
   :root {
-    /* Warm neutral canvas — inspired by a calm, editorial workspace. */
-    --background: 40 33% 97%;
-    --foreground: 25 18% 12%;
+    /* Clean modern SaaS design system — light-first default, rich obsidian dark mode */
+    --background: 220 20% 98%;
+    --foreground: 222 25% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 25 18% 12%;
+    --card-foreground: 222 25% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 25 18% 12%;
-    /* Clay accent — RepoVeriX's warm, confident signature. */
-    --primary: 14 63% 52%;
-    --primary-foreground: 40 60% 98%;
-    --secondary: 40 28% 93%;
-    --secondary-foreground: 25 18% 16%;
-    --muted: 42 25% 93%;
-    --muted-foreground: 28 8% 40%;
-    --accent: 40 26% 92%;
-    --accent-foreground: 25 18% 14%;
+    --popover-foreground: 222 25% 12%;
+    
+    /* Primary: Confident electric blue */
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary & Muted */
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 222 25% 15%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+    
+    /* Semantic accents */
+    --accent: 220 14% 94%;
+    --accent-foreground: 222 25% 12%;
+    --info: 200 75% 42%;
+    --info-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 36 17% 86%;
-    --input: 36 17% 86%;
-    --ring: 14 63% 52%;
-    --sidebar: 40 24% 94%;
-    --sidebar-foreground: 25 18% 14%;
-    --sidebar-accent: 38 22% 88%;
-    --sidebar-border: 36 15% 84%;
-    /* Verification verdicts — the evidentiary core of RepoVeriX.
-       verified = evidence-backed · probable = needs confirmation
-       observed = seen but unjudged · insufficient = not enough signal */
-    --verified: 160 60% 38%;
+    
+    /* Borders and inputs */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 221 83% 53%;
+    
+    /* Sidebar */
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 222 25% 18%;
+    --sidebar-accent: 220 14% 95%;
+    --sidebar-border: 220 13% 91%;
+    
+    /* Verification verdicts */
+    --verified: 150 65% 36%;
     --verified-foreground: 0 0% 100%;
-    --probable: 38 85% 46%;
-    --probable-foreground: 25 30% 12%;
-    --observed: 217 70% 52%;
+    --probable: 38 88% 42%;
+    --probable-foreground: 0 0% 100%;
+    --observed: 200 75% 42%;
     --observed-foreground: 0 0% 100%;
-    --insufficient: 28 8% 45%;
+    --insufficient: 220 10% 48%;
     --insufficient-foreground: 0 0% 100%;
-    --radius: 0.75rem;
-    --font-display: ui-serif, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, Cambria,
-      'Times New Roman', serif;
+    
+    /* Design system spacing and radius */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 14px;
+    --radius-2xl: 20px;
+    --radius: var(--radius-md);
+    
+    --font-display: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter,
+      'Helvetica Neue', sans-serif;
   }
 
-  .dark {
-    --background: 25 20% 8%;
-    --foreground: 40 30% 96%;
-    --card: 25 16% 11%;
-    --card-foreground: 40 30% 96%;
-    --popover: 25 16% 11%;
-    --popover-foreground: 40 30% 96%;
-    --primary: 14 63% 60%;
-    --primary-foreground: 25 20% 8%;
-    --secondary: 26 12% 16%;
-    --secondary-foreground: 40 30% 96%;
-    --muted: 26 12% 15%;
-    --muted-foreground: 30 10% 64%;
-    --accent: 26 12% 17%;
-    --accent-foreground: 40 30% 96%;
-    --destructive: 0 62% 45%;
+  /* Light theme alias */
+  .light {
+    --background: 220 20% 98%;
+    --foreground: 222 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 25% 12%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 222 25% 15%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 14% 94%;
+    --accent-foreground: 222 25% 12%;
+    --info: 200 75% 42%;
+    --info-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 26 10% 20%;
-    --input: 26 10% 20%;
-    --ring: 14 63% 60%;
-    --sidebar: 25 18% 10%;
-    --sidebar-foreground: 40 30% 92%;
-    --sidebar-accent: 26 10% 17%;
-    --sidebar-border: 26 10% 18%;
-    --verified: 160 55% 45%;
-    --verified-foreground: 25 20% 8%;
-    --probable: 40 90% 55%;
-    --probable-foreground: 25 25% 10%;
-    --observed: 217 75% 62%;
-    --observed-foreground: 25 20% 8%;
-    --insufficient: 30 8% 55%;
-    --insufficient-foreground: 25 20% 8%;
-    --font-display: ui-serif, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, Cambria,
-      'Times New Roman', serif;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 221 83% 53%;
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 222 25% 18%;
+    --sidebar-accent: 220 14% 95%;
+    --sidebar-border: 220 13% 91%;
+    --verified: 150 65% 36%;
+    --verified-foreground: 0 0% 100%;
+    --probable: 38 88% 42%;
+    --probable-foreground: 0 0% 100%;
+    --observed: 200 75% 42%;
+    --observed-foreground: 0 0% 100%;
+    --insufficient: 220 10% 48%;
+    --insufficient-foreground: 0 0% 100%;
+  }
+
+  /* Dark theme — rich obsidian and deep slate */
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+    --card: 222 44% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 44% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 222 35% 16%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 35% 14%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 222 35% 16%;
+    --accent-foreground: 210 40% 98%;
+    --info: 200 80% 60%;
+    --info-foreground: 222 47% 7%;
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 30% 18%;
+    --input: 222 30% 18%;
+    --ring: 217 91% 60%;
+    --sidebar: 222 44% 9%;
+    --sidebar-foreground: 210 40% 92%;
+    --sidebar-accent: 222 35% 16%;
+    --sidebar-border: 222 30% 18%;
+    --verified: 150 70% 52%;
+    --verified-foreground: 222 47% 7%;
+    --probable: 45 92% 55%;
+    --probable-foreground: 222 47% 7%;
+    --observed: 200 80% 60%;
+    --observed-foreground: 222 47% 7%;
+    --insufficient: 220 15% 55%;
+    --insufficient-foreground: 222 47% 7%;
   }
 }
 
@@ -97,11 +153,13 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
-  /* Page titles get Fraunces — the warm, editorial RepoVeriX mark. */
+  /* Page titles use the same family as everything else — one typeface, two
+     roles. (A stale Fraunces rule survived the palette flip, so every <h1>
+     rendered serif while `.font-display` rendered sans.) */
   h1 {
-    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-family: var(--font-display);
     font-optical-sizing: auto;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
   }
   /* code, ids and diffs render in the JetBrains Mono webfont */
   code,
@@ -112,11 +170,12 @@
 }
 
 @layer components {
-  /* Editorial serif used for display headings — the warm, human touch. */
+  /* Geometric sans-serif used for display headings — clean, technical, no serif */
   .font-display {
-    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-family: var(--font-display);
     font-optical-sizing: auto;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
+    font-weight: 700;
   }
   .text-balance {
     text-wrap: balance;
@@ -125,19 +184,24 @@
   .tabular-nums-display {
     font-variant-numeric: tabular-nums lining-nums;
   }
-  /* Deliberate type scale — use these, not ad-hoc text sizes. */
+  /* Deliberate type scale — compact, technical, readable */
   .type-display {
-    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
-    @apply text-4xl font-semibold tracking-tight sm:text-5xl;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    @apply text-4xl font-bold tracking-tight sm:text-5xl;
   }
   .type-page-title {
     @apply text-2xl font-bold tracking-tight sm:text-3xl;
   }
+  /* Marketing sub-page titles (SEO hubs, docs-adjacent pages) — one step below
+     .type-display so the homepage stays the loudest surface on the site. */
+  .type-lead {
+    @apply text-3xl font-bold tracking-tight sm:text-4xl;
+  }
   .type-section {
-    @apply text-base font-semibold tracking-tight;
+    @apply text-base font-bold tracking-tight;
   }
   .type-meta {
-    @apply font-mono text-[11px] text-muted-foreground;
+    @apply font-mono text-[11px] text-muted-foreground uppercase letter-spacing-wide;
   }
 }
 
@@ -251,123 +315,186 @@
 
 @layer base {
   :root {
-    /* severity ramp (repository + website findings) */
-    --sev-critical: 0 72% 44%;
+    /* severity ramp — red to gray (updated for tech color palette) */
+    --sev-critical: 0 80% 55%;
     --sev-critical-fg: 0 0% 100%;
-    --sev-critical-soft: 0 75% 96%;
-    --sev-critical-ink: 0 70% 38%;
-    --sev-high: 20 80% 46%;
+    --sev-critical-soft: 0 85% 94%;
+    --sev-critical-ink: 0 75% 45%;
+    --sev-high: 20 85% 55%;
     --sev-high-fg: 0 0% 100%;
-    --sev-high-soft: 24 88% 95%;
-    --sev-high-ink: 20 75% 40%;
-    --sev-medium: 38 90% 36%;
-    --sev-medium-fg: 0 0% 100%;
-    --sev-medium-soft: 45 92% 93%;
-    --sev-medium-ink: 35 80% 30%;
-    --sev-low: 205 50% 38%;
+    --sev-high-soft: 20 90% 93%;
+    --sev-high-ink: 20 80% 45%;
+    --sev-medium: 40 85% 50%;
+    --sev-medium-fg: 220 15% 8%;
+    --sev-medium-soft: 45 90% 92%;
+    --sev-medium-ink: 40 80% 40%;
+    --sev-low: 200 70% 55%;
     --sev-low-fg: 0 0% 100%;
-    --sev-low-soft: 205 60% 95%;
-    --sev-low-ink: 205 55% 32%;
-    --sev-info: 155 18% 34%;
-    --sev-info-fg: 0 0% 100%;
-    --sev-info-soft: 150 18% 93%;
-    --sev-info-ink: 155 15% 28%;
+    --sev-low-soft: 200 75% 93%;
+    --sev-low-ink: 200 65% 45%;
+    --sev-info: 220 20% 50%;
+    --sev-info-fg: 220 15% 95%;
+    --sev-info-soft: 220 15% 88%;
+    --sev-info-ink: 220 20% 40%;
 
-    /* finding states — VERIFIED / PROBABLE / REJECTED + website states */
-    --state-verified: 152 52% 34%;
-    --state-verified-fg: 0 0% 100%;
-    --state-verified-soft: 150 50% 94%;
-    --state-verified-ink: 152 55% 28%;
-    --state-probable: 32 88% 40%;
-    --state-probable-fg: 0 0% 100%;
-    --state-probable-soft: 43 90% 93%;
-    --state-probable-ink: 32 80% 32%;
-    --state-rejected: 28 8% 42%;
-    --state-rejected-fg: 0 0% 100%;
-    --state-rejected-soft: 35 10% 92%;
-    --state-rejected-ink: 28 8% 36%;
-    --state-observed: 175 48% 30%;
-    --state-observed-fg: 0 0% 100%;
-    --state-observed-soft: 175 45% 94%;
-    --state-observed-ink: 175 50% 25%;
-    --state-recommendation: 258 40% 48%;
+    /* finding states — VERIFIED / PROBABLE / REJECTED */
+    --state-verified: 150 65% 50%;
+    --state-verified-fg: 220 15% 8%;
+    --state-verified-soft: 150 70% 92%;
+    --state-verified-ink: 150 60% 40%;
+    --state-probable: 50 85% 50%;
+    --state-probable-fg: 220 15% 8%;
+    --state-probable-soft: 50 90% 91%;
+    --state-probable-ink: 50 80% 40%;
+    --state-rejected: 220 15% 45%;
+    --state-rejected-fg: 220 15% 95%;
+    --state-rejected-soft: 220 10% 85%;
+    --state-rejected-ink: 220 15% 35%;
+    --state-observed: 200 70% 55%;
+    --state-observed-fg: 220 15% 8%;
+    --state-observed-soft: 200 75% 92%;
+    --state-observed-ink: 200 65% 45%;
+    --state-recommendation: 220 85% 58%;
     --state-recommendation-fg: 0 0% 100%;
-    --state-recommendation-soft: 258 50% 96%;
-    --state-recommendation-ink: 258 40% 42%;
-    --state-insufficient: 30 6% 50%;
+    --state-recommendation-soft: 220 80% 92%;
+    --state-recommendation-ink: 220 80% 48%;
+    --state-insufficient: 220 15% 50%;
+    --state-insufficient-fg: 220 15% 95%;
+    --state-insufficient-soft: 220 10% 87%;
+    --state-insufficient-ink: 220 15% 40%;
+
+    /* dimension-score bands (0–100 analytical scores) */
+    --band-strong: 150 65% 50%;
+    --band-moderate: 50 85% 50%;
+    --band-weak: 20 85% 55%;
+    --band-unknown: 220 15% 50%;
+
+    /* evidence chain — technical blue theme */
+    --chain-line: 220 10% 24%;
+    --chain-node: 220 85% 48%;
+    --chain-node-soft: 220 85% 92%;
+    --chain-node-ink: 220 85% 40%;
+  }
+
+  /* Light-theme semantic layer --------------------------------------------
+     The tinted (`-soft`) and text (`-ink`) faces are the ones the dark theme
+     already overrode. Without a `.light` counterpart the soft chips kept their
+     dark surfaces on a light page. Solid hues are darkened so the white `-fg`
+     text clears 4.5:1. */
+  .light {
+    --sev-critical: 0 72% 42%;
+    --sev-critical-fg: 0 0% 100%;
+    --sev-critical-soft: 0 85% 95%;
+    --sev-critical-ink: 0 72% 36%;
+    --sev-high: 20 80% 40%;
+    --sev-high-fg: 0 0% 100%;
+    --sev-high-soft: 20 90% 94%;
+    --sev-high-ink: 20 78% 34%;
+    --sev-medium: 38 85% 32%;
+    --sev-medium-fg: 0 0% 100%;
+    --sev-medium-soft: 45 90% 93%;
+    --sev-medium-ink: 38 80% 28%;
+    --sev-low: 200 75% 32%;
+    --sev-low-fg: 0 0% 100%;
+    --sev-low-soft: 200 75% 94%;
+    --sev-low-ink: 200 70% 26%;
+    --sev-info: 220 15% 40%;
+    --sev-info-fg: 0 0% 100%;
+    --sev-info-soft: 220 15% 93%;
+    --sev-info-ink: 220 15% 30%;
+
+    --state-verified: 150 60% 28%;
+    --state-verified-fg: 0 0% 100%;
+    --state-verified-soft: 150 65% 94%;
+    --state-verified-ink: 150 60% 24%;
+    --state-probable: 38 85% 32%;
+    --state-probable-fg: 0 0% 100%;
+    --state-probable-soft: 45 90% 93%;
+    --state-probable-ink: 38 80% 28%;
+    --state-rejected: 220 15% 40%;
+    --state-rejected-fg: 0 0% 100%;
+    --state-rejected-soft: 220 15% 93%;
+    --state-rejected-ink: 220 15% 30%;
+    --state-observed: 200 75% 32%;
+    --state-observed-fg: 0 0% 100%;
+    --state-observed-soft: 200 75% 94%;
+    --state-observed-ink: 200 70% 26%;
+    --state-recommendation: 220 85% 40%;
+    --state-recommendation-fg: 0 0% 100%;
+    --state-recommendation-soft: 220 85% 95%;
+    --state-recommendation-ink: 220 80% 34%;
+    --state-insufficient: 220 15% 42%;
     --state-insufficient-fg: 0 0% 100%;
-    --state-insufficient-soft: 35 8% 93%;
-    --state-insufficient-ink: 30 6% 40%;
+    --state-insufficient-soft: 220 15% 93%;
+    --state-insufficient-ink: 220 15% 32%;
 
-    /* dimension-score bands (RepoVeriX analytical scores, 0–100) */
-    --band-strong: 152 52% 34%;
-    --band-moderate: 38 90% 36%;
-    --band-weak: 20 80% 46%;
-    --band-unknown: 30 8% 45%;
+    --band-strong: 150 60% 26%;
+    --band-moderate: 38 85% 30%;
+    --band-weak: 20 80% 40%;
+    --band-unknown: 220 12% 42%;
 
-    /* evidence chain — the product's spine */
-    --chain-line: 36 17% 84%;
-    --chain-node: 14 63% 52%;
-    --chain-node-soft: 14 70% 96%;
-    --chain-node-ink: 14 70% 40%;
+    --chain-line: 220 15% 86%;
+    --chain-node: 220 85% 45%;
+    --chain-node-soft: 220 85% 95%;
+    --chain-node-ink: 220 80% 32%;
   }
 
   .dark {
-    --sev-critical: 0 72% 52%;
+    --sev-critical: 0 85% 60%;
     --sev-critical-fg: 0 0% 100%;
-    --sev-critical-soft: 0 45% 16%;
-    --sev-critical-ink: 0 80% 72%;
-    --sev-high: 20 80% 56%;
-    --sev-high-fg: 25 20% 8%;
-    --sev-high-soft: 20 45% 16%;
-    --sev-high-ink: 24 85% 70%;
-    --sev-medium: 40 88% 55%;
-    --sev-medium-fg: 25 20% 8%;
-    --sev-medium-soft: 40 45% 15%;
-    --sev-medium-ink: 45 85% 66%;
-    --sev-low: 205 60% 60%;
-    --sev-low-fg: 25 20% 8%;
-    --sev-low-soft: 205 40% 15%;
-    --sev-low-ink: 205 70% 70%;
-    --sev-info: 155 20% 62%;
-    --sev-info-fg: 25 20% 8%;
-    --sev-info-soft: 155 20% 14%;
-    --sev-info-ink: 155 25% 74%;
+    --sev-critical-soft: 0 50% 18%;
+    --sev-critical-ink: 0 90% 75%;
+    --sev-high: 20 90% 60%;
+    --sev-high-fg: 0 0% 100%;
+    --sev-high-soft: 20 50% 18%;
+    --sev-high-ink: 20 95% 75%;
+    --sev-medium: 45 90% 55%;
+    --sev-medium-fg: 0 0% 100%;
+    --sev-medium-soft: 45 50% 16%;
+    --sev-medium-ink: 45 95% 70%;
+    --sev-low: 200 75% 60%;
+    --sev-low-fg: 0 0% 100%;
+    --sev-low-soft: 200 50% 16%;
+    --sev-low-ink: 200 80% 75%;
+    --sev-info: 220 20% 60%;
+    --sev-info-fg: 0 0% 100%;
+    --sev-info-soft: 220 15% 18%;
+    --sev-info-ink: 220 25% 75%;
 
-    --state-verified: 150 48% 52%;
-    --state-verified-fg: 25 20% 8%;
-    --state-verified-soft: 150 30% 13%;
-    --state-verified-ink: 150 55% 66%;
-    --state-probable: 38 85% 56%;
-    --state-probable-fg: 25 20% 8%;
-    --state-probable-soft: 38 40% 14%;
-    --state-probable-ink: 42 85% 66%;
-    --state-rejected: 28 8% 58%;
-    --state-rejected-fg: 25 20% 8%;
-    --state-rejected-soft: 28 8% 16%;
-    --state-rejected-ink: 28 8% 70%;
-    --state-observed: 175 45% 55%;
-    --state-observed-fg: 25 20% 8%;
-    --state-observed-soft: 175 35% 13%;
-    --state-observed-ink: 175 50% 66%;
-    --state-recommendation: 258 55% 68%;
-    --state-recommendation-fg: 25 20% 8%;
-    --state-recommendation-soft: 258 35% 17%;
-    --state-recommendation-ink: 258 60% 78%;
-    --state-insufficient: 30 6% 60%;
-    --state-insufficient-fg: 25 20% 8%;
-    --state-insufficient-soft: 30 6% 16%;
-    --state-insufficient-ink: 30 6% 70%;
+    --state-verified: 150 70% 55%;
+    --state-verified-fg: 0 0% 100%;
+    --state-verified-soft: 150 50% 16%;
+    --state-verified-ink: 150 75% 70%;
+    --state-probable: 50 90% 55%;
+    --state-probable-fg: 0 0% 100%;
+    --state-probable-soft: 50 50% 15%;
+    --state-probable-ink: 50 95% 70%;
+    --state-rejected: 220 15% 55%;
+    --state-rejected-fg: 0 0% 100%;
+    --state-rejected-soft: 220 10% 18%;
+    --state-rejected-ink: 220 15% 75%;
+    --state-observed: 200 75% 60%;
+    --state-observed-fg: 0 0% 100%;
+    --state-observed-soft: 200 50% 16%;
+    --state-observed-ink: 200 80% 75%;
+    --state-recommendation: 220 85% 62%;
+    --state-recommendation-fg: 0 0% 100%;
+    --state-recommendation-soft: 220 50% 18%;
+    --state-recommendation-ink: 220 90% 80%;
+    --state-insufficient: 220 15% 60%;
+    --state-insufficient-fg: 0 0% 100%;
+    --state-insufficient-soft: 220 10% 18%;
+    --state-insufficient-ink: 220 15% 75%;
 
-    --band-strong: 150 48% 52%;
-    --band-moderate: 40 85% 56%;
-    --band-weak: 20 80% 58%;
-    --band-unknown: 30 8% 58%;
+    --band-strong: 150 70% 55%;
+    --band-moderate: 50 90% 55%;
+    --band-weak: 20 90% 60%;
+    --band-unknown: 220 15% 60%;
 
-    --chain-line: 26 10% 24%;
-    --chain-node: 14 63% 60%;
-    --chain-node-soft: 14 45% 18%;
-    --chain-node-ink: 16 75% 68%;
+    --chain-line: 220 10% 26%;
+    --chain-node: 220 85% 58%;
+    --chain-node-soft: 220 85% 18%;
+    --chain-node-ink: 220 85% 72%;
   }
 }
 
@@ -385,12 +512,26 @@
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
+  /* Larger chip variant for prominence in findings, repositories */
+  .chip.chip-lg {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1.5rem;
+    gap: 0.5rem;
+  }
   .chip .chip-dot {
     width: 0.375rem;
     height: 0.375rem;
     border-radius: 9999px;
     background: currentColor;
     flex: none;
+  }
+  /* Outline variant: same geometry, neutral surface — for chips embedded in
+     dense rows where several solid chips would compete for attention. */
+  .chip.chip-outline {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
   }
 
   .sev-critical {
@@ -511,6 +652,58 @@
     background: hsl(var(--chain-node-soft));
     color: hsl(var(--chain-node-ink));
   }
+  /* Larger chain node for evidence visualization (36px) */
+  .chain-node-lg {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    flex: none;
+    background: hsl(var(--chain-node-soft));
+    color: hsl(var(--chain-node-ink));
+    border: 2px solid hsl(var(--chain-node));
+    font-weight: 700;
+  }
+  /* ---- signature chain flow ------------------------------------------ */
+  .chain-flow {
+    position: relative;
+  }
+  .chain-connector {
+    background: hsl(var(--chain-line));
+  }
+  .chain-step[data-status='active'] .chain-connector {
+    background: hsl(var(--chain-node));
+  }
+  .chain-status {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    border-radius: 9999px;
+    border: 1px solid hsl(var(--border));
+    padding: 0.0625rem 0.375rem;
+    font-family: var(--font-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+  .chain-status-confirmed {
+    border-color: hsl(var(--chain-node) / 0.45);
+    background: hsl(var(--chain-node-soft));
+    color: hsl(var(--chain-node-ink));
+  }
+  .chain-status-active {
+    border-color: hsl(var(--primary) / 0.45);
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+  }
+  .chain-status-absent {
+    text-decoration: line-through;
+    opacity: 0.7;
+  }
   .chain-node-active {
     background: hsl(var(--chain-node));
     color: hsl(var(--primary-foreground));
@@ -533,19 +726,450 @@
     background: hsl(var(--accent) / 0.6);
   }
   .score-meter {
-    height: 0.375rem;
+    height: 0.5rem;
     border-radius: 9999px;
     background: hsl(var(--muted));
     overflow: hidden;
+    border: 1px solid hsl(var(--border));
   }
   .score-meter > span {
     display: block;
     height: 100%;
     border-radius: 9999px;
     background: currentColor;
+    transition: width 0.3s ease;
   }
   .focus-ring:focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
+  }
+}
+
+/* ==========================================================================
+   RVX CONSOLE LAYER — the RepoVeriX investigation visual language.
+
+   This layer does not replace the semantic ramps (.sev-* / .state-* /.chain-*)
+   that the product already uses for meaning. It replaces the *structure*: the
+   console chrome, the signal spine, the typographic scale and the motion.
+
+   The organising idea is the signal spine — every security object in this
+   product is a path from an untrusted SOURCE through a TRANSFORM into a SINK,
+   and then through PATCH to VERIFIED. Those five stages are the five hues
+   below, and they are the only new colours in the system.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    --rvx-canvas: 220 20% 98%;
+    --rvx-surface: 0 0% 100%;
+    --rvx-surface-2: 220 14% 95%;
+    --rvx-inset: 220 14% 93%;
+
+    --rvx-source: 221 83% 53%;
+    --rvx-transform: 38 88% 44%;
+    --rvx-sink: 0 74% 48%;
+    --rvx-patch: 265 65% 52%;
+    --rvx-verified: 152 68% 34%;
+
+    --rvx-grid: 220 20% 20%;
+    --rvx-grid-opacity: 0.03;
+  }
+
+  .light {
+    --rvx-canvas: 220 20% 98%;
+    --rvx-surface: 0 0% 100%;
+    --rvx-surface-2: 220 14% 95%;
+    --rvx-inset: 220 14% 93%;
+
+    --rvx-source: 221 83% 53%;
+    --rvx-transform: 38 88% 44%;
+    --rvx-sink: 0 74% 48%;
+    --rvx-patch: 265 65% 52%;
+    --rvx-verified: 152 68% 34%;
+
+    --rvx-grid: 220 20% 20%;
+    --rvx-grid-opacity: 0.03;
+  }
+
+  .dark {
+    --rvx-canvas: 222 47% 7%;
+    --rvx-surface: 222 44% 10%;
+    --rvx-surface-2: 222 35% 14%;
+    --rvx-inset: 222 44% 8%;
+
+    --rvx-source: 217 91% 60%;
+    --rvx-transform: 38 92% 58%;
+    --rvx-sink: 0 84% 62%;
+    --rvx-patch: 265 80% 66%;
+    --rvx-verified: 152 66% 50%;
+
+    --rvx-grid: 0 0% 100%;
+    --rvx-grid-opacity: 0.03;
+  }
+}
+
+@layer components {
+  /* ---------------------------------------------------------------- canvas */
+  .rvx-canvas {
+    background-color: hsl(var(--rvx-canvas));
+    background-image:
+      linear-gradient(to right, hsl(var(--rvx-grid) / var(--rvx-grid-opacity)) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--rvx-grid) / var(--rvx-grid-opacity)) 1px, transparent 1px);
+    background-size: 56px 56px;
+    background-position: -1px -1px;
+  }
+
+  .rvx-panel {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  }
+
+  .rvx-panel-flush {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-md);
+  }
+
+  .rvx-inset {
+    background-color: hsl(var(--muted) / 0.7);
+    border: 1px solid hsl(var(--border) / 0.7);
+    border-radius: var(--radius-md);
+  }
+
+  /* --------------------------------------------------- typography (RVX) */
+  .rvx-eyebrow {
+    font-family: var(--font-inter), -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: hsl(var(--primary));
+  }
+
+  .rvx-statement {
+    font-family: var(--font-inter), -apple-system, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+  .rvx-title {
+    font-family: var(--font-inter), -apple-system, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+
+  .rvx-mono {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rvx-num {
+    font-family: var(--font-inter), -apple-system, sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  /* -------------------------------------------------------------- chrome */
+  .rvx-hairline {
+    border-color: hsl(var(--border));
+  }
+
+  .rvx-rail-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+    border-radius: var(--radius-md);
+    color: hsl(var(--muted-foreground));
+    transition: color 0.14s ease, background-color 0.14s ease;
+  }
+
+  .rvx-rail-item:hover {
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--accent) / 0.7);
+  }
+
+  .rvx-rail-item[data-active='true'] {
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--accent));
+  }
+
+  /* The active marker is a 2px bar pinned to the rail edge — the console
+     equivalent of a sidebar highlight, without a sidebar. */
+  .rvx-rail-item[data-active='true']::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    height: 18px;
+    width: 2px;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background-color: hsl(var(--primary));
+  }
+
+  .rvx-tabstrip {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .rvx-tabstrip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rvx-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.7rem;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    border-bottom: 1px solid transparent;
+    transition: color 0.14s ease, border-color 0.14s ease;
+  }
+
+  .rvx-tab:hover {
+    color: hsl(var(--foreground));
+  }
+
+  .rvx-tab[data-active='true'] {
+    color: hsl(var(--foreground));
+    border-bottom-color: hsl(var(--primary));
+  }
+
+  /* ------------------------------------------------------- signal spine */
+  .rvx-node {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    text-align: left;
+    width: 100%;
+  }
+
+  .rvx-node-marker {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .rvx-stage-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    width: 22px;
+    border-radius: 6px;
+    border: 1px solid currentColor;
+    color: hsl(var(--muted-foreground));
+    background-color: hsl(var(--rvx-surface));
+    z-index: 1;
+  }
+
+  .rvx-stage-dot[data-stage='source'] { color: hsl(var(--rvx-source)); }
+  .rvx-stage-dot[data-stage='transform'] { color: hsl(var(--rvx-transform)); }
+  .rvx-stage-dot[data-stage='sink'] { color: hsl(var(--rvx-sink)); }
+  .rvx-stage-dot[data-stage='patch'] { color: hsl(var(--rvx-patch)); }
+  .rvx-stage-dot[data-stage='verify'] { color: hsl(var(--rvx-verified)); }
+  .rvx-stage-dot[data-stage='neutral'] { color: hsl(var(--muted-foreground)); }
+
+  /* Connector: drawn by transform so it animates on the compositor. */
+  .rvx-connector {
+    position: absolute;
+    top: 26px;
+    left: 50%;
+    bottom: -2px;
+    width: 1px;
+    transform: translateX(-50%);
+    background-image: linear-gradient(
+      to bottom,
+      currentColor 0,
+      currentColor 4px,
+      transparent 4px,
+      transparent 8px
+    );
+    background-size: 1px 8px;
+    background-repeat: repeat-y;
+    opacity: 0.55;
+  }
+
+  .rvx-connector[data-stage='source'] { color: hsl(var(--rvx-source)); }
+  .rvx-connector[data-stage='transform'] { color: hsl(var(--rvx-transform)); }
+  .rvx-connector[data-stage='sink'] { color: hsl(var(--rvx-sink)); }
+  .rvx-connector[data-stage='patch'] { color: hsl(var(--rvx-patch)); }
+  .rvx-connector[data-stage='verify'] { color: hsl(var(--rvx-verified)); }
+
+  /* Selected path: everything else recedes. This is the core interaction —
+     the user picks one path and the rest of the console gets out of the way. */
+  .rvx-spine[data-focus='true'] .rvx-node:not([data-selected='true']) {
+    opacity: 0.42;
+  }
+
+  .rvx-node[data-selected='true'] .rvx-stage-dot {
+    box-shadow: 0 0 0 3px hsl(var(--rvx-surface)), 0 0 0 4px currentColor;
+  }
+
+  .rvx-node {
+    transition: opacity 0.18s ease;
+  }
+
+  .rvx-node-body {
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    padding: 0.4rem 0.55rem;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
+  }
+
+  .rvx-node:hover .rvx-node-body {
+    background-color: hsl(var(--rvx-surface-2) / 0.7);
+    border-color: hsl(var(--border) / 0.5);
+  }
+
+  .rvx-node[data-selected='true'] .rvx-node-body {
+    background-color: hsl(var(--rvx-surface-2) / 0.85);
+    border-color: hsl(var(--border) / 0.8);
+  }
+
+  /* --------------------------------------------------------------- meter */
+  /* Segmented risk meter. Rendered as discrete cells so the exact counts are
+     readable, not estimated from a bar length. */
+  .rvx-meter {
+    display: flex;
+    gap: 2px;
+    height: 6px;
+    width: 100%;
+  }
+
+  .rvx-meter > span {
+    display: block;
+    min-width: 2px;
+    border-radius: 1px;
+    background-color: hsl(var(--muted));
+    transform-origin: left center;
+  }
+
+  .rvx-meter > span[data-sev='critical'] { background-color: hsl(var(--sev-critical)); }
+  .rvx-meter > span[data-sev='high'] { background-color: hsl(var(--sev-high)); }
+  .rvx-meter > span[data-sev='medium'] { background-color: hsl(var(--sev-medium)); }
+  .rvx-meter > span[data-sev='low'] { background-color: hsl(var(--sev-low)); }
+  .rvx-meter > span[data-sev='info'] { background-color: hsl(var(--sev-info)); }
+
+  /* --------------------------------------------------------- ledger rows */
+  /* A dense, scannable row: mono identity on the left, state on the right.
+     Used by the investigation queue, the verification ledger and PR deltas. */
+  .rvx-row {
+    display: grid;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.35);
+    transition: background-color 0.12s ease;
+  }
+
+  .rvx-row:hover {
+    background-color: hsl(var(--accent) / 0.55);
+  }
+
+  .rvx-row[data-selected='true'] {
+    background-color: hsl(var(--accent));
+  }
+
+  .rvx-row:last-child {
+    border-bottom: 0;
+  }
+
+  /* ---------------------------------------------------------------- motion */
+  /* Every animation below is transform/opacity only, runs once, and is
+     disabled under prefers-reduced-motion. */
+  @keyframes rvx-draw-y {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+
+  @keyframes rvx-rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes rvx-sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(220%); }
+  }
+
+  @keyframes rvx-travel {
+    from { transform: translateY(-4px); opacity: 0; }
+    30% { opacity: 1; }
+    to { transform: translateY(26px); opacity: 0; }
+  }
+
+  .rvx-draw > * {
+    animation: rvx-rise 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .rvx-draw > *:nth-child(1) { animation-delay: 0.02s; }
+  .rvx-draw > *:nth-child(2) { animation-delay: 0.07s; }
+  .rvx-draw > *:nth-child(3) { animation-delay: 0.12s; }
+  .rvx-draw > *:nth-child(4) { animation-delay: 0.17s; }
+  .rvx-draw > *:nth-child(5) { animation-delay: 0.22s; }
+  .rvx-draw > *:nth-child(6) { animation-delay: 0.27s; }
+  .rvx-draw > *:nth-child(7) { animation-delay: 0.32s; }
+  .rvx-draw > *:nth-child(n + 8) { animation-delay: 0.36s; }
+
+  .rvx-connector-draw {
+    animation: rvx-draw-y 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: top center;
+  }
+
+  /* A single travelling pulse marks "analysis in progress" — one element,
+     never a page-wide animation. */
+  .rvx-pulse-travel {
+    animation: rvx-travel 1.6s linear infinite;
+  }
+
+  .rvx-busy {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .rvx-busy::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 30%;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--primary) / 0.18),
+      transparent
+    );
+    animation: rvx-sweep 1.8s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rvx-draw > *,
+    .rvx-connector-draw,
+    .rvx-pulse-travel,
+    .rvx-busy::after {
+      animation: none !important;
+    }
+    .rvx-node {
+      transition: none;
+    }
   }
 }

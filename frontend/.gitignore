@@ -3,7 +3,14 @@ node_modules/
 
 # Build output
 .next/
+# Isolated production build used by playwright.config.ts (NEXT_DIST_DIR) —
+# without this entry `npm run test:e2e` leaves ~275MB of untracked build output.
+.next-e2e/
 out/
+
+# Playwright artifacts
+test-results/
+playwright-report/
 
 # TypeScript
 *.tsbuildinfo

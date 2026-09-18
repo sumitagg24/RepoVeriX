@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCompleteOnboarding, useOnboardingStatus } from '@/hooks/useOnboarding';
 import { ONBOARDING_CONNECT_FLAG } from '@/lib/onboarding';
 import { cn } from '@/lib/utils';
+import { toneHue, toneSurface } from '@/lib/tone';
 import {
   ArrowRight,
   CheckCircle2,
@@ -80,10 +81,10 @@ export default function OnboardingPage() {
       <Shell>
         <Card className="w-full max-w-md border-primary/20 shadow-lg shadow-primary/5">
           <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
-              <ShieldCheck className="h-7 w-7 text-emerald-500" aria-hidden />
+            <span className={cn('flex h-14 w-14 items-center justify-center rounded-full', toneSurface('verified'))}>
+              <ShieldCheck className={cn('h-7 w-7', toneHue('verified'))} aria-hidden />
             </span>
-            <h1 className="text-2xl font-semibold tracking-tight">Your workspace is ready</h1>
+            <h1 className="type-page-title">Your workspace is ready</h1>
             <p className="text-sm text-muted-foreground">
               You connected a source, added a repository and ran your first scan. From here,
               every finding you see is backed by evidence — and every fix is verified by execution.
@@ -106,7 +107,7 @@ export default function OnboardingPage() {
     <Shell>
       <div className="w-full max-w-3xl">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="type-page-title">
             Welcome, {user.full_name.split(' ')[0]}
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -135,7 +136,7 @@ export default function OnboardingPage() {
                   )}
                 >
                   {done ? (
-                    <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-500" aria-hidden />
+                    <CheckCircle2 className={cn('h-4.5 w-4.5 shrink-0', toneHue('verified'))} aria-hidden />
                   ) : (
                     <span
                       className={cn(
