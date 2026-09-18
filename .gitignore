@@ -48,5 +48,11 @@ Thumbs.db
 # Tooling metadata
 .freebuff/
 
+# Agent configurations and skills
+.agents/
+.opencode/
+.cursor/
+.claude/
+
 # Nginx local artifacts
 nginx/ssl/

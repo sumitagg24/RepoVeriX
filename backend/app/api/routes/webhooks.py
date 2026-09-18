@@ -148,10 +148,6 @@ async def receive_webhook(
 # --------------------------------------------------------------------------- management
 
 
-class WebhookSecretResponse:
-    pass
-
-
 @router.post("/{repository_id}/secret")
 async def rotate_webhook_secret(
     repository_id: uuid.UUID,

@@ -18,6 +18,7 @@ from app.api.routes import (
     findings_router,
     intelligence_router,
     learning_router,
+    notifications_router,
     oauth_router,
     onboarding_router,
     organizations_router,
@@ -27,6 +28,7 @@ from app.api.routes import (
     repositories_router,
     research_router,
     scans_router,
+    schedules_router,
     sharing_public_router,
     sharing_router,
     tokens_router,
@@ -61,6 +63,13 @@ async def lifespan(app: FastAPI):
         await recover_stale_jobs(SessionLocal)
     except Exception:  # pragma: no cover - recovery must never block startup
         _logger.exception("startup job recovery failed; continuing")
+
+    # Eagerly connect the rate-limiter backend (Redis when configured, else
+    # the process-local in-memory limiter is already ready).
+    from app.core.ratelimit import init_rate_limiter
+
+    await init_rate_limiter()
+
     yield
 
 
@@ -90,6 +99,10 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Machine-readable error/upgrade codes (X-Error-Code on auth errors,
+        # X-Upgrade-Reason on 402s) must be readable from browser JS — CORS
+        # hides non-safelisted response headers unless explicitly exposed.
+        expose_headers=["X-Error-Code", "X-Upgrade-Reason"],
     )
 
     # ---------------------------------------------------------------- errors
@@ -191,6 +204,8 @@ def create_app() -> FastAPI:
     app.include_router(learning_router, prefix=settings.api_prefix)
     app.include_router(dashboard_router, prefix=settings.api_prefix)
     app.include_router(websites_router, prefix=settings.api_prefix)
+    app.include_router(notifications_router, prefix=settings.api_prefix)
+    app.include_router(schedules_router, prefix=settings.api_prefix)
 
     @app.get("/health", tags=["health"])
     async def health_check():

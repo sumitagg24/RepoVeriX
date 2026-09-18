@@ -102,3 +102,51 @@ async def send_password_reset_email(to: str, uid: str, token: str) -> None:
             "If you didn't request this, ignore this email — your password is unchanged."
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Notification templates
+# ---------------------------------------------------------------------------
+
+
+async def send_scan_notification(to: str, name: str, *, title: str, body: str, scan_id: str) -> None:
+    settings = get_settings()
+    url = f"{settings.frontend_url.rstrip('/')}/scans/{scan_id}"
+    await send_email(
+        to,
+        f"RepoVeriX — {title}",
+        (
+            f"Hi {name or 'there'},\n\n"
+            f"{title}\n\n"
+            f"{body}\n\n"
+            f"View the results: {url}\n\n"
+            "— RepoVeriX"
+        ),
+    )
+
+
+async def send_notification_digest(
+    to: str,
+    name: str,
+    notifications: list,
+    unread_count: int,
+) -> None:
+    """Send a daily digest email of unread notifications."""
+    settings = get_settings()
+    base = settings.frontend_url.rstrip("/")
+    items = "\n".join(
+        f"  • {n.title}" + (f"\n    {n.body}" if n.body else "")
+        for n in notifications[:10]
+    )
+    more = f"\n  … and {unread_count - len(notifications)} more." if unread_count > len(notifications) else ""
+    await send_email(
+        to,
+        f"RepoVeriX — {unread_count} unread notification(s)",
+        (
+            f"Hi {name or 'there'},\n\n"
+            f"You have {unread_count} unread notification(s):\n\n"
+            f"{items}{more}\n\n"
+            f"View all: {base}/notifications\n\n"
+            "— RepoVeriX"
+        ),
+    )

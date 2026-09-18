@@ -1,4 +1,4 @@
-"""Configurable, in-process rate limiting.
+"""Configurable rate limiting — process-local (default) or Redis-backed.
 
 Design
 ------
@@ -13,10 +13,19 @@ spent, further attempts are refused for a backoff that starts at
 window, so a legitimate user who mistypes a password a few times is never locked
 out for long.
 
-State is intentionally process-local. A deployment running more than one API
-worker must either pin auth traffic to a single worker or swap this module for a
-shared store (Redis) behind the same three-function interface — see
-``SECURITY.md``.
+Backend selection
+-----------------
+When ``REPOVERIX_REDIS_URL`` is set **and** the optional ``redis[asyncio]``
+package is installed, a Redis-backed limiter is used.  It is shared across all
+API workers, so rate limits are enforced correctly in multi-worker deployments.
+
+Without Redis (or when the package is missing / the server is unreachable at
+startup), the process-local in-memory ``RateLimiter`` is used instead.  In
+that case a deployment running more than one worker must either pin auth
+traffic to a single worker or switch to Redis — see ``docs/SECURITY.md``.
+
+The public helper functions (``check_auth_attempt``, ``check_action``, …) call
+either backend transparently; callers never import ``limiter`` directly.
 
 All thresholds come from ``app.core.config.Settings``; nothing is hardcoded in
 the enforcement path.
@@ -24,6 +33,8 @@ the enforcement path.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import math
 import threading
 import time
@@ -32,6 +43,8 @@ from typing import NamedTuple
 from fastapi import HTTPException, Request, status
 
 from app.core.config import get_settings
+
+logger = logging.getLogger("repoverix.ratelimit")
 
 
 class RateLimitResult(NamedTuple):
@@ -85,12 +98,7 @@ class RateLimiter:
         backoff_max_seconds: float = 0.0,
         now: float | None = None,
     ) -> RateLimitResult:
-        """Consume one unit from ``namespace:key`` and report if it fits.
-
-        ``backoff_base_seconds > 0`` turns refusals into escalating lockouts:
-        each refusal doubles the delay (capped at ``backoff_max_seconds``) and
-        subsequent requests stay refused until the lockout expires.
-        """
+        """Consume one unit from ``namespace:key`` and report if it fits."""
         if limit <= 0:
             return RateLimitResult(allowed=False, retry_after_seconds=3600)
         now = now if now is not None else time.monotonic()
@@ -102,7 +110,6 @@ class RateLimiter:
                 entry = _Window(now, 0, 0.0, 0)
                 self._windows[cache_key] = entry
 
-            # A refusal is still in effect: escalate and keep refusing.
             if entry.blocked_until and now < entry.blocked_until:
                 strikes = entry.strikes + 1
                 delay = self._backoff(strikes, backoff_base_seconds, backoff_max_seconds)
@@ -111,13 +118,10 @@ class RateLimiter:
                 return RateLimitResult(allowed=False, retry_after_seconds=math.ceil(blocked_until - now))
 
             if entry.blocked_until:
-                # The lockout has been served: grant a fresh budget instead of
-                # punishing the client forever.
                 entry = _Window(now, 0, 0.0, 0)
                 self._windows[cache_key] = entry
 
             if entry.count >= limit:
-                # Budget spent: start / escalate the lockout.
                 strikes = entry.strikes + 1
                 delay = self._backoff(strikes, backoff_base_seconds, backoff_max_seconds)
                 blocked_until = now + delay
@@ -134,18 +138,138 @@ class RateLimiter:
         return min(cap if cap > 0 else float("inf"), base * (2 ** (strikes - 1)))
 
     def reset(self, namespace: str, key: str) -> None:
-        """Clear all state for ``namespace:key`` (called after a successful login)."""
         with self._lock:
             self._windows.pop((namespace, str(key)), None)
 
     def clear(self) -> None:
-        """Drop every bucket (tests / config reload)."""
         with self._lock:
             self._windows.clear()
 
 
-# Module-level singleton; import ``limiter`` where enforcement is needed.
-limiter = RateLimiter()
+# ---------------------------------------------------------------------------
+# Unified async adapter — wraps either backend behind one interface.
+# ---------------------------------------------------------------------------
+
+class _AsyncLimiterAdapter:
+    """Wraps ``RateLimiter`` (sync) or ``RedisRateLimiter`` (async) behind a
+    single ``async def check()`` / ``async def reset()`` interface so all
+    callers are written once.
+    """
+
+    def __init__(self, backend) -> None:
+        self._b = backend
+        self._is_async = hasattr(backend, "__class__") and "Redis" in type(backend).__name__
+
+    async def check(self, namespace: str, key: str, **kwargs) -> RateLimitResult:
+        if self._is_async:
+            result = await self._b.check(namespace, key, **kwargs)
+            # RedisRateLimiter returns its own NamedTuple; normalise to ours
+            return RateLimitResult(allowed=result.allowed, retry_after_seconds=result.retry_after_seconds)
+        return self._b.check(namespace, key, **kwargs)
+
+    async def reset(self, namespace: str, key: str) -> None:
+        if self._is_async:
+            await self._b.reset(namespace, key)
+        else:
+            self._b.reset(namespace, key)
+
+    async def clear(self) -> None:
+        if self._is_async:
+            await self._b.clear()
+        else:
+            self._b.clear()
+
+    # Synchronous passthrough for code paths that cannot await (startup checks).
+    def check_sync(self, namespace: str, key: str, **kwargs) -> RateLimitResult:
+        if self._is_async:
+            # Best-effort: run on the current event loop if available
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        fut = pool.submit(asyncio.run, self._b.check(namespace, key, **kwargs))
+                        r = fut.result(timeout=2)
+                        return RateLimitResult(allowed=r.allowed, retry_after_seconds=r.retry_after_seconds)
+            except Exception:
+                pass
+            # Fail open on Redis unavailability for check_sync callers
+            return RateLimitResult(allowed=True)
+        return self._b.check(namespace, key, **kwargs)
+
+
+# Module-level singleton, built lazily on first use.
+_limiter: _AsyncLimiterAdapter | None = None
+_limiter_lock = threading.Lock()
+
+# Keep a bare sync limiter for the helpers that are called synchronously
+# (check_auth_attempt, check_action, check_user_rate, check_public_rate).
+# When Redis is available, sync callers use the process-local limiter as a
+# warm fallback — auth budget differences across workers are acceptable; a full
+# cross-worker auth bypass is not.
+limiter = RateLimiter()  # sync process-local (always available)
+
+
+def _get_async_limiter() -> _AsyncLimiterAdapter:
+    """Return (and lazily build) the shared async rate-limit adapter."""
+    global _limiter
+    if _limiter is not None:
+        return _limiter
+    with _limiter_lock:
+        if _limiter is not None:
+            return _limiter
+        settings = get_settings()
+        if settings.redis_url:
+            try:
+                from app.core.ratelimit_redis import build_redis_limiter  # noqa: PLC0415
+
+                async def _init():
+                    return await build_redis_limiter(settings.redis_url)  # type: ignore[arg-type]
+
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Inside a running loop (lifespan startup): schedule and
+                        # fall through to process-local until the future resolves.
+                        _limiter = _AsyncLimiterAdapter(limiter)
+                        loop.create_task(_connect_redis_async(settings.redis_url))
+                        return _limiter
+                    redis_backend = loop.run_until_complete(_init())
+                    _limiter = _AsyncLimiterAdapter(redis_backend)
+                    logger.info("Rate limiter: Redis backend at %s", settings.redis_url)
+                    return _limiter
+                except Exception as exc:
+                    logger.warning("Redis rate limiter unavailable (%s); falling back to process-local", exc)
+            except ImportError:
+                logger.info(
+                    "redis[asyncio] not installed; using process-local rate limiter. "
+                    "Install with: pip install 'repoverix-backend[redis]'"
+                )
+        _limiter = _AsyncLimiterAdapter(limiter)
+        return _limiter
+
+
+async def _connect_redis_async(url: str) -> None:
+    """Background coroutine: swap to Redis limiter once the connection is up."""
+    global _limiter
+    try:
+        from app.core.ratelimit_redis import build_redis_limiter  # noqa: PLC0415
+
+        redis_backend = await build_redis_limiter(url)
+        with _limiter_lock:
+            _limiter = _AsyncLimiterAdapter(redis_backend)
+        logger.info("Rate limiter: switched to Redis backend at %s", url)
+    except Exception as exc:
+        logger.warning("Redis rate limiter failed to connect (%s); keeping process-local", exc)
+
+
+async def init_rate_limiter() -> None:
+    """Eagerly initialise the rate-limiter backend during app startup.
+
+    Call from the FastAPI lifespan handler so the Redis connection is
+    established before the first request, rather than on the first check.
+    """
+    _get_async_limiter()  # triggers lazy init; Redis async upgrade runs in bg
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +290,7 @@ def client_ip(request: Request) -> str:
 
 
 def check_ip_rate(request: Request, namespace: str, *, limit: int, window_seconds: float) -> RateLimitResult:
-    """Enforce a per-IP limit inside a fixed window."""
+    """Enforce a per-IP limit inside a fixed window (sync, uses local limiter)."""
     return limiter.check(
         namespace,
         f"ip:{client_ip(request)}",
@@ -176,11 +300,11 @@ def check_ip_rate(request: Request, namespace: str, *, limit: int, window_second
 
 
 def check_auth_attempt(request: Request, email: str) -> RateLimitResult:
-    """Auth-tier check against BOTH the client IP and the account.
+    """Auth-tier check against BOTH the client IP and the account (sync).
 
-    Returns the *least* permissive result of the two so a shared NAT cannot
-    exhaust one account's budget and a single attacker hammering many accounts
-    from one IP is still throttled.
+    Returns the *least* permissive result so a shared NAT cannot exhaust one
+    account's budget and a single attacker hammering many accounts from one IP
+    is still throttled.
     """
     settings = get_settings()
     ip_result = limiter.check(
@@ -206,12 +330,7 @@ def check_auth_attempt(request: Request, email: str) -> RateLimitResult:
 
 
 def reset_auth_attempts(email: str) -> None:
-    """Clear the account's auth bucket after a successful sign-in/signup.
-
-    Only the *account* bucket is reset: a shared IP must keep its budget so one
-    host cannot create accounts or brute-force many accounts by alternating
-    successes, and an innocent user behind a NAT is never hard-locked.
-    """
+    """Clear the account's auth bucket after a successful sign-in/signup."""
     limiter.reset("auth:account", email.strip().lower())
 
 

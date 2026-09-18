@@ -117,6 +117,22 @@ STRIPE_PRICE_IDS: dict[str, str] = {
 }
 
 
+def plan_from_stripe_price(price_id: str | None) -> PlanName:
+    """Resolve a Stripe price ID to its plan name.
+
+    Iterates the ``STRIPE_PRICE_IDS`` mapping so adding a new plan only
+    requires updating that dict — no separate reverse-lookup table to maintain.
+    Falls back to ``pro`` when the price cannot be matched (e.g. a legacy price
+    ID that predates the mapping) so the subscription is never silently
+    downgraded to Free by a misconfigured price ID.
+    """
+    if price_id:
+        for plan_name, pid in STRIPE_PRICE_IDS.items():
+            if pid and pid == price_id:
+                return PlanName(plan_name)
+    return PlanName.pro
+
+
 def _as_utc(dt: datetime | None) -> datetime | None:
     """SQLite stores ``DateTime(timezone=True)`` values without tzinfo; treat
     them as UTC so comparisons against aware ``datetime.now(UTC)`` work."""

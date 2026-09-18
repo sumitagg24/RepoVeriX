@@ -79,6 +79,12 @@ class Settings(BaseSettings):
     # proxy that overwrites the header; keep False when the API is public-facing
     # directly).
     trust_proxy_headers: bool = False
+    # Optional Redis URL for shared-state rate limiting across multiple API
+    # workers.  When unset (or when the redis package is not installed) the
+    # process-local in-memory limiter is used instead.  Format:
+    #   redis://[:password@]host[:port][/db]
+    #   rediss://...   (TLS)
+    redis_url: str | None = None
 
     # Authentication endpoints (login / signup / oauth): allowed attempts per
     # window, applied to BOTH the client IP and the account (email) key. When
@@ -235,6 +241,14 @@ class Settings(BaseSettings):
     github_api_timeout_seconds: int = 60
     # PR audits fetch the pull ref into the clone and analyze a detached worktree.
     pr_worktree_dir: str = "./data/pr-worktrees"
+
+    # --- GitLab merge-request auditing ---
+    # Optional server-level personal access token used when the user has not
+    # connected their GitLab account.  The connected account's token wins.
+    gitlab_token: str | None = None
+    # Base timeout (seconds) for GitLab REST API calls (reuses github_api_timeout_seconds
+    # when not set separately — both are rarely tuned independently).
+    gitlab_api_timeout_seconds: int = 60
 
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "test", "testserver", "0.0.0.0"}

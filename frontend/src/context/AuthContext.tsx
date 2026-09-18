@@ -1,147 +1,253 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { authService, setAccessToken } from '@/services/api';
-import type { User, TokenResponse } from '@/types/api';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { useRouter } from "next/navigation";
+import { api, apiErrorCode, getToken, setToken } from "@/services/api";
+import type { TokenResponse, UserRead } from "@/types/api";
+import { apiErrorMessage } from "@/lib/utils";
 
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, fullName: string) => Promise<void>;
-  loginWithToken: (token: string) => Promise<void>;
-  logout: () => void;
-  logoutWithAudit: () => Promise<void>;
-  rotateToken: (newToken: string) => Promise<void>;
-  refreshUser: () => Promise<void>;
+export interface PendingVerification {
+  email: string;
+  /** Console-mail dev shortcut (local dev only — never present with SMTP). */
+  devUrl: string | null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+interface AuthState {
+  user: UserRead | null;
+  loading: boolean;
+  error: string | null;
+  pendingVerification: PendingVerification | null;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (fullName: string, email: string, password: string) => Promise<void>;
+  logout: () => void;
+  refresh: () => Promise<void>;
+  verifyEmail: (uid: string, token: string) => Promise<string>;
+  resendVerification: (email: string) => Promise<PendingVerification>;
+}
+
+const AuthContext = createContext<AuthState | null>(null);
+
+function toPending(email: string, devUrl?: string | null): PendingVerification {
+  return { email, devUrl: devUrl ?? null };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const [user, setUser] = useState<UserRead | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingVerification, setPendingVerification] =
+    useState<PendingVerification | null>(null);
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('access_token');
-    if (storedToken) {
-      setToken(storedToken);
-      setAccessToken(storedToken);
-      refreshUser();
-    } else {
-      setIsLoading(false);
+  const refresh = useCallback(async () => {
+    if (!getToken()) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await api.get<UserRead>("/auth/me");
+      setUser(res.data);
+      setError(null);
+    } catch (e) {
+      setToken(null);
+      setUser(null);
+      setError(apiErrorMessage(e, "Session expired"));
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  const refreshUser = async () => {
-    try {
-      const userData = await authService.me();
-      setUser(userData);
-    } catch {
-      setToken(null);
-      setAccessToken(null);
-      localStorage.removeItem('access_token');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
-  const login = async (email: string, password: string) => {
-    const data = await authService.login({ email, password });
-    setToken(data.access_token);
-    setAccessToken(data.access_token);
-    localStorage.setItem('access_token', data.access_token);
-    await refreshUser();
-    router.push('/dashboard');
-    router.refresh();
-  };
-
-  const signup = async (email: string, password: string, fullName: string) => {
-    const data = await authService.signup({ email, password, full_name: fullName });
-    setToken(data.access_token);
-    setAccessToken(data.access_token);
-    localStorage.setItem('access_token', data.access_token);
-    await refreshUser();
-    // Dev-mode (console mail backend): the response carries the verification
-    // link because no real email is sent — completing verification is the
-    // actual next step. Null when SMTP is configured (production), so the
-    // normal first-run flow applies.
-    if (data.dev_verification_url) {
-      const url = new URL(data.dev_verification_url);
-      router.push(`${url.pathname}${url.search}`);
-      router.refresh();
-      return;
-    }
-    // New accounts start the guided first-run checklist (unless they arrived
-    // via a pricing CTA, which lands them on the plan they picked first).
-    const planParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('plan') : null;
-    router.push(planParam && planParam !== 'free' ? `/billing?plan=${encodeURIComponent(planParam)}` : '/onboarding');
-    router.refresh();
-  };
-
-  const loginWithToken = async (jwt: string) => {
-    setToken(jwt);
-    setAccessToken(jwt);
-    localStorage.setItem('access_token', jwt);
-    await refreshUser();
-  };
-
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    setAccessToken(null);
-    localStorage.removeItem('access_token');
-    router.push('/auth/login');
-    router.refresh();
-  };
-
-  /** Client-side sign-out that also records the AUTH_LOGOUT audit event.
-   *  Best-effort: the local session is cleared even if the API call fails. */
-  const logoutWithAudit = async () => {
-    try {
-      await authService.logoutAudit();
-    } catch {
-      // Token may already be dead — clearing local state is what matters.
-    }
-    logout();
-  };
-
-  /** Rotate the stored token (password change / revoke-all re-issue). */
-  const rotateToken = async (newToken: string) => {
-    setToken(newToken);
-    setAccessToken(newToken);
-    localStorage.setItem('access_token', newToken);
-    await refreshUser();
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isLoading,
-        login,
-        signup,
-        loginWithToken,
-        logout,
-        logoutWithAudit,
-        rotateToken,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const goVerify = useCallback(
+    (pending: PendingVerification) => {
+      // Preserve a console-mail dev shortcut already captured for the same
+      // mailbox (e.g. from the signup response) when the new state has none.
+      setPendingVerification((prev) =>
+        prev &&
+        prev.email.toLowerCase() === pending.email.toLowerCase() &&
+        prev.devUrl &&
+        !pending.devUrl
+          ? prev
+          : pending,
+      );
+      router.push(
+        `/auth/verify-email?email=${encodeURIComponent(pending.email)}`,
+      );
+    },
+    [router],
   );
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.post<TokenResponse>("/auth/login", {
+          email,
+          password,
+        });
+        setToken(res.data.access_token);
+        const me = await api.get<UserRead>("/auth/me");
+        setUser(me.data);
+        setPendingVerification(null);
+        router.push("/dashboard");
+      } catch (e) {
+        // Unverified mailbox: the backend blocks login with 403 +
+        // X-Error-Code: EMAIL_NOT_VERIFIED. The header needs CORS exposure
+        // (older servers may hide it), so also match the stable copy.
+        const status = (e as { response?: { status?: number } })?.response
+          ?.status;
+        const msg = apiErrorMessage(e, "");
+        const unverified =
+          apiErrorCode(e) === "EMAIL_NOT_VERIFIED" ||
+          (status === 403 && /verify your email/i.test(msg));
+        if (unverified) {
+          // Account exists but the mailbox isn't confirmed — the backend
+          // blocks login until verification. Route to the verify screen.
+          goVerify(toPending(email.trim()));
+          throw new Error("Please verify your email before continuing.");
+        }
+        setError(apiErrorMessage(e, "Login failed"));
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router, goVerify],
+  );
+
+  const signup = useCallback(
+    async (fullName: string, email: string, password: string) => {
+      setLoading(true);
+      setError(null);
+      let routed = false;
+      try {
+        const res = await api.post<TokenResponse>("/auth/signup", {
+          full_name: fullName,
+          email,
+          password,
+        });
+        // Signup succeeds but the account starts unverified. When the
+        // deployment enforces verification, login would 403 — go straight
+        // to the verify screen instead. Otherwise finish signing in.
+        if (res.data.email_verified) {
+          setToken(res.data.access_token);
+          const me = await api.get<UserRead>("/auth/me");
+          setUser(me.data);
+          router.push("/dashboard");
+          routed = true;
+          return;
+        }
+        // Keep the console-mail dev shortcut when the backend provides one.
+        if (res.data.dev_verification_url) {
+          setPendingVerification(
+            toPending(email.trim(), res.data.dev_verification_url),
+          );
+        }
+        try {
+          await login(email, password);
+          routed = true;
+        } catch (loginErr) {
+          const loginMsg = apiErrorMessage(loginErr, "");
+          if (
+            apiErrorCode(loginErr) === "EMAIL_NOT_VERIFIED" ||
+            /verify your email/i.test(loginMsg)
+          ) {
+            // login() already routed to the verify screen.
+            routed = true;
+            return;
+          }
+          // Account created but sign-in failed for another reason (e.g.
+          // rate limit) — send to login with the account ready.
+          router.push(
+            `/auth/login?email=${encodeURIComponent(email.trim())}&created=1`,
+          );
+          routed = true;
+          throw new Error("Account created. Please log in to continue.");
+        }
+      } catch (e) {
+        // login()/navigation paths handle themselves; surface real failures.
+        if (!routed) {
+          setError(apiErrorMessage(e, "Signup failed"));
+        }
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router, login],
+  );
+
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    setPendingVerification(null);
+    router.push("/");
+  }, [router]);
+
+  const verifyEmail = useCallback(async (uid: string, token: string) => {
+    const res = await api.post<{ detail: string }>("/auth/verify-email", {
+      uid,
+      token,
+    });
+    setPendingVerification(null);
+    return res.data.detail || "Your email is verified.";
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    const res = await api.post<{ detail: string; dev_verification_url?: string }>(
+      "/auth/resend-verification",
+      { email },
+    );
+    const pending = toPending(email.trim(), res.data.dev_verification_url);
+    setPendingVerification(pending);
+    return pending;
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      error,
+      pendingVerification,
+      login,
+      signup,
+      logout,
+      refresh,
+      verifyEmail,
+      resendVerification,
+    }),
+    [
+      user,
+      loading,
+      error,
+      pendingVerification,
+      login,
+      signup,
+      logout,
+      refresh,
+      verifyEmail,
+      resendVerification,
+    ],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }

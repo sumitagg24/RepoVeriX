@@ -225,7 +225,21 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         from datetime import datetime
 
         period_end = sub.get("current_period_end")
-        user.plan = PlanName.pro  # default; map price -> plan if multiple prices configured
+        # Resolve the active price ID so pro and team subscriptions land on the
+        # right plan. ``checkout.session.completed`` nests the subscription
+        # under ``subscription``; ``customer.subscription.*`` events carry the
+        # items array directly on the object.
+        price_id: str | None = None
+        items = sub.get("items") or {}
+        item_data = items.get("data") or []
+        if item_data:
+            price_id = (item_data[0].get("price") or {}).get("id")
+        if price_id is None:
+            # Fallback: checkout.session carries a top-level ``amount_total``
+            # line_items but not items; resolve via subscription lookup is
+            # impractical here, so use the client_reference metadata if set.
+            price_id = sub.get("metadata", {}).get("price_id")
+        user.plan = billing_service.plan_from_stripe_price(price_id)
         user.subscription_status = SubscriptionStatus(sub.get("status", "active"))
         user.stripe_subscription_id = subscription_id
         if period_end:

@@ -186,6 +186,9 @@ async def run_scan(
             scan.finished_at = datetime.now(UTC)
             await db.commit()
 
+        # Fire notifications after the commit so the data is visible.
+        await _notify_scan_done(db, scan, repository, ctx)
+
         if run_callback is not None:
             run_callback(ctx)
 
@@ -938,3 +941,36 @@ def _build_summary(ctx: StageContext) -> dict[str, Any]:
         },
         "warnings": manifest.warnings if manifest else [],
     }
+
+
+async def _notify_scan_done(
+    db: AsyncSession,
+    scan: "Scan",
+    repository: "Repository",
+    ctx: StageContext,
+) -> None:
+    """Fire in-app and email notifications after a scan finishes.
+
+    Best-effort: failures are logged and swallowed so a broken notification
+    path never blocks the scan result from being committed.
+    """
+    try:
+        from app.services.notifications import notify_scan_completed
+
+        sev_counts: dict[str, int] = {}
+        for spec in ctx.specs:
+            sev_counts[spec.severity.value] = sev_counts.get(spec.severity.value, 0) + 1
+
+        await notify_scan_completed(
+            db,
+            user_id=repository.owner_id,
+            scan_id=scan.id,
+            repository_name=repository.name,
+            status=scan.status.value,
+            finding_counts=sev_counts if scan.status.value == "completed" else None,
+            error=scan.error,
+        )
+        await db.commit()
+    except Exception as exc:  # pragma: no cover
+        import logging
+        logging.getLogger("repoverix.orchestrate").debug("notification error: %s", exc)

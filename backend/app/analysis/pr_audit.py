@@ -53,7 +53,13 @@ async def ensure_git_backed(repository: Repository) -> Path:
     return src
 
 
-def _auth_clone_url(owner: str, repo: str, token: str | None) -> str:
+def _auth_clone_url(owner: str, repo: str, token: str | None, *, provider: str = "github") -> str:
+    if provider == "gitlab":
+        host = "gitlab.com"  # overridden at call-site when self-hosted
+        if token:
+            return f"https://oauth2:{token}@{host}/{owner}/{repo}.git"
+        return f"https://{host}/{owner}/{repo}.git"
+    # GitHub (default)
     if token:
         return f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
     return f"https://github.com/{owner}/{repo}.git"
@@ -76,10 +82,10 @@ async def prepare_commits(
     repo: str,
     token: str | None,
 ) -> tuple[str, str, str, str]:
-    """Fetch base + head refs; returns (base_ref, base_sha, head_ref, head_sha)."""
+    """Fetch base + head refs for a **GitHub** PR; returns (base_ref, base_sha, head_ref, head_sha)."""
     base_ref, base_sha = pr.base_ref, pr.base_sha
     head_ref, head_sha = pr.head_ref, pr.head_sha
-    fetch_url = _auth_clone_url(owner, repo, token)
+    fetch_url = _auth_clone_url(owner, repo, token, provider="github")
     # HEAD of the PR: refs/pull/N/head on GitHub
     try:
         await _git(
@@ -107,6 +113,66 @@ async def prepare_commits(
         except ValueError as exc:
             raise ValueError(f"could not fetch the PR base commit {base_sha[:8]}") from exc
     return base_ref, base_sha, head_ref, head_sha
+
+
+async def prepare_commits_gitlab(
+    src: Path,
+    mr,
+    *,
+    host: str,
+    namespace: str,
+    repo: str,
+    token: str | None,
+) -> tuple[str, str, str, str]:
+    """Fetch base + head refs for a **GitLab** MR; returns (base_ref, base_sha, head_ref, head_sha).
+
+    GitLab exposes ``diff_refs.base_sha`` / ``diff_refs.head_sha`` directly in
+    the MR payload, so we just ensure both commits are present in the clone.
+    """
+    base_sha = mr.base_sha
+    head_sha = mr.head_sha
+    source_branch = mr.source_branch
+    target_branch = mr.target_branch
+
+    if token:
+        fetch_url = f"https://oauth2:{token}@{host}/{namespace}/{repo}.git"
+    else:
+        fetch_url = f"https://{host}/{namespace}/{repo}.git"
+
+    try:
+        await _git(
+            src,
+            [
+                "fetch",
+                "--no-tags",
+                fetch_url,
+                f"+refs/heads/{source_branch}:refs/rvx/gl-mr/{source_branch}",
+            ],
+        )
+    except ValueError as exc:
+        raise ValueError(
+            f"could not fetch the MR source branch '{source_branch}' — is the project private "
+            "and is GitLab connected / REPOVERIX_GITLAB_TOKEN set?"
+        ) from exc
+
+    try:
+        await _git(src, ["cat-file", "-e", f"{base_sha}^{{commit}}"], timeout=30)
+    except ValueError:
+        try:
+            await _git(
+                src,
+                [
+                    "fetch",
+                    "--no-tags",
+                    fetch_url,
+                    f"+refs/heads/{target_branch}:refs/remotes/rvx-gl-base/{target_branch}",
+                ],
+                timeout=180,
+            )
+        except ValueError as exc:
+            raise ValueError(f"could not fetch the MR base commit {base_sha[:8]}") from exc
+
+    return target_branch, base_sha, source_branch, head_sha
 
 
 async def open_worktree(src: Path, head_sha: str, tag: str) -> Path:

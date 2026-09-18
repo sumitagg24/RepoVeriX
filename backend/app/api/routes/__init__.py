@@ -9,7 +9,9 @@ from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.feedback import router as feedback_router
 from app.api.routes.findings import router as findings_router
 from app.api.routes.intelligence import router as intelligence_router
+from app.api.routes.notifications import router as notifications_router
 from app.api.routes.oauth import router as oauth_router
+from app.api.routes.schedules import router as schedules_router
 from app.api.routes.onboarding import router as onboarding_router
 from app.api.routes.organizations import router as organizations_router
 from app.api.routes.patches import router as patches_router
@@ -50,4 +52,6 @@ __all__ = [
     "websites_router",
     "automation_router",
     "account_security_router",
+    "notifications_router",
+    "schedules_router",
 ]

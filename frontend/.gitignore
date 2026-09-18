@@ -26,3 +26,9 @@ __pycache__/
 # .mcp/settings.local.json
 .vercel
 .env*
+
+# Agent configurations and skills
+.agents/
+.opencode/
+.cursor/
+.claude/

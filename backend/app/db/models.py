@@ -924,3 +924,46 @@ class WebsiteAudit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
 
     website: Mapped[Website] = relationship(back_populates="audits")
+
+
+# ------------------------------------------------------------------ scheduled scans
+
+
+class ScheduledScan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A recurring scan schedule attached to one repository.
+
+    The scheduler tick (``app/analysis/scheduler.py``) checks every minute for
+    schedules whose ``next_run_at`` has passed, fires a new ``Scan``, then
+    advances ``next_run_at`` by the interval.  Only one pending/running scan per
+    repository is allowed at a time (the tick skips if one is in-flight).
+
+    ``interval_hours`` is the recurrence period (min 1, max 720 = 30 days).
+    ``configuration`` mirrors ``ScanConfiguration``; defaults to the full
+    ``repoverix`` pipeline but can be set to ``static_only`` for cheaper
+    scheduled runs.
+
+    ``last_scan_id`` tracks the most recent scan triggered by this schedule
+    (informational; not enforced as a FK constraint so deleting a scan does
+    not cascade to the schedule).
+    """
+
+    __tablename__ = "scheduled_scans"
+    __table_args__ = (
+        UniqueConstraint("repository_id", name="uq_scheduled_scan_repository"),
+    )
+
+    repository_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("repositories.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    interval_hours: Mapped[int] = mapped_column(Integer, default=24, nullable=False)
+    configuration: Mapped[ScanConfiguration] = mapped_column(
+        enum_type(ScanConfiguration, "scan_configuration"),
+        default=ScanConfiguration.repoverix,
+        nullable=False,
+    )
+    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_scan_id: Mapped[uuid.UUID | None] = mapped_column(GUID, nullable=True)
+
+    repository: Mapped[Repository] = relationship()

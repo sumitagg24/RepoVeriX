@@ -38,7 +38,9 @@
     ".next-e2e/types/**/*.ts",
     ".next-audit/types/**/*.ts",
     ".next-sweep/types/**/*.ts",
-    ".next-new/types/**/*.ts"
+    ".next-new/types/**/*.ts",
+    ".next-verify/types/**/*.ts",
+    ".next-e2e-live/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

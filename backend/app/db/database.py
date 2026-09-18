@@ -36,6 +36,7 @@ async def get_db() -> AsyncIterator[AsyncSession]:
 async def init_db() -> None:
     """Create all tables. Used for local development and tests; Alembic is used for deployments."""
     from app.db import models  # noqa: F401  (ensure models are registered on the metadata)
+    from app.db import models_notifications  # noqa: F401  (notifications table)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
