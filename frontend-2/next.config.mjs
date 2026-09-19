@@ -21,11 +21,6 @@ const nextConfig = {
   eslint: {
     dirs: ['src', 'scripts'],
   },
-  experimental: {
-    // The dev server is reached over 127.0.0.1 as well as localhost from the
-    // preview webview; allow both without weakening the production defaults.
-    allowedDevOrigins: ['localhost', '127.0.0.1'],
-  },
   async headers() {
     return [
       {

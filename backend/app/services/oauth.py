@@ -55,6 +55,29 @@ PROVIDER_SPECS: dict[str, ProviderSpec] = {
         scope="read_user read_api read_repository",
         repos_url="https://gitlab.com/api/v4/projects",
     ),
+    "microsoft": ProviderSpec(
+        name="microsoft",
+        authorize_url="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+        token_url="https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        userinfo_url="https://graph.microsoft.com/v1.0/me",
+        scope="openid email profile User.Read",
+    ),
+    "bitbucket": ProviderSpec(
+        name="bitbucket",
+        authorize_url="https://bitbucket.org/site/oauth2/authorize",
+        token_url="https://bitbucket.org/site/oauth2/access_token",
+        userinfo_url="https://api.bitbucket.org/2.0/user",
+        scope="account email repository",
+        repos_url="https://api.bitbucket.org/2.0/repositories",
+    ),
+}
+
+_DISPLAY_NAMES: dict[str, str] = {
+    "google": "Google",
+    "github": "GitHub",
+    "gitlab": "GitLab",
+    "microsoft": "Microsoft",
+    "bitbucket": "Bitbucket",
 }
 
 
@@ -65,6 +88,8 @@ def provider_credentials(provider: str, settings: Settings | None = None) -> tup
         "google": (settings.google_oauth_client_id, settings.google_oauth_client_secret),
         "github": (settings.github_oauth_client_id, settings.github_oauth_client_secret),
         "gitlab": (settings.gitlab_oauth_client_id, settings.gitlab_oauth_client_secret),
+        "microsoft": (settings.microsoft_oauth_client_id, settings.microsoft_oauth_client_secret),
+        "bitbucket": (settings.bitbucket_oauth_client_id, settings.bitbucket_oauth_client_secret),
     }
     client_id, client_secret = mapping.get(provider, (None, None))
     if not client_id or not client_secret:
@@ -80,8 +105,8 @@ def configured_providers(settings: Settings | None = None) -> dict[str, dict[str
         creds = provider_credentials(name, settings)
         out[name] = {
             "configured": creds is not None,
-            "display_name": {"google": "Google", "github": "GitHub", "gitlab": "GitLab"}[name],
-            "supports_repo_import": name in ("github", "gitlab"),
+            "display_name": _DISPLAY_NAMES.get(name, name.capitalize()),
+            "supports_repo_import": name in ("github", "gitlab", "bitbucket"),
             "supports_signin": True,
         }
     return out
