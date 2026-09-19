@@ -139,6 +139,8 @@ class DockerRunner:
             str(settings.sandbox_pids_limit),
             "--security-opt",
             "no-new-privileges",
+            "--cap-drop",
+            "ALL",
             "--network",
             settings.sandbox_network,
             "-m",

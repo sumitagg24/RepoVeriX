@@ -8,6 +8,8 @@ optional ``httpx.AsyncClient`` so tests can inject a ``MockTransport``.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import secrets
 from dataclasses import dataclass
 from typing import Any
@@ -97,13 +99,27 @@ _DISPLAY_NAMES: dict[str, str] = {
 }
 
 
+def new_pkce_verifier() -> str:
+    """Generate a high-entropy cryptographic code_verifier for PKCE (RFC 7636)."""
+    return secrets.token_urlsafe(64)
+
+
+def pkce_challenge(verifier: str) -> str:
+    """Calculate the S256 code_challenge from a code_verifier."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
 def get_provider_spec(provider: str, settings: Settings | None = None) -> ProviderSpec:
-    """Return the provider spec, dynamically resolving tenant domains if set."""
+    """Return the provider spec, dynamically resolving tenant domains if set with SSRF validation."""
+    from app.core.ssrf import assert_safe_url
+
     settings = settings or get_settings()
     if provider == "auth0" and settings.auth0_domain:
         domain = settings.auth0_domain.strip().rstrip("/")
         if not domain.startswith("http"):
             domain = f"https://{domain}"
+        assert_safe_url(domain)
         return ProviderSpec(
             name="auth0",
             authorize_url=f"{domain}/authorize",
@@ -115,6 +131,7 @@ def get_provider_spec(provider: str, settings: Settings | None = None) -> Provid
         idcs = settings.oracle_idcs_url.strip().rstrip("/")
         if not idcs.startswith("http"):
             idcs = f"https://{idcs}"
+        assert_safe_url(idcs)
         return ProviderSpec(
             name="oracle",
             authorize_url=f"{idcs}/oauth2/v1/authorize",
@@ -163,7 +180,12 @@ def new_oauth_state() -> str:
 
 
 def build_authorize_url(
-    provider: str, state: str, redirect_uri: str, settings: Settings | None = None
+    provider: str,
+    state: str,
+    redirect_uri: str,
+    settings: Settings | None = None,
+    *,
+    code_challenge: str | None = None,
 ) -> str:
     """Build the provider authorization URL for the browser redirect."""
     spec = get_provider_spec(provider, settings)
@@ -177,6 +199,9 @@ def build_authorize_url(
         "access_type": "offline" if provider == "google" else "none",
         "prompt": "select_account" if provider == "google" else "consent",
     }
+    if code_challenge:
+        params["code_challenge"] = code_challenge
+        params["code_challenge_method"] = "S256"
     return f"{spec.authorize_url}?{urlencode(params)}"
 
 
@@ -189,7 +214,9 @@ async def exchange_code(
     code: str,
     redirect_uri: str,
     *,
+    code_verifier: str | None = None,
     client: httpx.AsyncClient | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """Exchange an authorization code for tokens. Returns the raw JSON body."""
     spec = get_provider_spec(provider)
@@ -202,6 +229,8 @@ async def exchange_code(
         "client_id": client_id,
         "client_secret": client_secret,
     }
+    if code_verifier:
+        payload["code_verifier"] = code_verifier
     close = client is None
     client = client or make_client()
     try:

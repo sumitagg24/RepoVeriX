@@ -18,7 +18,7 @@ import logging
 import secrets
 from datetime import UTC, datetime
 from typing import Literal
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -48,12 +48,29 @@ _logger = logging.getLogger("repoverix.http")
 _STATE_COOKIE = "rvx_oauth_state"
 
 
+def _sanitize_next_path(path: str | None) -> str:
+    """Validate a path to ensure it is a safe relative path on the same origin."""
+    if not path or not isinstance(path, str):
+        return "/dashboard"
+    path = path.strip()
+    if any(c in path for c in "\r\n\0"):
+        return "/dashboard"
+    if not path.startswith("/") or path.startswith("//") or path.startswith("/\\") or "\\" in path:
+        return "/dashboard"
+    try:
+        parsed = urlparse(path)
+        if parsed.scheme or parsed.netloc:
+            return "/dashboard"
+    except Exception:
+        return "/dashboard"
+    return path
+
+
 def _frontend_redirect(path: str = "/dashboard") -> str:
     """Build an absolute frontend URL from a same-origin-safe path."""
     settings = get_settings()
-    if not path.startswith("/") or path.startswith("//"):
-        path = "/dashboard"
-    return f"{settings.frontend_url.rstrip('/')}{path}"
+    safe_path = _sanitize_next_path(path)
+    return f"{settings.frontend_url.rstrip('/')}{safe_path}"
 
 
 def _redirect_uri(request: Request, provider: str) -> str:
@@ -71,7 +88,7 @@ async def oauth_providers() -> dict:
 
 @router.get("/{provider}/login")
 async def oauth_login(provider: str, request: Request, next: str = "/dashboard"):
-    """Start the browser OAuth flow for the given provider."""
+    """Start the browser OAuth flow for the given provider with PKCE and state protection."""
     if provider not in oauth_service.PROVIDER_SPECS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown OAuth provider")
     if oauth_service.provider_credentials(provider) is None:
@@ -80,11 +97,21 @@ async def oauth_login(provider: str, request: Request, next: str = "/dashboard")
             detail=f"{provider} OAuth is not configured on the server (see MANUAL-SETUP.md)",
         )
     state = oauth_service.new_oauth_state()
-    authorize_url = oauth_service.build_authorize_url(provider, state, _redirect_uri(request, provider))
+    pkce_verifier = oauth_service.new_pkce_verifier()
+    pkce_challenge = oauth_service.pkce_challenge(pkce_verifier)
+    safe_next = _sanitize_next_path(next)
+
+    authorize_url = oauth_service.build_authorize_url(
+        provider,
+        state,
+        _redirect_uri(request, provider),
+        code_challenge=pkce_challenge,
+    )
+    cookie_value = f"{state}:{pkce_verifier}:{safe_next}"
     response = RedirectResponse(url=authorize_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
     response.set_cookie(
         _STATE_COOKIE,
-        state,
+        cookie_value,
         max_age=600,
         httponly=True,
         samesite="lax",
@@ -104,20 +131,41 @@ async def oauth_callback(
     rvx_oauth_state: str | None = Cookie(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle the provider redirect: exchange the code, upsert the user, sign in."""
+    """Handle the provider redirect: exchange the code with PKCE, upsert the user, sign in."""
     if provider not in oauth_service.PROVIDER_SPECS:
         return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=unknown_provider"))
     if error or not code:
         return RedirectResponse(
             url=_frontend_redirect(f"/auth/oauth/callback?error={error or 'access_denied'}")
         )
-    if not rvx_oauth_state or rvx_oauth_state != state:
+    if not rvx_oauth_state:
+        return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=invalid_state"))
+
+    # Unpack state cookie: state[:pkce_verifier[:next_path]]
+    parts = rvx_oauth_state.split(":", 2)
+    expected_state = parts[0]
+    pkce_verifier = parts[1] if len(parts) > 1 else None
+    next_path = _sanitize_next_path(parts[2]) if len(parts) > 2 else "/dashboard"
+
+    if not state or not secrets.compare_digest(expected_state, state):
         return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=invalid_state"))
     if oauth_service.provider_credentials(provider) is None:
         return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=not_configured"))
 
     try:
-        token_data = await oauth_service.exchange_code(provider, code, _redirect_uri(request, provider))
+        try:
+            token_data = await oauth_service.exchange_code(
+                provider,
+                code,
+                _redirect_uri(request, provider),
+                code_verifier=pkce_verifier,
+            )
+        except TypeError:
+            token_data = await oauth_service.exchange_code(
+                provider,
+                code,
+                _redirect_uri(request, provider),
+            )
         access_token = token_data.get("access_token") or ""
         profile = await oauth_service.fetch_profile(provider, access_token)
     except oauth_service.OAuthError as exc:
@@ -141,7 +189,10 @@ async def oauth_callback(
     # revoke-all, suspension) the authenticator's tv-claim check would
     # otherwise reject the OAuth session this callback just minted.
     token = create_access_token(user.id, token_version=user.token_version or 0)
-    params = urlencode({"token": token, "provider": provider})
+    query_dict = {"token": token, "provider": provider}
+    if next_path and next_path != "/dashboard":
+        query_dict["next"] = next_path
+    params = urlencode(query_dict)
     response = RedirectResponse(url=_frontend_redirect(f"/auth/oauth/callback?{params}"))
     response.delete_cookie(_STATE_COOKIE, path="/")
     return response

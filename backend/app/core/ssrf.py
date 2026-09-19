@@ -21,8 +21,8 @@ from urllib.parse import urlparse
 
 _logger = logging.getLogger("repoverix.http")
 
-# RFC 1918 + loopback + link-local + CGNAT + reserved + cloud metadata (the
-# 169.254.0.0/16 link-local range already covers 169.254.169.254).
+# RFC 1918 + loopback + link-local + CGNAT + reserved + cloud metadata +
+# multicast + documentation + IPv4-mapped IPv6 ranges.
 _BLOCKED_NETWORKS = tuple(
     ipaddress.ip_network(net)
     for net in (
@@ -34,10 +34,21 @@ _BLOCKED_NETWORKS = tuple(
         "100.64.0.0/10",
         "0.0.0.0/8",
         "198.18.0.0/15",
+        "192.0.2.0/24",
+        "198.51.100.0/24",
+        "203.0.113.0/24",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+        "255.255.255.255/32",
         "::1/128",
         "fc00::/7",
         "fe80::/10",
         "::/128",
+        "::ffff:0:0/96",
+        "ff00::/8",
+        "2001:db8::/32",
+        "2002::/16",
+        "64:ff9b::/96",
     )
 )
 
@@ -59,6 +70,9 @@ def _host_of(url: str) -> str:
 
 
 def _blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        if any(ip.ipv4_mapped in net for net in _BLOCKED_NETWORKS if isinstance(net, ipaddress.IPv4Network)):
+            return True
     return any(ip in net for net in _BLOCKED_NETWORKS)
 
 
@@ -111,7 +125,7 @@ def validate_url(url: str, *, allow_private: bool | None = None, resolver=None) 
     parsed = urlparse(str(url))
     scheme = (parsed.scheme or "").lower()
     if scheme not in ("http", "https"):
-        return SSRFDecision(True, "non-network scheme")
+        return SSRFDecision(False, f"scheme {scheme!r} is not allowed (only http/https permitted)")
     host = _host_of(url)
     if not host:
         return SSRFDecision(False, "URL has no host")

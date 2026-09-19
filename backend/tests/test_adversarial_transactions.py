@@ -56,7 +56,7 @@ async def test_oauth_callback_token_survives_token_version_bump(client, db_sessi
     monkeypatch.setattr(settings, "github_oauth_client_id", "test-client-id", raising=False)
     monkeypatch.setattr(settings, "github_oauth_client_secret", "test-client-secret", raising=False)
 
-    async def fake_exchange(provider, code, redirect_uri, client=None):
+    async def fake_exchange(provider, code, redirect_uri, client=None, **kwargs):
         return {"access_token": "provider-access-token"}
 
     async def fake_profile(provider, access_token, client=None):

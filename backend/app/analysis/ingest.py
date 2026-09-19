@@ -76,18 +76,32 @@ def extract_archive(repo_id: str, storage_root: Path | None = None) -> Path:
 
     max_total = get_settings().max_repo_size_mb * 1024 * 1024
     max_per_file = get_settings().max_file_size_kb * 1024
+    max_files = getattr(get_settings(), "max_files", 10_000)
 
     try:
         with zipfile.ZipFile(archive) as zf:
             total = 0
+            file_count = 0
             for info in zf.infolist():
                 if info.is_dir():
                     continue
+                file_count += 1
+                if file_count > max_files:
+                    raise AnalysisError(
+                        f"Archive member count exceeds maximum limit of {max_files} files",
+                        code="repo_too_large",
+                    )
                 # Path traversal + absolute path protection
                 member = PurePosixPath(info.filename)
                 if member.is_absolute() or ".." in member.parts:
                     raise AnalysisError(
                         f"Refusing to extract archive member with unsafe path: {info.filename}",
+                        code="unsafe_archive",
+                    )
+                target = (src / member).resolve()
+                if not target.is_relative_to(src.resolve()):
+                    raise AnalysisError(
+                        f"Refusing to extract archive member escaping target directory: {info.filename}",
                         code="unsafe_archive",
                     )
                 if info.file_size > max_per_file:
@@ -193,11 +207,27 @@ async def clone_github_repository(
         shutil.rmtree(src, ignore_errors=True)
     src.mkdir(parents=True, exist_ok=True)
 
+    safe_git_flags = [
+        "-c",
+        "protocol.ext.allow=never",
+        "-c",
+        "protocol.file.allow=never",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+    ]
+    git_env = {
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+
     try:
         result = await run_command(
-            [settings.git_binary, "clone", "--depth", "1", "--branch", branch, clean, "."],
+            [settings.git_binary, *safe_git_flags, "clone", "--depth", "1", "--branch", branch, clean, "."],
             cwd=src,
             timeout_seconds=settings.git_clone_timeout_seconds,
+            env_extra=git_env,
         )
     except FileNotFoundError:
         raise AnalysisError(
@@ -215,12 +245,15 @@ async def clone_github_repository(
         # ``master``): retry without --branch so git picks the remote default.
         if "couldn't find remote ref" in result.stderr or "Remote branch" in result.stderr:
             result = await run_command(
-                [settings.git_binary, "clone", "--depth", "1", clean, "."],
+                [settings.git_binary, *safe_git_flags, "clone", "--depth", "1", clean, "."],
                 cwd=src,
                 timeout_seconds=settings.git_clone_timeout_seconds,
+                env_extra=git_env,
             )
     if not result.ok:
-        detail = (result.stderr or result.stdout).strip()[-500:]
+        from app.core.redact import redact_string
+
+        detail = redact_string((result.stderr or result.stdout).strip()[-500:])
         raise AnalysisError(
             f"Failed to clone repository: {detail}",
             code="clone_failed",

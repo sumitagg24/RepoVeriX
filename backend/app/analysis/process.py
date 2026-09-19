@@ -43,7 +43,10 @@ async def run_command(
     except TimeoutError:
         proc.kill()
         await proc.communicate()
-        raise TimeoutError(f"Command timed out after {timeout_seconds}s: {' '.join(argv)}") from None
+        from app.core.redact import redact_string
+
+        cmd_repr = redact_string(" ".join(argv))
+        raise TimeoutError(f"Command timed out after {timeout_seconds}s: {cmd_repr}") from None
 
     def clip(raw: bytes) -> str:
         text = raw.decode("utf-8", errors="replace")
