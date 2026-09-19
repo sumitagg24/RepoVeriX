@@ -18,6 +18,7 @@ const API_ORIGIN = (process.env.NEXT_PUBLIC_API_ORIGIN || 'http://localhost:8000
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  productionBrowserSourceMaps: false,
   eslint: {
     dirs: ['src', 'scripts'],
   },
