@@ -70,6 +70,20 @@ PROVIDER_SPECS: dict[str, ProviderSpec] = {
         scope="account email repository",
         repos_url="https://api.bitbucket.org/2.0/repositories",
     ),
+    "auth0": ProviderSpec(
+        name="auth0",
+        authorize_url="https://auth.repoverix.local/authorize",
+        token_url="https://auth.repoverix.local/oauth/token",
+        userinfo_url="https://auth.repoverix.local/userinfo",
+        scope="openid email profile",
+    ),
+    "oracle": ProviderSpec(
+        name="oracle",
+        authorize_url="https://identity.oraclecloud.com/oauth2/v1/authorize",
+        token_url="https://identity.oraclecloud.com/oauth2/v1/token",
+        userinfo_url="https://identity.oraclecloud.com/oauth2/v1/userinfo",
+        scope="urn:opc:idm:__myscopes__ openid email profile",
+    ),
 }
 
 _DISPLAY_NAMES: dict[str, str] = {
@@ -78,7 +92,37 @@ _DISPLAY_NAMES: dict[str, str] = {
     "gitlab": "GitLab",
     "microsoft": "Microsoft",
     "bitbucket": "Bitbucket",
+    "auth0": "Auth0",
+    "oracle": "Oracle",
 }
+
+
+def get_provider_spec(provider: str, settings: Settings | None = None) -> ProviderSpec:
+    """Return the provider spec, dynamically resolving tenant domains if set."""
+    settings = settings or get_settings()
+    if provider == "auth0" and settings.auth0_domain:
+        domain = settings.auth0_domain.strip().rstrip("/")
+        if not domain.startswith("http"):
+            domain = f"https://{domain}"
+        return ProviderSpec(
+            name="auth0",
+            authorize_url=f"{domain}/authorize",
+            token_url=f"{domain}/oauth/token",
+            userinfo_url=f"{domain}/userinfo",
+            scope="openid email profile",
+        )
+    if provider == "oracle" and settings.oracle_idcs_url:
+        idcs = settings.oracle_idcs_url.strip().rstrip("/")
+        if not idcs.startswith("http"):
+            idcs = f"https://{idcs}"
+        return ProviderSpec(
+            name="oracle",
+            authorize_url=f"{idcs}/oauth2/v1/authorize",
+            token_url=f"{idcs}/oauth2/v1/token",
+            userinfo_url=f"{idcs}/oauth2/v1/userinfo",
+            scope="urn:opc:idm:__myscopes__ openid email profile",
+        )
+    return PROVIDER_SPECS[provider]
 
 
 def provider_credentials(provider: str, settings: Settings | None = None) -> tuple[str, str] | None:
@@ -90,6 +134,8 @@ def provider_credentials(provider: str, settings: Settings | None = None) -> tup
         "gitlab": (settings.gitlab_oauth_client_id, settings.gitlab_oauth_client_secret),
         "microsoft": (settings.microsoft_oauth_client_id, settings.microsoft_oauth_client_secret),
         "bitbucket": (settings.bitbucket_oauth_client_id, settings.bitbucket_oauth_client_secret),
+        "auth0": (settings.auth0_oauth_client_id, settings.auth0_oauth_client_secret),
+        "oracle": (settings.oracle_oauth_client_id, settings.oracle_oauth_client_secret),
     }
     client_id, client_secret = mapping.get(provider, (None, None))
     if not client_id or not client_secret:
@@ -120,7 +166,7 @@ def build_authorize_url(
     provider: str, state: str, redirect_uri: str, settings: Settings | None = None
 ) -> str:
     """Build the provider authorization URL for the browser redirect."""
-    spec = PROVIDER_SPECS[provider]
+    spec = get_provider_spec(provider, settings)
     client_id, _ = provider_credentials(provider, settings) or ("", "")
     params = {
         "client_id": client_id,
@@ -146,7 +192,7 @@ async def exchange_code(
     client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     """Exchange an authorization code for tokens. Returns the raw JSON body."""
-    spec = PROVIDER_SPECS[provider]
+    spec = get_provider_spec(provider)
     client_id, client_secret = provider_credentials(provider) or ("", "")
     headers = {"Accept": "application/json"}
     payload = {
@@ -175,7 +221,7 @@ async def fetch_profile(
     client: httpx.AsyncClient | None = None,
 ) -> dict[str, str]:
     """Fetch the provider profile and normalize to {id, email, name}."""
-    spec = PROVIDER_SPECS[provider]
+    spec = get_provider_spec(provider)
     headers = {"Authorization": f"Bearer {access_token}"}
     if provider == "github":
         headers["Accept"] = "application/vnd.github+json"
@@ -212,6 +258,25 @@ async def fetch_profile(
                 "email": data.get("email", ""),  # may be empty; enriched from /2.0/user/emails
                 "name": data.get("display_name") or data.get("nickname", ""),
             }
+        if provider == "auth0":
+            # Auth0 /userinfo: sub carries provider|id, email, name/nickname
+            return {
+                "id": str(data.get("sub", "")),
+                "email": data.get("email", ""),
+                "name": data.get("name") or data.get("nickname") or "",
+            }
+        if provider == "oracle":
+            # Oracle IDCS/IAM userinfo: sub/id, email/emails/userName, displayName/name
+            email = data.get("email", "")
+            if not email and isinstance(data.get("emails"), list) and data.get("emails"):
+                email = data.get("emails")[0].get("value", "")
+            if not email:
+                email = data.get("userName", "")
+            return {
+                "id": str(data.get("sub") or data.get("id", "")),
+                "email": email,
+                "name": data.get("displayName") or data.get("name") or "",
+            }
         # gitlab (and any future provider)
         return {
             "id": str(data.get("id", "")),
@@ -246,7 +311,7 @@ async def list_repositories(
     client: httpx.AsyncClient | None = None,
 ) -> list[dict[str, Any]]:
     """List the user's accessible repositories for the import picker."""
-    spec = PROVIDER_SPECS[provider]
+    spec = get_provider_spec(provider)
     headers = {"Authorization": f"Bearer {access_token}"}
     if provider == "github":
         headers["Accept"] = "application/vnd.github+json"

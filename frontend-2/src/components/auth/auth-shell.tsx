@@ -60,6 +60,32 @@ function BitbucketIcon({ className }: { className?: string }) {
   );
 }
 
+function Auth0Icon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M21.98 7.348L19.294.544a.434.434 0 00-.518-.276L12.08 2.012 5.385.268a.434.434 0 00-.518.276L2.181 7.348a.434.434 0 00.174.498l9.467 6.442a.434.434 0 00.496 0l9.468-6.442a.434.434 0 00.194-.498z"
+        fill="#EB5424"
+      />
+      <path
+        d="M12.08 14.868a.434.434 0 01-.248-.076L2.365 8.35a.434.434 0 00-.608.156L.073 11.532a.434.434 0 00.146.574l11.613 7.897a.434.434 0 00.496 0l11.613-7.897a.434.434 0 00.146-.574l-1.684-3.026a.434.434 0 00-.608-.156l-9.467 6.442a.434.434 0 01-.248.076z"
+        fill="#EB5424"
+      />
+    </svg>
+  );
+}
+
+function OracleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M16.272 5.093c-4.444 0-8.048 3.092-8.048 6.907s3.604 6.907 8.048 6.907c4.444 0 8.048-3.092 8.048-6.907s-3.604-6.907-8.048-6.907zm0 11.233c-2.88 0-5.216-1.938-5.216-4.326s2.336-4.326 5.216-4.326c2.88 0 5.216 1.938 5.216 4.326s-2.336 4.326-5.216 4.326zM7.728 5.093C3.284 5.093-.32 8.185-.32 12s3.604 6.907 8.048 6.907c1.378 0 2.673-.306 3.805-.845-.595-.758-1.074-1.622-1.392-2.569-.747.288-1.558.45-2.413.45-2.88 0-5.216-1.938-5.216-4.326s2.336-4.326 5.216-4.326c.855 0 1.666.162 2.413.45.318-.947.797-1.811 1.392-2.569-1.132-.539-2.427-.845-3.805-.845z"
+        fill="#F80000"
+      />
+    </svg>
+  );
+}
+
 /**
  * Auth surface.
  *
@@ -165,7 +191,15 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
   const [pending, setPending] = React.useState<OAuthProviderName | null>(null);
 
   // Deterministic display order regardless of what the backend sends back.
-  const ORDER: OAuthProviderName[] = ['github', 'gitlab', 'google', 'microsoft', 'bitbucket'];
+  const ORDER: OAuthProviderName[] = [
+    'github',
+    'gitlab',
+    'google',
+    'microsoft',
+    'bitbucket',
+    'auth0',
+    'oracle',
+  ];
 
   const available = React.useMemo(() => {
     const data = providers.data;
@@ -185,6 +219,8 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
     google: 'Google',
     microsoft: 'Microsoft',
     bitbucket: 'Bitbucket',
+    auth0: 'Auth0',
+    oracle: 'Oracle',
   };
 
   function ProviderIcon({ provider }: { provider: OAuthProviderName }) {
@@ -199,6 +235,10 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
         return <MicrosoftIcon className="size-4" />;
       case 'bitbucket':
         return <BitbucketIcon className="size-4" />;
+      case 'auth0':
+        return <Auth0Icon className="size-4" />;
+      case 'oracle':
+        return <OracleIcon className="size-4" />;
       default:
         return null;
     }
