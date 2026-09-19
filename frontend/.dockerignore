@@ -1,8 +1,0 @@
-node_modules/
-.next/
-out/
-coverage/
-.env*
-*.tsbuildinfo
-.git/
-.DS_Store

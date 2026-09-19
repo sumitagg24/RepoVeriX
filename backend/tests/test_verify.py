@@ -42,7 +42,10 @@ from app.db.models import (
 from app.db.models import (
     TestResult as DBTestResult,
 )
-from tests.test_orchestrator import _seed_repo_scan, zip_from_dir
+try:
+    from tests.test_orchestrator import _seed_repo_scan, zip_from_dir
+except ImportError:
+    from backend.tests.test_orchestrator import _seed_repo_scan, zip_from_dir
 
 FIXTURES = Path(__file__).parent / "fixtures" / "repos"
 

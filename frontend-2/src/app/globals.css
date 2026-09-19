@@ -1,0 +1,836 @@
+@import 'tailwindcss';
+
+/* ============================================================================
+   RepoVeriX design system
+   ----------------------------------------------------------------------------
+   "Calm, precise, technical" — a B2B security workspace for people who read
+   code and findings all day, with an editorial marketing surface on top of it.
+
+   One palette, warm throughout. The canvas is a bone off-white rather than a
+   clinical blue-white; text, hairlines and surfaces all sit on the same warm
+   axis so a page never mixes a warm background with a cool grey panel.
+
+   What this file owns:
+     1. Semantic surface tokens (canvas / card / surface / hairline / ink)
+        declared per mode and re-exported to Tailwind through `@theme`, so every
+        utility (`bg-card`, `border-hairline`, `text-muted`) is theme-aware from
+        one source of truth.
+     2. One accent — a desaturated cobalt — reserved for interactive identity:
+        links, selected states, focus rails. Primary actions use neutral "ink
+        chrome", so the accent never competes with security semantics.
+     3. Security semantics with three tokens each (tone, soft fill, hairline)
+        so severity and verdict states always ship a label with their colour.
+     4. Spotlights: five named two-stop washes used only by the public showcase
+        cards, so colour appears in the marketing surface with intent instead of
+        as decoration.
+     5. A documented radius + elevation scale, and one motion vocabulary.
+
+   Radius rules (documented scale, followed everywhere):
+     4px  — inline chips, kbd, tiny tags
+     6px  — field-adjacent controls, table cells' inner tags
+     8px  — buttons, inputs, cards, panels, nav rails (the default)
+     12px — overlays: dialogs, sheets, dropdown menus, tooltips
+     999px— status dots, severity rails and avatars only
+
+   Elevation rules: hairlines do the work. Shadows are rare, warm-tinted and
+   shallow; nothing floats without a compositional reason.
+   ========================================================================== */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* -- Type: Geist for UI, Geist Mono for code/hashes/paths ---------------- */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.1rem;
+
+  /* -- Neutral scale: warm, paper-leaning, never blue-grey ------------------ */
+  --color-neutral-50: #faf8f5;
+  --color-neutral-100: #f4f1eb;
+  --color-neutral-200: #e9e5dc;
+  --color-neutral-300: #d9d3c7;
+  --color-neutral-400: #b3ab9c;
+  --color-neutral-500: #857d6e;
+  --color-neutral-600: #6a6255;
+  --color-neutral-700: #4e483e;
+  --color-neutral-800: #332f28;
+  --color-neutral-900: #1d1a15;
+  --color-neutral-950: #12100c;
+
+  /* -- Accent: one desaturated cobalt (saturation stays under 80%) --------- */
+  --color-accent: var(--tint-accent);
+  --color-accent-strong: var(--tint-accent-strong);
+  --color-accent-soft: var(--tint-accent-soft);
+  --color-accent-line: var(--tint-accent-line);
+  --color-on-accent: var(--tint-on-accent);
+
+  /* -- Ink chrome: neutral primary actions (dark in light mode, light in dark) */
+  --color-chrome: var(--tint-chrome);
+  --color-chrome-hover: var(--tint-chrome-hover);
+  --color-chrome-label: var(--tint-chrome-label);
+
+  /* -- Semantic surfaces --------------------------------------------------- */
+  --color-canvas: var(--bg-canvas);
+  --color-card: var(--bg-card);
+  --color-card-hover: var(--bg-card-hover);
+  --color-surface: var(--bg-surface);
+  --color-surface-strong: var(--bg-surface-strong);
+  --color-input: var(--bg-input);
+  --color-hairline: var(--border-color);
+  --color-hairline-strong: var(--border-strong);
+  --color-ink: var(--text-primary);
+  --color-body: var(--text-body);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+
+  /* -- Security semantics: severity ---------------------------------------- */
+  --color-critical: var(--tone-critical);
+  --color-critical-soft: var(--tone-critical-soft);
+  --color-critical-line: var(--tone-critical-line);
+  --color-high: var(--tone-high);
+  --color-high-soft: var(--tone-high-soft);
+  --color-high-line: var(--tone-high-line);
+  --color-medium: var(--tone-medium);
+  --color-medium-soft: var(--tone-medium-soft);
+  --color-medium-line: var(--tone-medium-line);
+  --color-low: var(--tone-low);
+  --color-low-soft: var(--tone-low-soft);
+  --color-low-line: var(--tone-low-line);
+  --color-info: var(--tone-info);
+  --color-info-soft: var(--tone-info-soft);
+  --color-info-line: var(--tone-info-line);
+
+  /* -- Security semantics: verdicts and lifecycle -------------------------- */
+  --color-verified: var(--tone-verified);
+  --color-verified-soft: var(--tone-verified-soft);
+  --color-verified-line: var(--tone-verified-line);
+  --color-probable: var(--tone-probable);
+  --color-probable-soft: var(--tone-probable-soft);
+  --color-probable-line: var(--tone-probable-line);
+  --color-rejected: var(--tone-rejected);
+  --color-rejected-soft: var(--tone-rejected-soft);
+  --color-rejected-line: var(--tone-rejected-line);
+
+  /* -- Radii: see the documented scale in the header comment --------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+
+  /* -- Elevation: shallow, warm-tinted, never pure black ------------------- */
+  --shadow-raised: 0 1px 2px rgba(24, 20, 14, 0.05), 0 1px 1px rgba(24, 20, 14, 0.04);
+  --shadow-overlay: 0 16px 40px -16px rgba(24, 20, 14, 0.26), 0 2px 8px -2px rgba(24, 20, 14, 0.1);
+  --shadow-frame: 0 24px 60px -28px rgba(24, 20, 14, 0.32), 0 6px 18px -10px rgba(24, 20, 14, 0.16);
+  --shadow-header: 0 1px 0 0 var(--border-color);
+
+  /* -- Motion: one easing vocabulary, spring-like without bounce ----------- */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --animate-reveal-up: reveal-up 0.6s var(--ease-out-quint) both;
+  --animate-fade-in: fade-in 0.24s var(--ease-out-quint) both;
+  --animate-scale-in: scale-in 0.18s var(--ease-out-quint) both;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 2.4s var(--ease-in-out-soft) infinite;
+  --animate-sweep: sweep 2.6s var(--ease-in-out-soft) infinite;
+
+  /* -- Breakpoints: standard, declared once ------------------------------- */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}
+
+/* ============================================================================
+   Mode tokens
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  --bg-canvas: #f7f5f1;
+  --bg-card: #ffffff;
+  --bg-card-hover: #faf8f4;
+  --bg-surface: #f1eee8;
+  --bg-surface-strong: #e6e1d7;
+  --bg-input: #ffffff;
+  --border-color: #e6e1d8;
+  --border-strong: #d2cabc;
+  /*
+   * Three text tiers, all of which pass WCAG AA against the darkest surface
+   * they sit on (--bg-surface, not the lighter canvas): body 8.6:1, muted
+   * 6.2:1, faint 5.1:1. Faint is for small metadata a reader genuinely reads
+   * (line numbers, counts, timestamps), so it is a text colour, not a
+   * decorative one.
+   */
+  --text-primary: #1a1815;
+  --text-body: #46423a;
+  --text-muted: #5c574c;
+  --text-faint: #6a6459;
+
+  --tint-accent: #2f5bd0;
+  --tint-accent-strong: #24469f;
+  --tint-accent-soft: #eceffb;
+  --tint-accent-line: #ccd6f4;
+  --tint-on-accent: #ffffff;
+
+  --tint-chrome: #191713;
+  --tint-chrome-hover: #2b2721;
+  --tint-chrome-label: #f8f6f2;
+
+  --tone-critical: #ac332b;
+  --tone-critical-soft: #fbeeec;
+  --tone-critical-line: #f0d3ce;
+  --tone-high: #9d5813;
+  --tone-high-soft: #fdf2e4;
+  --tone-high-line: #f2dcc0;
+  --tone-medium: #756009;
+  --tone-medium-soft: #fbf5e2;
+  --tone-medium-line: #ecdfb4;
+  --tone-low: #3b6492;
+  --tone-low-soft: #eef3f9;
+  --tone-low-line: #d8e3ef;
+  --tone-info: #5c574c;
+  --tone-info-soft: #f1eee8;
+  --tone-info-line: #e6e1d8;
+
+  --tone-verified: #297548;
+  --tone-verified-soft: #ebf5ef;
+  --tone-verified-line: #cfe6d8;
+  --tone-probable: #756009;
+  --tone-probable-soft: #fbf5e2;
+  --tone-probable-line: #ecdfb4;
+  --tone-rejected: #6c6559;
+  --tone-rejected-soft: #f1eee8;
+  --tone-rejected-line: #e6e1d8;
+
+  /*
+   * Spotlights. Five two-stop washes, each a deep hue at one end and its own
+   * pale tint at the other, used by the public showcase cards to keep the
+   * marketing surface from becoming a wall of white panels. They are declared
+   * as raw colour pairs so a card can pick the stop it needs.
+   */
+  --spot-cobalt-deep: #1f3f96;
+  --spot-cobalt-pale: #dfe6fa;
+  --spot-teal-deep: #0f5f57;
+  --spot-teal-pale: #d9efe9;
+  --spot-amber-deep: #8a4a10;
+  --spot-amber-pale: #fbe8d4;
+  --spot-plum-deep: #5c3357;
+  --spot-plum-pale: #f0dfec;
+  --spot-slate-deep: #33302a;
+  --spot-slate-pale: #e8e3d9;
+
+  /* Grain and frame ink for the dark product window on a light page. */
+  --frame-ink: #17150f;
+  --frame-hairline: rgba(250, 246, 238, 0.12);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --bg-canvas: #151310;
+  --bg-card: #1c1916;
+  --bg-card-hover: #232019;
+  --bg-surface: #221e1a;
+  --bg-surface-strong: #2c2721;
+  --bg-input: #1a1714;
+  --border-color: #2f2924;
+  --border-strong: #453d35;
+  --text-primary: #f2eee8;
+  --text-body: #c4bcaf;
+  --text-muted: #a69e92;
+  --text-faint: #948c7f;
+
+  --tint-accent: #8aa3ee;
+  --tint-accent-strong: #b0c2f6;
+  --tint-accent-soft: #1e2438;
+  --tint-accent-line: #303a58;
+  --tint-on-accent: #12100c;
+
+  --tint-chrome: #ede8e0;
+  --tint-chrome-hover: #ffffff;
+  --tint-chrome-label: #17150f;
+
+  --tone-critical: #ef8f86;
+  --tone-critical-soft: #2b1a18;
+  --tone-critical-line: #482724;
+  --tone-high: #e2a76b;
+  --tone-high-soft: #2b1f14;
+  --tone-high-line: #473121;
+  --tone-medium: #dfc660;
+  --tone-medium-soft: #272213;
+  --tone-medium-line: #41381d;
+  --tone-low: #96b8dd;
+  --tone-low-soft: #19232e;
+  --tone-low-line: #27384a;
+  --tone-info: #b3aa9d;
+  --tone-info-soft: #221e1a;
+  --tone-info-line: #2f2924;
+
+  --tone-verified: #77c69a;
+  --tone-verified-soft: #15271d;
+  --tone-verified-line: #254130;
+  --tone-probable: #dfc660;
+  --tone-probable-soft: #272213;
+  --tone-probable-line: #41381d;
+  --tone-rejected: #9d958a;
+  --tone-rejected-soft: #221e1a;
+  --tone-rejected-line: #2f2924;
+
+  --spot-cobalt-deep: #2a49a3;
+  --spot-cobalt-pale: #1e2438;
+  --spot-teal-deep: #11695f;
+  --spot-teal-pale: #162a27;
+  --spot-amber-deep: #96531a;
+  --spot-amber-pale: #2b2114;
+  --spot-plum-deep: #6b3d65;
+  --spot-plum-pale: #2a2028;
+  --spot-slate-deep: #3a352e;
+  --spot-slate-pale: #221e1a;
+
+  --frame-ink: #100e0b;
+  --frame-hairline: rgba(250, 246, 238, 0.1);
+}
+
+/* ============================================================================
+   Base
+   ========================================================================== */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition:
+      background-color 0.3s var(--ease-out-quint),
+      color 0.3s var(--ease-out-quint);
+  }
+
+  /* Display type carries negative tracking; body copy never does. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.019em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Numbers that sit in columns must line up. */
+  [data-numeric],
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--tint-accent) 22%, transparent);
+    color: var(--text-primary);
+  }
+
+  /* One visible focus treatment for the entire product. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--tint-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-faint);
+    background-clip: content-box;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ============================================================================
+   Components — small, named, reused
+   ========================================================================== */
+
+/* Bordered surface. Used for framed tools, repeated items and overlays only;
+   plain sections separate content with `.rule` and whitespace instead. */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.panel-muted {
+  background: var(--bg-surface);
+  border-color: transparent;
+}
+
+.panel-hover {
+  transition:
+    border-color 0.18s var(--ease-out-quint),
+    background-color 0.18s var(--ease-out-quint);
+}
+.panel-hover:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-card-hover);
+}
+
+/* Text input. Label sits above (never a placeholder-as-label) and the helper
+   text below; see `Field` in components/ui/field.tsx. */
+.field {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  transition:
+    border-color 0.16s var(--ease-out-quint),
+    box-shadow 0.16s var(--ease-out-quint);
+}
+.field::placeholder {
+  color: var(--text-faint);
+}
+.field:hover {
+  border-color: var(--border-strong);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--tint-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint-accent) 16%, transparent);
+}
+.field:disabled {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Small square-ish tag: provider names, counts, categories. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-card);
+  padding: 0.0625rem 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.15rem;
+  color: var(--text-body);
+  white-space: nowrap;
+}
+
+/* Keyboard shortcut chip. */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  padding: 0 0.3125rem;
+  border: 1px solid var(--border-color);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* Horizontal hairline that reads as an editorial rule. */
+.rule {
+  height: 1px;
+  border: 0;
+  background: var(--border-color);
+}
+
+/* Shimmer skeleton, shaped like the content it replaces. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 25%,
+    var(--bg-card-hover) 50%,
+    var(--bg-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* Code, diffs and evidence surfaces: one look for every machine artifact. */
+.code-surface {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+
+/* Micro label — sentence case by default; uppercase tracking is opt-in via
+   `.caption-upper` and budgeted (see the marketing eyebrow rule). */
+.caption {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.caption-upper {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Screen-reader utility that becomes visible on focus (skip links). */
+.sr-only-focusable:not(:focus):not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Faint engineering grid on the canvas: texture, not decoration. Fixed and
+   pointer-events-none so it never repaints while scrolling. */
+.grid-texture::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--border-color) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border-color) 55%, transparent) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 0%, transparent 75%);
+}
+
+/* ============================================================================
+   Public surface: spotlights, showcase cards, rails
+   ----------------------------------------------------------------------------
+   The marketing pages use these five washes so a card can carry colour without
+   a gradient across the whole page. Inside the product none of this is used;
+   the workspace stays hairline and neutral.
+   ========================================================================== */
+
+/* Two-stop wash. `--spot-a` is the deep end, `--spot-b` the pale end. */
+.wash {
+  background-image: linear-gradient(
+    152deg,
+    color-mix(in srgb, var(--spot-b) 84%, #ffffff) 0%,
+    var(--spot-b) 62%,
+    color-mix(in srgb, var(--spot-b) 88%, var(--spot-a)) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--spot-a) 16%, transparent);
+}
+
+.wash-cobalt {
+  --spot-a: var(--spot-cobalt-deep);
+  --spot-b: var(--spot-cobalt-pale);
+}
+.wash-teal {
+  --spot-a: var(--spot-teal-deep);
+  --spot-b: var(--spot-teal-pale);
+}
+.wash-amber {
+  --spot-a: var(--spot-amber-deep);
+  --spot-b: var(--spot-amber-pale);
+}
+.wash-plum {
+  --spot-a: var(--spot-plum-deep);
+  --spot-b: var(--spot-plum-pale);
+}
+.wash-slate {
+  --spot-a: var(--spot-slate-deep);
+  --spot-b: var(--spot-slate-pale);
+}
+
+/* The headline band of a showcase card: a deep, low-variance wash that reads
+   as the card's identity without becoming a gradient banner. */
+.wash-head {
+  background-image: linear-gradient(
+    132deg,
+    color-mix(in srgb, var(--spot-a) 92%, #ffffff) 0%,
+    color-mix(in srgb, var(--spot-a) 68%, #ffffff) 100%
+  );
+  color: #ffffff;
+}
+
+.dark .wash-head {
+  background-image: linear-gradient(
+    132deg,
+    color-mix(in srgb, var(--spot-a) 78%, #000000) 0%,
+    color-mix(in srgb, var(--spot-a) 52%, #000000) 100%
+  );
+}
+
+/* A white product plate that sits on top of a wash, like a screenshot resting
+   on a coloured surface. */
+.plate {
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--spot-a, var(--border-color)) 14%, var(--border-color));
+  border-radius: 8px;
+  box-shadow: var(--shadow-raised);
+}
+
+/* Horizontal showcase rail. Snap points on the card edges, no visible bar,
+   edge padding so the first and last card breathe. */
+.rail {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 1.25rem;
+  padding: 0.25rem 1.25rem 1.25rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+.rail > * {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+}
+
+@media (min-width: 768px) {
+  .rail {
+    gap: 1.75rem;
+    scroll-padding-left: 2rem;
+    padding: 0.25rem 2rem 1.5rem;
+  }
+}
+
+/* The dark product window. It is a framed screenshot of the real application,
+   not an inverted page: the band around it stays on the canvas colour. */
+.app-frame {
+  background: var(--frame-ink);
+  border: 1px solid color-mix(in srgb, var(--frame-ink) 82%, #ffffff);
+  border-radius: 10px;
+  box-shadow: var(--shadow-frame);
+  color: #f3efe8;
+}
+
+.app-frame-chrome {
+  border-bottom: 1px solid var(--frame-hairline);
+  background: color-mix(in srgb, var(--frame-ink) 88%, #ffffff);
+}
+
+/* A large editorial panel: colour arrives as a surface the product rests on,
+   never as a page-wide gradient. `--spot-a` stays the dominant end so white
+   text keeps its contrast on every stop, in both themes. */
+.wash-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--spot-a) 55%, transparent);
+  background-image: linear-gradient(
+    149deg,
+    color-mix(in srgb, var(--spot-a) 88%, #ffffff) 0%,
+    var(--spot-a) 48%,
+    color-mix(in srgb, var(--spot-a) 72%, #000000) 100%
+  );
+  color: #ffffff;
+}
+
+/* The pale counterpart: a tinted plate for panels that carry dark body copy.
+   Both ends are mixed against the card colour, so the ink stays legible when
+   the theme flips. */
+.wash-plate {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--spot-a) 18%, var(--border-color));
+  background-image: linear-gradient(
+    152deg,
+    color-mix(in srgb, var(--spot-a) 7%, var(--bg-card)) 0%,
+    color-mix(in srgb, var(--spot-a) 15%, var(--bg-card)) 100%
+  );
+}
+
+/* A white product surface resting on a wash. This is the move that makes a
+   marketing section read as the product rather than as a coloured box: the
+   interface keeps its own plate, and the colour stays behind it. */
+.float-plate {
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--spot-a, var(--border-color)) 12%, var(--border-color));
+  border-radius: 8px;
+  box-shadow:
+    0 1px 2px rgba(24, 20, 14, 0.06),
+    0 14px 30px -20px rgba(24, 20, 14, 0.32);
+}
+
+.dark .float-plate {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 16px 32px -20px rgba(0, 0, 0, 0.75);
+}
+
+/* A floating fragment: the small piece of interface that hangs off a plate.
+   Elevation is its only decoration. */
+.frag {
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--spot-a, var(--border-color)) 14%, var(--border-color));
+  border-radius: 6px;
+  box-shadow:
+    0 1px 2px rgba(24, 20, 14, 0.05),
+    0 10px 22px -14px rgba(24, 20, 14, 0.38);
+}
+
+.dark .frag {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 12px 24px -16px rgba(0, 0, 0, 0.8);
+}
+
+/* Fragments are positioned on large screens only; below `lg` they join the
+   normal flow, so nothing overlaps or clips on a phone. */
+.frag-float {
+  position: absolute;
+}
+@media (max-width: 1023px) {
+  .frag-float {
+    position: static;
+  }
+}
+
+/* A quiet announcement above a headline. It carries one verifiable fact and is
+   used once per page, so it never becomes a decorative eyebrow. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  padding: 0.375rem 0.75rem;
+  font-size: 12.5px;
+  line-height: 1.2;
+  color: var(--text-body);
+  box-shadow: var(--shadow-raised);
+}
+
+.pill-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--tone-verified);
+}
+
+/* ============================================================================
+   Motion primitives
+   ========================================================================== */
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes sweep {
+  0% {
+    transform: translateX(-30%);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(130%);
+    opacity: 0;
+  }
+}

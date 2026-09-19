@@ -65,7 +65,7 @@ class TestSessionManagement:
         new_me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {new_token}"})
         assert new_me.status_code == 200
 
-        db_session.refresh(test_user)
+        await db_session.refresh(test_user)
         assert test_user.token_version == old_version + 1
 
         # Audit trail recorded the revocation.
