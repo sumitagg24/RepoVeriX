@@ -48,6 +48,9 @@ Thumbs.db
 
 # Tooling metadata
 .freebuff/
+.agents/
+auth0-mcp-server/
+claude-seo/
 
 # Nginx local artifacts
 nginx/ssl/
