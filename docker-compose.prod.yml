@@ -74,7 +74,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend-2
       args:
         # Public URL of the backend, from the *browser's* point of view.
         # Change this to your deployed API domain.

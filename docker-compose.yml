@@ -55,7 +55,7 @@ services:
   # Frontend (Next.js)
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend-2
       dockerfile: Dockerfile
       # the app appends /api/v1 itself, so only the host is configured here
       args:
