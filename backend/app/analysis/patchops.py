@@ -166,7 +166,7 @@ def apply_patch_to_directory(root: Path, patch_text: str) -> list[str]:
     for patch in parse_patch(patch_text):
         target = (root / patch.old_path).resolve()
         root_resolved = root.resolve()
-        if not str(target).startswith(str(root_resolved)):
+        if not target.is_relative_to(root_resolved):
             raise PatchError(
                 f"Patch target escapes the working copy: {patch.old_path}",
                 code="patch_escape",

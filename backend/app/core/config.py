@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REPOVERIX_", extra="ignore")
 
     app_name: str = "RepoVeriX"
+    environment: str = "development"
     api_prefix: str = "/api/v1"
     debug: bool = False
 
@@ -261,22 +262,40 @@ _LOCAL_HOSTS = {"localhost", "127.0.0.1", "test", "testserver", "0.0.0.0"}
 def ensure_production_safety(settings: Settings) -> None:
     """Refuse to run with unsafe defaults in a production-like deployment.
 
-    A deployment that looks like production (a public Host allowlist) but still
-    runs the built-in ``jwt_secret`` default would let anyone forge session
-    tokens for any user, so configuration load fails loudly instead. Local
-    development is unaffected: its Host allowlist only contains
-    loopback/test values.
-
-    An *empty* allowlist is also production-like: the Host gate accepts every
-    host in that mode, so it must never be combined with the default secret.
+    A deployment that looks like production (explicit environment=production or
+    a public Host allowlist) must have a strong non-default ``jwt_secret``,
+    valid cryptographic keys, and safe email backends to prevent token forgery
+    and credential leakage.
     """
     host_allowlist = {h.lower() for h in settings.allowed_hosts}
-    looks_production = len(host_allowlist) == 0 or not host_allowlist.issubset(_LOCAL_HOSTS)
-    if looks_production and settings.jwt_secret == Settings.model_fields["jwt_secret"].default:
-        raise RuntimeError(
-            "REPOVERIX_JWT_SECRET must be set in production: the default secret "
-            "would let anyone forge authentication tokens."
-        )
+    is_explicit_prod = settings.environment.lower() in {"production", "prod"}
+    looks_production = (
+        is_explicit_prod or len(host_allowlist) == 0 or not host_allowlist.issubset(_LOCAL_HOSTS)
+    )
+
+    if looks_production:
+        if (
+            settings.jwt_secret == Settings.model_fields["jwt_secret"].default
+            or len(settings.jwt_secret) < 16
+        ):
+            raise RuntimeError(
+                "REPOVERIX_JWT_SECRET must be set to a strong secret in production: "
+                "the default or weak secret would let anyone forge authentication tokens."
+            )
+
+        if settings.token_encryption_key:
+            from cryptography.fernet import Fernet
+
+            try:
+                Fernet(settings.token_encryption_key.encode())
+            except Exception as exc:
+                raise RuntimeError(f"REPOVERIX_TOKEN_ENCRYPTION_KEY is invalid: {exc}") from exc
+
+        if is_explicit_prod and settings.email_backend == "console":
+            raise RuntimeError(
+                "REPOVERIX_EMAIL_BACKEND cannot be 'console' in production. "
+                "Configure 'smtp' with valid credentials to prevent token leakage."
+            )
 
 
 @lru_cache

@@ -219,3 +219,83 @@ async def test_user_cannot_access_other_user_repository(db_session, test_user):
     # User B is denied access (raises AccessDenied -> mapped to 404 in routes)
     with pytest.raises(access.AccessDenied):
         await access.load_repository(db_session, repo.id, other_user.id)
+
+
+# --------------------------------------------------------------------------- Patch Application Containment
+def test_apply_patch_to_directory_blocks_path_traversal(tmp_path: Path):
+    """Patch targets with directory traversal escaping the working copy must be rejected."""
+    from app.analysis.patchops import PatchError, apply_patch_to_directory
+
+    victim_file = tmp_path.parent / "escape_target.txt"
+    victim_file.write_text("original content\n", encoding="utf-8")
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    escaping_patch = """--- a/../escape_target.txt
++++ b/../escape_target.txt
+@@ -1,1 +1,1 @@
+-original content
++overwritten content
+"""
+    with pytest.raises(PatchError) as exc_info:
+        apply_patch_to_directory(workspace, escaping_patch)
+
+    assert exc_info.value.code == "patch_escape"
+    assert victim_file.read_text(encoding="utf-8") == "original content\n"
+
+
+# --------------------------------------------------------------------------- Production Config Fail-Closed
+def test_production_safety_enforces_strong_secrets():
+    """Production mode must reject default or short jwt_secret, invalid fernet keys, and console email."""
+    from app.core.config import ensure_production_safety
+
+    # Default jwt_secret in production must fail
+    prod_with_default_secret = Settings(
+        environment="production",
+        jwt_secret="change-me-in-production",
+        email_backend="smtp",
+    )
+    with pytest.raises(RuntimeError, match="REPOVERIX_JWT_SECRET"):
+        ensure_production_safety(prod_with_default_secret)
+
+    # Weak/short jwt_secret in production must fail
+    prod_with_weak_secret = Settings(
+        environment="production",
+        jwt_secret="short",
+        email_backend="smtp",
+    )
+    with pytest.raises(RuntimeError, match="REPOVERIX_JWT_SECRET"):
+        ensure_production_safety(prod_with_weak_secret)
+
+    # Invalid fernet token_encryption_key must fail
+    prod_with_invalid_fernet = Settings(
+        environment="production",
+        jwt_secret="super-long-secure-random-secret-key-32-chars-minimum",
+        token_encryption_key="not-a-valid-fernet-key",
+        email_backend="smtp",
+    )
+    with pytest.raises(RuntimeError, match="REPOVERIX_TOKEN_ENCRYPTION_KEY"):
+        ensure_production_safety(prod_with_invalid_fernet)
+
+    # Console email backend in explicit production must fail
+    prod_with_console_email = Settings(
+        environment="production",
+        jwt_secret="super-long-secure-random-secret-key-32-chars-minimum",
+        email_backend="console",
+    )
+    with pytest.raises(RuntimeError, match="REPOVERIX_EMAIL_BACKEND"):
+        ensure_production_safety(prod_with_console_email)
+
+    # Valid production settings pass
+    from cryptography.fernet import Fernet
+
+    valid_fernet = Fernet.generate_key().decode()
+    valid_prod = Settings(
+        environment="production",
+        jwt_secret="super-long-secure-random-secret-key-32-chars-minimum",
+        token_encryption_key=valid_fernet,
+        email_backend="smtp",
+    )
+    # Should not raise
+    ensure_production_safety(valid_prod)

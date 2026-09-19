@@ -44,10 +44,22 @@ const FORWARD_RESPONSE_HEADERS = [
   'retry-after',
 ];
 
+const MAX_PROXY_BODY_BYTES = 120 * 1024 * 1024; // 120 MB max payload
+
 async function forward(request: NextRequest, context: { params: { path: string[] } }) {
-  const path = (context.params.path ?? []).join('/');
+  const segments = context.params.path ?? [];
+  if (segments.some((seg) => seg === '..' || seg.includes('/') || seg.includes('\\'))) {
+    return NextResponse.json({ detail: 'Invalid path segment in API route' }, { status: 400 });
+  }
+
+  const path = segments.join('/');
   const search = request.nextUrl.search;
   const target = `${API_ORIGIN}/api/v1/${path}${search}`;
+
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  if (contentLength > MAX_PROXY_BODY_BYTES) {
+    return NextResponse.json({ detail: 'Payload exceeds maximum limit' }, { status: 413 });
+  }
 
   const headers = new Headers();
   for (const name of FORWARD_REQUEST_HEADERS) {
