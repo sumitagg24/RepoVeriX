@@ -26,7 +26,7 @@ import type { OAuthProviderName } from '@/types/api';
  * what the connection can do (sign in, import repositories). Nothing is offered
  * that is not configured, and disconnecting says what it keeps and what it drops.
  */
-const ORDER: OAuthProviderName[] = ['github', 'gitlab', 'google'];
+const ORDER: OAuthProviderName[] = ['github', 'gitlab', 'google', 'microsoft', 'bitbucket'];
 
 export default function IntegrationsSettingsPage() {
   const providers = useOAuthProviders();

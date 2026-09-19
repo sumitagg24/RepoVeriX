@@ -120,7 +120,7 @@ async def test_providers_endpoint(client):
     resp = await client.get("/api/v1/auth/oauth/providers")
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body) == {"google", "github", "gitlab"}
+    assert set(body) == {"google", "github", "gitlab", "microsoft", "bitbucket"}
     assert all("configured" in info for info in body.values())
 
 

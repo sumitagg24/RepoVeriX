@@ -34,7 +34,7 @@ from app.services import oauth as oauth_service
 
 router = APIRouter(prefix="/auth/oauth", tags=["auth"])
 
-Provider = Literal["google", "github", "gitlab"]
+Provider = Literal["google", "github", "gitlab", "microsoft", "bitbucket"]
 _logger = logging.getLogger("repoverix.http")
 
 _STATE_COOKIE = "rvx_oauth_state"

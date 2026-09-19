@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     # the documented migration procedure — never enable it without one.
     auth_provider: str = "repoverix-local"
     # Which social buttons are offered (subset of the configured OAuth specs).
-    auth_allowed_social_providers: list[str] = ["google", "github", "gitlab"]
+    auth_allowed_social_providers: list[str] = ["google", "github", "gitlab", "microsoft", "bitbucket"]
     # Password accounts must verify their email before provider connections,
     # repository registration and scans are allowed (server-side gate).
     auth_require_email_verification: bool = True
@@ -222,6 +222,10 @@ class Settings(BaseSettings):
     github_oauth_client_secret: str | None = None
     gitlab_oauth_client_id: str | None = None
     gitlab_oauth_client_secret: str | None = None
+    microsoft_oauth_client_id: str | None = None
+    microsoft_oauth_client_secret: str | None = None
+    bitbucket_oauth_client_id: str | None = None
+    bitbucket_oauth_client_secret: str | None = None
 
     # --- GitHub pull-request auditing ---
     # Optional server-level token for public-repo PR metadata/API calls when a

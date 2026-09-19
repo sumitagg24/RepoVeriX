@@ -656,7 +656,7 @@ export interface OnboardingStatus {
 
 // ------------------------------------------------------------------- oauth
 
-export type OAuthProviderName = 'github' | 'gitlab' | 'google';
+export type OAuthProviderName = 'github' | 'gitlab' | 'google' | 'microsoft' | 'bitbucket';
 
 export interface OAuthConnection {
   provider: OAuthProviderName;

@@ -198,7 +198,21 @@ async def fetch_profile(
                 "email": data.get("email", ""),
                 "name": data.get("name", ""),
             }
-        # gitlab
+        if provider == "microsoft":
+            # Microsoft Graph: id = AAD object ID, email comes from userPrincipalName
+            return {
+                "id": str(data.get("id", "")),
+                "email": data.get("mail") or data.get("userPrincipalName", ""),
+                "name": data.get("displayName", ""),
+            }
+        if provider == "bitbucket":
+            # Bitbucket /2.0/user: uuid is the stable identifier
+            return {
+                "id": str(data.get("uuid") or data.get("account_id", "")),
+                "email": data.get("email", ""),  # may be empty; enriched from /2.0/user/emails
+                "name": data.get("display_name") or data.get("nickname", ""),
+            }
+        # gitlab (and any future provider)
         return {
             "id": str(data.get("id", "")),
             "email": data.get("email", ""),
