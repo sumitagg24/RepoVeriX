@@ -44,5 +44,10 @@ Thumbs.db
 auth0-mcp-server/
 claude-seo/
 
+# Development process artifacts & audits
+docs/audits/
+docs/frontend-redesign-blueprint.md
+docs/implementation-plan.md
+
 # Nginx local artifacts
 nginx/ssl/

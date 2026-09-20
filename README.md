@@ -187,8 +187,7 @@ experiment matrix on a broader benchmark.
 
 ## Documentation index
 
-- Core Docs: `docs/architecture.md` · `docs/analysis-pipeline.md` · `docs/evidence-model.md` · `docs/verification.md` · `docs/security.md` · `docs/database.md` · `docs/api.md` · `docs/website-audits.md` · `docs/experiments.md` · `docs/development.md` · `docs/implementation-plan.md`
-- Audits Catalog: **[docs/audits/](docs/audits/)** (23 security & resilience reports)
+- Core Docs: `docs/architecture.md` · `docs/analysis-pipeline.md` · `docs/evidence-model.md` · `docs/verification.md` · `docs/security.md` · `docs/database.md` · `docs/api.md` · `docs/website-audits.md` · `docs/experiments.md` · `docs/development.md`
 - Operator checklist: **[docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md)**
 - Deployment runbook: **[docs/DEPLOY.md](docs/DEPLOY.md)**
 - Hardening notes: **[SECURITY.md](SECURITY.md)**

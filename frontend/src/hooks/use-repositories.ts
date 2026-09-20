@@ -2,8 +2,24 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { repositoryService } from '@/services/api';
-import type { ArchiveImport, OAuthImport, Repository, RepositoryCreate } from '@/types/api';
+import {
+  repositoryService,
+  changeAuditService,
+  pullRequestService,
+  healthTimelineService,
+  architectureSmellsService,
+} from '@/services/api';
+import type {
+  ArchiveImport,
+  ChangeAuditListItem,
+  ChangeAuditResult,
+  HealthTimeline,
+  ArchitectureSmells,
+  OAuthImport,
+  PullRequestAudit,
+  Repository,
+  RepositoryCreate,
+} from '@/types/api';
 
 export const repositoryKeys = {
   all: ['repositories'] as const,
@@ -13,6 +29,12 @@ export const repositoryKeys = {
   dependencies: (id: string) => ['repositories', id, 'dependencies'] as const,
   regression: (id: string, from?: string, to?: string) =>
     ['repositories', id, 'regression', from ?? 'latest', to ?? 'latest'] as const,
+  changeAudits: (id: string) => ['repositories', id, 'change-audits'] as const,
+  changeAuditDetail: (repoId: string, auditId: string) =>
+    ['repositories', repoId, 'change-audits', auditId] as const,
+  pullRequests: (id: string) => ['repositories', id, 'pull-requests'] as const,
+  healthTimeline: (id: string) => ['repositories', id, 'health-timeline'] as const,
+  architectureSmells: (id: string) => ['repositories', id, 'architecture-smells'] as const,
 };
 
 export function useRepositories() {
@@ -115,3 +137,55 @@ export function useDeleteRepository() {
     onSuccess: invalidate,
   });
 }
+
+export function useChangeAudits(repositoryId: string | undefined) {
+  return useQuery<ChangeAuditListItem[]>({
+    queryKey: repositoryKeys.changeAudits(repositoryId ?? ''),
+    queryFn: () => changeAuditService.list(repositoryId as string),
+    enabled: Boolean(repositoryId),
+  });
+}
+
+export function useChangeAuditDetail(repositoryId: string | undefined, auditId: string | undefined) {
+  return useQuery<ChangeAuditResult>({
+    queryKey: repositoryKeys.changeAuditDetail(repositoryId ?? '', auditId ?? ''),
+    queryFn: () => changeAuditService.get(repositoryId as string, auditId as string),
+    enabled: Boolean(repositoryId && auditId),
+  });
+}
+
+export function usePullRequests(repositoryId: string | undefined) {
+  return useQuery<PullRequestAudit[]>({
+    queryKey: repositoryKeys.pullRequests(repositoryId ?? ''),
+    queryFn: () => pullRequestService.list(repositoryId as string),
+    enabled: Boolean(repositoryId),
+  });
+}
+
+export function useAnalyzePullRequest(repositoryId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { pr_number: number; base_sha?: string; head_sha?: string }) =>
+      pullRequestService.analyze(repositoryId as string, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: repositoryKeys.pullRequests(repositoryId ?? '') });
+    },
+  });
+}
+
+export function useHealthTimeline(repositoryId: string | undefined) {
+  return useQuery<HealthTimeline>({
+    queryKey: repositoryKeys.healthTimeline(repositoryId ?? ''),
+    queryFn: () => healthTimelineService.get(repositoryId as string),
+    enabled: Boolean(repositoryId),
+  });
+}
+
+export function useArchitectureSmells(repositoryId: string | undefined) {
+  return useQuery<ArchitectureSmells>({
+    queryKey: repositoryKeys.architectureSmells(repositoryId ?? ''),
+    queryFn: () => architectureSmellsService.get(repositoryId as string),
+    enabled: Boolean(repositoryId),
+  });
+}
+

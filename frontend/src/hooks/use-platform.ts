@@ -289,3 +289,93 @@ export function usePatchVerifications(patchId: string | undefined) {
     },
   });
 }
+
+export function usePatchQuality(patchId: string | undefined) {
+  return useQuery<PatchQuality>({
+    queryKey: ['patches', patchId, 'quality'],
+    queryFn: () => patchQualityService.get(patchId as string),
+    enabled: Boolean(patchId),
+  });
+}
+
+// ----------------------------------------------------------------- API tokens
+
+export function useApiTokens() {
+  const { user } = useAuth();
+  return useQuery<ApiToken[]>({
+    queryKey: ['api-tokens'],
+    queryFn: tokenService.list,
+    enabled: Boolean(user),
+  });
+}
+
+export function useCreateApiToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string): Promise<ApiTokenCreated> => tokenService.create(name),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['api-tokens'] });
+    },
+  });
+}
+
+export function useRevokeApiToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tokenId: string) => tokenService.revoke(tokenId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['api-tokens'] });
+    },
+  });
+}
+
+// ------------------------------------------------------------------ websites
+
+export function useWebsites() {
+  const { user } = useAuth();
+  return useQuery<Website[]>({
+    queryKey: ['websites'],
+    queryFn: websiteService.list,
+    enabled: Boolean(user),
+  });
+}
+
+export function useCreateWebsite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: WebsiteCreate): Promise<Website> => websiteService.create(data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['websites'] });
+    },
+  });
+}
+
+export function useRemoveWebsite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (websiteId: string) => websiteService.remove(websiteId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['websites'] });
+    },
+  });
+}
+
+export function useWebsiteAudits(websiteId: string | undefined) {
+  return useQuery<WebsiteAudit[]>({
+    queryKey: ['websites', websiteId, 'audits'],
+    queryFn: () => websiteService.audits(websiteId as string),
+    enabled: Boolean(websiteId),
+  });
+}
+
+export function useStartWebsiteAudit(websiteId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => websiteService.startAudit(websiteId as string),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['websites', websiteId, 'audits'] });
+      void queryClient.invalidateQueries({ queryKey: ['websites'] });
+    },
+  });
+}
+

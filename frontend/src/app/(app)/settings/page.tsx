@@ -103,6 +103,9 @@ export default function SettingsPage() {
               <Link href="/settings/security">Security</Link>
             </Button>
             <Button asChild size="sm" variant="secondary">
+              <Link href="/settings/api-tokens">API Tokens</Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary">
               <Link href="/settings/integrations">Integrations</Link>
             </Button>
             <Button asChild size="sm" variant="secondary">

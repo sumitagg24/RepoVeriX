@@ -3,6 +3,7 @@ import {
   CreditCard,
   Database,
   FileSearch,
+  KeyRound,
   LifeBuoy,
   Plug,
   ScanSearch,
@@ -90,6 +91,12 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Settings',
         icon: Settings,
         description: 'Profile, security and notification preferences',
+      },
+      {
+        href: '/settings/api-tokens',
+        label: 'API Tokens',
+        icon: KeyRound,
+        description: 'Personal tokens for CI/CD and headless API access',
       },
       {
         href: '/settings/team',
