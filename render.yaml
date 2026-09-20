@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: repoverix-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: REPOVERIX_AUTO_CREATE_TABLES
+        value: "true"
+      - key: REPOVERIX_RATE_LIMIT_ENABLED
+        value: "true"
+      - key: REPOVERIX_AUTH_REQUIRE_EMAIL_VERIFICATION
+        value: "false"
+      - key: REPOVERIX_REPOSITORY_STORAGE_DIR
+        value: /data/repositories
+      - key: REPOVERIX_DATABASE_URL
+        sync: false
+      - key: REPOVERIX_JWT_SECRET
+        generateValue: true
+      - key: REPOVERIX_CORS_ORIGINS
+        value: '["https://repoverix.vercel.app"]'
+      - key: REPOVERIX_ALLOWED_HOSTS
+        value: '["*"]'
