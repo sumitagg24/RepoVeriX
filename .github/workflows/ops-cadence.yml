@@ -1,0 +1,31 @@
+name: Operational Cadence Automation
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight UTC
+  workflow_dispatch:      # Manual trigger capability
+
+permissions:
+  contents: read
+
+jobs:
+  ops-cadence:
+    name: Production Operational Cadence Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "./backend[dev]"
+
+      - name: Run Operational Cadence Automation
+        run: |
+          python scripts/ops_cadence.py http://localhost:8000 v0.3.1
