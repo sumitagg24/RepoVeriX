@@ -15,8 +15,6 @@ node_modules/
 out/
 *.tsbuildinfo
 next-env.d.ts
-frontend/
-
 # Environment & secrets
 .env
 .env.local
@@ -28,12 +26,6 @@ data/
 # ...except tracked application datasets that live under an app/data path
 !backend/app/data/
 
-# Preserve UI/UX Pro Max skill data (the "data/" rule above would otherwise ignore it)
-!frontend/.claude/
-!frontend/.claude/skills/
-!frontend/.claude/skills/ui-ux-pro-max/
-!frontend/.claude/skills/ui-ux-pro-max/data/
-!frontend/.claude/skills/ui-ux-pro-max/data/stacks/
 logs/
 *.db
 *.sqlite

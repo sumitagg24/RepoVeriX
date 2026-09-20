@@ -18,8 +18,8 @@ def run_dependency_security_check(repo_root: Path) -> dict:
         "overall_status": "PASS"
     }
 
-    # 1. Check frontend-2 lockfile existence
-    lockfile = repo_root / "frontend-2" / "package-lock.json"
+    # 1. Check frontend lockfile existence
+    lockfile = repo_root / "frontend" / "package-lock.json"
     lockfile_exists = lockfile.is_file()
     report["checks"]["lockfile_determinism"] = {
         "passed": lockfile_exists,
