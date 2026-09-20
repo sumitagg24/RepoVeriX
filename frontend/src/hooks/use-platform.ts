@@ -10,13 +10,19 @@ import {
   dashboardService,
   authService,
   patchService,
+  tokenService,
+  websiteService,
+  patchQualityService,
 } from '@/services/api';
 import { useAuth } from '@/context/auth-context';
 import type {
+  ApiToken,
+  ApiTokenCreated,
   BillingOverview,
   CheckoutResult,
   DashboardSummary,
   Patch,
+  PatchQuality,
   OAuthConnection,
   OAuthProviderName,
   OAuthProviders,
@@ -30,6 +36,9 @@ import type {
   SecurityOverview,
   TeamDashboard,
   VerificationRun,
+  Website,
+  WebsiteAudit,
+  WebsiteCreate,
 } from '@/types/api';
 
 // ------------------------------------------------------------------ dashboard

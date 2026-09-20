@@ -3,6 +3,7 @@ import { GeistMono } from 'geist/font/mono';
 import { GeistSans } from 'geist/font/sans';
 
 import { Providers } from './providers';
+import { CookieConsent } from '@/components/layout/cookie-consent';
 import { SITE, absoluteUrl } from '@/lib/site';
 import './globals.css';
 
@@ -114,6 +115,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <Providers>{children}</Providers>
+        <CookieConsent />
       </body>
     </html>
   );
