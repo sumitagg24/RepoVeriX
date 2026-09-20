@@ -696,3 +696,140 @@ export interface ProviderRepository {
   default_branch: string;
   updated_at: string | null;
 }
+
+// ----------------------------------------------------------------- api tokens
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  token_prefix: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+/** Returned only once at creation; contains the plaintext token. */
+export interface ApiTokenCreated extends ApiToken {
+  token: string;
+}
+
+// ------------------------------------------------------------------ websites
+
+export interface Website {
+  id: string;
+  url: string;
+  hostname: string;
+  label: string | null;
+  status: string;
+  last_audit_at: string | null;
+  created_at: string;
+}
+
+export interface WebsiteCreate {
+  url: string;
+  label?: string | null;
+}
+
+export interface WebsiteAudit {
+  id: string;
+  website_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  max_pages: number;
+  max_depth: number;
+  pages_crawled: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  scores: Record<string, number> | null;
+  summary: Record<string, unknown> | null;
+  pages: Record<string, unknown>[] | null;
+  findings: Record<string, unknown>[] | null;
+  created_at: string;
+}
+
+// ------------------------------------------------------------ pull-request audits
+
+export interface PullRequestAudit {
+  id: string;
+  repository_id: string;
+  pr_number: number;
+  pr_title: string | null;
+  pr_url: string | null;
+  author: string | null;
+  base_ref: string | null;
+  head_ref: string | null;
+  risk_score: number;
+  risk_level: string;
+  changed_files: string[];
+  findings: Record<string, unknown>[];
+  posted: boolean;
+  posted_at: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+// ------------------------------------------------------------ change audits
+
+export interface ChangeAuditListItem {
+  id: string;
+  repository_id: string;
+  mode: 'refs' | 'diff';
+  base: string | null;
+  head: string | null;
+  risk_score: number;
+  created_at: string;
+}
+
+// ------------------------------------------------------------ health timeline
+
+export interface HealthTimelinePoint {
+  id: string;
+  commit_sha: string | null;
+  average_score: number | null;
+  files_scored: number;
+  distribution: Record<string, number> | null;
+  worst_files: string[] | null;
+  created_at: string;
+}
+
+export interface HealthTimeline {
+  repository_id: string;
+  points: HealthTimelinePoint[];
+}
+
+// ------------------------------------------------------------ architecture smells
+
+export interface ArchitectureSmell {
+  kind: string;
+  description: string;
+  affected: string[];
+  severity: Severity;
+}
+
+export interface ArchitectureSmells {
+  repository_id: string;
+  smells: ArchitectureSmell[];
+}
+
+// ---------------------------------------------------------------- patch quality
+
+export interface PatchQuality {
+  patch_id: string;
+  diff_lines: number;
+  changed_files: number;
+  complexity_estimate: string;
+  notes: string[];
+}
+
+// ---------------------------------------------------------------- finding chat
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatResponse {
+  message: string;
+  finding_id: string;
+}

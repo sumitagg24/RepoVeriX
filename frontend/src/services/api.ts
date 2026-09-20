@@ -2,9 +2,13 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import type {
   ArchiveImport,
+  ApiToken,
+  ApiTokenCreated,
   AttackPaths,
   BillingOverview,
+  ChangeAuditListItem,
   ChangeAuditResult,
+  ChatResponse,
   CheckoutResult,
   DashboardSummary,
   DedupReport,
@@ -18,6 +22,8 @@ import type {
   FindingSummary,
   GeneratedTest,
   GeneratedTestRun,
+  HealthTimeline,
+  ArchitectureSmells,
   ImpactAnalysis,
   OAuthConnection,
   OAuthImport,
@@ -28,6 +34,8 @@ import type {
   OrgRead,
   OrgRepo,
   Patch,
+  PatchQuality,
+  PullRequestAudit,
   ValidationVerdict,
   PlanName,
   ProofOfFix,
@@ -47,6 +55,9 @@ import type {
   User,
   VerificationRun,
   VerificationRunDetail,
+  Website,
+  WebsiteAudit,
+  WebsiteCreate,
 } from '@/types/api';
 
 /**
@@ -580,6 +591,106 @@ export const onboardingService = {
     (await api.post<{ completed: boolean; completed_at?: string | null }>('/onboarding/complete'))
       .data,
 };
+
+// ---------------------------------------------------------------- API tokens
+
+export const tokenService = {
+  list: async (): Promise<ApiToken[]> => (await api.get<ApiToken[]>('/api-tokens')).data,
+
+  create: async (name: string): Promise<ApiTokenCreated> =>
+    (await api.post<ApiTokenCreated>('/api-tokens', { name })).data,
+
+  revoke: async (tokenId: string): Promise<void> => {
+    await api.delete(`/api-tokens/${tokenId}`);
+  },
+};
+
+// ------------------------------------------------------------------ websites
+
+export const websiteService = {
+  list: async (): Promise<Website[]> => (await api.get<Website[]>('/websites')).data,
+
+  create: async (data: WebsiteCreate): Promise<Website> =>
+    (await api.post<Website>('/websites', data)).data,
+
+  remove: async (websiteId: string): Promise<void> => {
+    await api.delete(`/websites/${websiteId}`);
+  },
+
+  audits: async (websiteId: string): Promise<WebsiteAudit[]> =>
+    (await api.get<WebsiteAudit[]>(`/websites/${websiteId}/audits`)).data,
+
+  startAudit: async (websiteId: string): Promise<WebsiteAudit> =>
+    (await api.post<WebsiteAudit>(`/websites/${websiteId}/audits`)).data,
+};
+
+// ---------------------------------------------------------- change audits (list)
+
+export const changeAuditService = {
+  list: async (repositoryId: string): Promise<ChangeAuditListItem[]> =>
+    (
+      await api.get<ChangeAuditListItem[]>(`/repositories/${repositoryId}/change-audits`)
+    ).data,
+
+  get: async (repositoryId: string, auditId: string): Promise<ChangeAuditResult> =>
+    (
+      await api.get<ChangeAuditResult>(
+        `/repositories/${repositoryId}/change-audits/${auditId}`
+      )
+    ).data,
+};
+
+// ---------------------------------------------------------- pull-request audits
+
+export const pullRequestService = {
+  list: async (repositoryId: string): Promise<PullRequestAudit[]> =>
+    (await api.get<PullRequestAudit[]>(`/repositories/${repositoryId}/pull-requests`)).data,
+
+  analyze: async (
+    repositoryId: string,
+    payload: { pr_number: number; base_sha?: string; head_sha?: string }
+  ): Promise<PullRequestAudit> =>
+    (
+      await api.post<PullRequestAudit>(
+        `/repositories/${repositoryId}/pull-requests/analyze`,
+        payload
+      )
+    ).data,
+};
+
+// --------------------------------------------------------- health timeline
+
+export const healthTimelineService = {
+  get: async (repositoryId: string): Promise<HealthTimeline> =>
+    (await api.get<HealthTimeline>(`/repositories/${repositoryId}/health-timeline`)).data,
+};
+
+// -------------------------------------------------- architecture smells
+
+export const architectureSmellsService = {
+  get: async (repositoryId: string): Promise<ArchitectureSmells> =>
+    (await api.get<ArchitectureSmells>(`/repositories/${repositoryId}/architecture-smells`)).data,
+};
+
+// ---------------------------------------------------------------- patch quality
+
+export const patchQualityService = {
+  get: async (patchId: string): Promise<PatchQuality> =>
+    (await api.get<PatchQuality>(`/patches/${patchId}/quality`)).data,
+};
+
+// ---------------------------------------------------------------- finding chat
+
+export const findingChatService = {
+  send: async (findingId: string, message: string, history: { role: string; content: string }[]): Promise<ChatResponse> =>
+    (
+      await api.post<ChatResponse>(`/findings/${findingId}/chat`, {
+        message,
+        history,
+      })
+    ).data,
+};
+
 
 /**
  * Download an authenticated artifact (Markdown report, SARIF export).

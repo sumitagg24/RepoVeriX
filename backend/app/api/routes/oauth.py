@@ -94,7 +94,7 @@ async def oauth_login(provider: str, request: Request, next: str = "/dashboard")
     if oauth_service.provider_credentials(provider) is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"{provider} OAuth is not configured on the server (see MANUAL-SETUP.md)",
+            detail=f"{provider} OAuth is not configured on the server (see docs/MANUAL-SETUP.md)",
         )
     state = oauth_service.new_oauth_state()
     pkce_verifier = oauth_service.new_pkce_verifier()

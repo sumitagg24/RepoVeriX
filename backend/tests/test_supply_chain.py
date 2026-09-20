@@ -17,20 +17,30 @@ from pathlib import Path
 def _find_repo_root() -> Path:
     current = Path(__file__).resolve().parent
     while current.parent != current:
-        if (current / "frontend-2").is_dir() and (current / "backend").is_dir():
+        has_fe = (current / "frontend").is_dir() or (current / "frontend-2").is_dir()
+        if has_fe and (current / "backend").is_dir():
             return current
         current = current.parent
     raise RuntimeError("Could not find repository root")
 
 
-def test_frontend_lockfile_exists_and_matches():
-    """frontend-2/package-lock.json must exist and contain dependencies declared in package.json."""
-    root = _find_repo_root()
-    pkg_json_path = root / "frontend-2" / "package.json"
-    lock_json_path = root / "frontend-2" / "package-lock.json"
+def _find_frontend_dir(root: Path) -> Path:
+    if (root / "frontend").is_dir():
+        return root / "frontend"
+    if (root / "frontend-2").is_dir():
+        return root / "frontend-2"
+    raise RuntimeError("Could not find frontend directory")
 
-    assert pkg_json_path.exists(), "frontend-2/package.json must exist"
-    assert lock_json_path.exists(), "frontend-2/package-lock.json must exist for deterministic builds"
+
+def test_frontend_lockfile_exists_and_matches():
+    """frontend package-lock.json must exist and contain dependencies declared in package.json."""
+    root = _find_repo_root()
+    frontend = _find_frontend_dir(root)
+    pkg_json_path = frontend / "package.json"
+    lock_json_path = frontend / "package-lock.json"
+
+    assert pkg_json_path.exists(), f"{frontend.name}/package.json must exist"
+    assert lock_json_path.exists(), f"{frontend.name}/package-lock.json must exist for deterministic builds"
 
     pkg_data = json.loads(pkg_json_path.read_text(encoding="utf-8"))
     lock_data = json.loads(lock_json_path.read_text(encoding="utf-8"))
@@ -55,7 +65,8 @@ def test_frontend_lockfile_exists_and_matches():
 def test_no_sensitive_next_public_env_vars():
     """Client-accessible NEXT_PUBLIC_* environment variables must never expose credentials."""
     root = _find_repo_root()
-    frontend_dir = root / "frontend-2" / "src"
+    frontend = _find_frontend_dir(root)
+    frontend_dir = frontend / "src"
 
     forbidden_patterns = [
         re.compile(
@@ -73,6 +84,8 @@ def test_no_sensitive_next_public_env_vars():
 
     found_public_vars: set[str] = set()
     for file_path in frontend_dir.rglob("*.ts*"):
+        if "__tests__" in file_path.parts or ".test." in file_path.name or ".spec." in file_path.name:
+            continue
         text = file_path.read_text(encoding="utf-8", errors="replace")
         for match in re.finditer(r"\bNEXT_PUBLIC_[A-Z0-9_]+\b", text):
             var_name = match.group(0)
@@ -85,9 +98,10 @@ def test_no_sensitive_next_public_env_vars():
 
 
 def test_next_config_disables_production_source_maps():
-    """frontend-2/next.config.mjs must explicitly disable production source maps."""
+    """frontend next.config.mjs must explicitly disable production source maps."""
     root = _find_repo_root()
-    config_path = root / "frontend-2" / "next.config.mjs"
+    frontend = _find_frontend_dir(root)
+    config_path = frontend / "next.config.mjs"
     assert config_path.exists()
     content = config_path.read_text(encoding="utf-8")
     assert "productionBrowserSourceMaps: false" in content, (

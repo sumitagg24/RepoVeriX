@@ -6,7 +6,7 @@
 # Point the browser at http://localhost:3000 and the API at http://localhost:8000.
 #
 # Production notes:
-#   * Always set REPOVERIX_JWT_SECRET (see DEPLOY.md for how to generate one).
+#   * Always set REPOVERIX_JWT_SECRET (see docs/DEPLOY.md for how to generate one).
 #   * If the frontend is served from a real domain, rebuild it with
 #     NEXT_PUBLIC_API_URL=https://<your-api-domain> and add that frontend origin
 #     to REPOVERIX_CORS_ORIGINS (JSON list) below.

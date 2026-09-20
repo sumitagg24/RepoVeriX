@@ -93,7 +93,7 @@ export class JevClient {
     try {
       const result = await evaluate({
         model: this.modelId as any,
-        state: { target: input.target, context: input.context || {} },
+        state: { target: input.target, context: (input.context || {}) as any } as any,
         questions: {
           category: {
             type: 'choice',
@@ -155,7 +155,7 @@ export class JevClient {
     try {
       const result = await evaluate({
         model: this.modelId as any,
-        state: { target: input.target, context: input.context || {} },
+        state: { target: input.target, context: (input.context || {}) as any } as any,
         questions: {
           severity: {
             type: 'choice',
@@ -217,7 +217,7 @@ export class JevClient {
     try {
       const result = await evaluate({
         model: this.modelId as any,
-        state: { target: input.target, context: input.context || {} },
+        state: { target: input.target, context: (input.context || {}) as any } as any,
         questions: {
           strategy: {
             type: 'choice',
@@ -279,7 +279,7 @@ export class JevClient {
     try {
       const result = await evaluate({
         model: this.modelId as any,
-        state: { target: input.target, context: input.context || {} },
+        state: { target: input.target, context: (input.context || {}) as any } as any,
         questions: {
           riskScore: {
             type: 'score',
@@ -342,7 +342,7 @@ export class JevClient {
     try {
       const result = await evaluate({
         model: this.modelId as any,
-        state: { target: input.target, context: input.context || {} },
+        state: { target: input.target, context: (input.context || {}) as any } as any,
         questions: {
           decision: {
             type: 'boolean',

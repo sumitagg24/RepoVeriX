@@ -106,7 +106,7 @@ Full docker-compose (PostgreSQL + backend + frontend) is available in
 `docker-compose.yml` (local dev) and `docker-compose.prod.yml` (production
 stack). CI runs on every push; a successful push to `main` also publishes
 Docker images to GHCR and, once the deploy secrets are configured, ships the
-stack to your server. See **[DEPLOY.md](DEPLOY.md)** for the full deployment
+stack to your server. See **[docs/DEPLOY.md](docs/DEPLOY.md)** for the full deployment
 guide.
 
 ## Running an audit
@@ -187,15 +187,11 @@ experiment matrix on a broader benchmark.
 
 ## Documentation index
 
-`docs/architecture.md` · `docs/analysis-pipeline.md` · `docs/evidence-model.md`
-· `docs/verification.md` · `docs/security.md` · `docs/database.md` ·
-`docs/api.md` · `docs/website-audits.md` · `docs/experiments.md` ·
-`docs/development.md` · `docs/implementation-plan.md`
-
-**Operator checklist** (API keys, database, Docker, auth secret, deployment
-prereqs): **[MANUAL-SETUP.md](MANUAL-SETUP.md)** ·
-**Hardening notes** (rate limits, validation, secrets, audits, uploads):
-**[SECURITY.md](SECURITY.md)**
+- Core Docs: `docs/architecture.md` · `docs/analysis-pipeline.md` · `docs/evidence-model.md` · `docs/verification.md` · `docs/security.md` · `docs/database.md` · `docs/api.md` · `docs/website-audits.md` · `docs/experiments.md` · `docs/development.md` · `docs/implementation-plan.md`
+- Audits Catalog: **[docs/audits/](docs/audits/)** (23 security & resilience reports)
+- Operator checklist: **[docs/MANUAL-SETUP.md](docs/MANUAL-SETUP.md)**
+- Deployment runbook: **[docs/DEPLOY.md](docs/DEPLOY.md)**
+- Hardening notes: **[SECURITY.md](SECURITY.md)**
 
 ## License
 
