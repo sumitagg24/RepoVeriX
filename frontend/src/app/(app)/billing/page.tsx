@@ -75,7 +75,7 @@ export default function BillingPage() {
               >
                 Refresh
               </Button>
-              {billing.data.subscription.stripe_customer_id ? (
+              {billing.data.subscription.customer_id ? (
                 <Button size="sm" variant="primary" loading={portal.isPending} onClick={() => void openPortal()}>
                   <CreditCard className="size-3.5" aria-hidden="true" />
                   Billing portal
@@ -112,7 +112,7 @@ export default function BillingPage() {
           <Panel>
             <PanelHeader
               title="Current plan"
-              hint={`Signed in as ${user?.email ?? 'this account'}.`}
+              hint={`Signed in as ${user?.email ?? 'this account'}. Payments and tax are handled by Dodo Payments.`}
               icon={<CreditCard className="size-4" />}
               actions={<PlanBadge plan={plan.name} />}
             />

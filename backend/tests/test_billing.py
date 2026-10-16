@@ -1,5 +1,11 @@
 """Tests for billing: plan quotas, usage rollover, 402 enforcement, routes."""
 
+import base64
+import hashlib
+import hmac
+import json
+import time
+import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -9,6 +15,7 @@ from httpx import AsyncClient
 from app.core.config import get_settings
 from app.db.models import PlanName
 from app.services import billing as svc
+from app.services import dodo
 
 
 @pytest.fixture(autouse=True)
@@ -173,6 +180,8 @@ class TestBillingRoutes:
         assert "scans_used" in body["usage"]
         assert "website_audits_used" in body["usage"]
         assert "period_ends_at" in body["usage"]
+        assert "customer_id" in body["subscription"]
+        assert "subscription_id" in body["subscription"]
         assert body["demo_mode"] is True
 
     @pytest.mark.asyncio
@@ -231,3 +240,324 @@ class TestBillingRoutes:
         )
         assert response.status_code == 402
         assert response.headers.get("X-Upgrade-Reason") == "scan-quota"
+
+
+# --------------------------------------------------------------------- Dodo Payments
+
+# A deterministic test signing secret in the Standard Webhooks format.
+_DODO_SECRET = "whsec_" + base64.b64encode(b"repoverix-test-webhook-secret").decode()
+
+
+def _dodo_signature(secret: str, msg_id: str, timestamp: str, body: bytes) -> str:
+    key = base64.b64decode(secret.removeprefix("whsec_"))
+    signed = f"{msg_id}.{timestamp}.{body.decode('utf-8')}".encode()
+    return "v1," + base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
+
+
+def _enable_dodo(monkeypatch, *, api_key: str | None = None):
+    """Flip the routes from demo mode to live Dodo Payments."""
+    monkeypatch.setenv("REPOVERIX_BILLING_ENFORCE", "true")
+    monkeypatch.setenv("REPOVERIX_BILLING_DEMO_MODE", "false")
+    monkeypatch.setenv("REPOVERIX_DODO_WEBHOOK_SECRET", _DODO_SECRET)
+    if api_key is not None:
+        monkeypatch.setenv("REPOVERIX_DODO_API_KEY", api_key)
+    get_settings.cache_clear()
+
+
+async def _post_webhook(client: AsyncClient, event: dict, *, secret: str = _DODO_SECRET):
+    body = json.dumps(event).encode()
+    msg_id = f"msg_{uuid.uuid4().hex[:12]}"
+    timestamp = str(int(time.time()))
+    signature = _dodo_signature(secret, msg_id, timestamp, body)
+    return await client.post(
+        "/api/v1/billing/webhook",
+        content=body,
+        headers={
+            "content-type": "application/json",
+            "webhook-id": msg_id,
+            "webhook-timestamp": timestamp,
+            "webhook-signature": signature,
+        },
+    )
+
+
+def _subscription_event(
+    event_type: str, user, *, product_id: str = "pdt_pro_test", status: str = "active", **overrides
+) -> dict:
+    data = {
+        "payload_type": "Subscription",
+        "subscription_id": "sub_test_1",
+        "product_id": product_id,
+        "status": status,
+        "customer": {"customer_id": "cus_test_1", "email": user.email, "name": "Test user"},
+        "metadata": {"user_id": str(user.id)},
+        "next_billing_date": "2026-12-01T00:00:00Z",
+        "cancel_at_next_billing_date": False,
+    }
+    data.update(overrides)
+    return {"business_id": "bus_test", "type": event_type, "timestamp": "2026-11-01T00:00:00Z", "data": data}
+
+
+class TestDodoSignatureVerification:
+    def test_valid_signature_roundtrip(self, monkeypatch):
+        monkeypatch.setenv("REPOVERIX_DODO_WEBHOOK_SECRET", _DODO_SECRET)
+        get_settings.cache_clear()
+        body = b'{"type": "payment.succeeded"}'
+        timestamp = str(int(time.time()))
+        signature = _dodo_signature(_DODO_SECRET, "msg_1", timestamp, body)
+
+        event = dodo.verify_webhook(
+            body,
+            {"webhook-id": "msg_1", "webhook-timestamp": timestamp, "webhook-signature": signature},
+        )
+        assert event["type"] == "payment.succeeded"
+
+    def test_tampered_body_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("REPOVERIX_DODO_WEBHOOK_SECRET", _DODO_SECRET)
+        get_settings.cache_clear()
+        timestamp = str(int(time.time()))
+        signature = _dodo_signature(_DODO_SECRET, "msg_1", timestamp, b'{"type": "payment.succeeded"}')
+
+        with pytest.raises(dodo.DodoError):
+            dodo.verify_webhook(
+                b'{"type": "payment.failed"}',
+                {"webhook-id": "msg_1", "webhook-timestamp": timestamp, "webhook-signature": signature},
+            )
+
+    def test_wrong_secret_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("REPOVERIX_DODO_WEBHOOK_SECRET", _DODO_SECRET)
+        get_settings.cache_clear()
+        other = "whsec_" + base64.b64encode(b"some-other-secret").decode()
+        body = b'{"type": "payment.succeeded"}'
+        timestamp = str(int(time.time()))
+        signature = _dodo_signature(other, "msg_1", timestamp, body)
+
+        with pytest.raises(dodo.DodoError):
+            dodo.verify_webhook(
+                body,
+                {"webhook-id": "msg_1", "webhook-timestamp": timestamp, "webhook-signature": signature},
+            )
+
+    def test_stale_timestamp_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("REPOVERIX_DODO_WEBHOOK_SECRET", _DODO_SECRET)
+        get_settings.cache_clear()
+        body = b'{"type": "payment.succeeded"}'
+        timestamp = str(int(time.time()) - 3600)
+        signature = _dodo_signature(_DODO_SECRET, "msg_1", timestamp, body)
+
+        with pytest.raises(dodo.DodoError):
+            dodo.verify_webhook(
+                body,
+                {"webhook-id": "msg_1", "webhook-timestamp": timestamp, "webhook-signature": signature},
+            )
+
+    def test_missing_headers_are_rejected(self, monkeypatch):
+        monkeypatch.setenv("REPOVERIX_DODO_WEBHOOK_SECRET", _DODO_SECRET)
+        get_settings.cache_clear()
+        with pytest.raises(dodo.DodoError):
+            dodo.verify_webhook(b"{}", {})
+
+
+class TestDodoCheckout:
+    @pytest.mark.asyncio
+    async def test_checkout_503_when_unconfigured(self, client: AsyncClient, auth_headers, monkeypatch):
+        _enable_dodo(monkeypatch)  # no API key, no product IDs
+        response = await client.post("/api/v1/billing/checkout?plan=pro", headers=auth_headers)
+        assert response.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_checkout_returns_dodo_url(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch, api_key="test_dodo_key")
+        monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
+
+        captured: dict = {}
+
+        async def fake_checkout(**kwargs):
+            captured.update(kwargs)
+            return {
+                "checkout_url": "https://test.checkout.dodopayments.com/session/cks_test",
+                "session_id": "cks_test",
+            }
+
+        monkeypatch.setattr("app.services.dodo.create_checkout_session", fake_checkout)
+
+        response = await client.post("/api/v1/billing/checkout?plan=pro", headers=auth_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert body == {"url": "https://test.checkout.dodopayments.com/session/cks_test", "demo": False}
+        # The checkout carries the account id so webhooks can resolve it back.
+        assert captured["product_id"] == "pdt_pro_test"
+        assert captured["customer_email"] == test_user.email
+        assert captured["metadata"]["user_id"] == str(test_user.id)
+
+    @pytest.mark.asyncio
+    async def test_portal_400_without_linked_customer(self, client: AsyncClient, auth_headers, monkeypatch):
+        _enable_dodo(monkeypatch, api_key="test_dodo_key")
+        response = await client.post("/api/v1/billing/portal", headers=auth_headers)
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_portal_returns_dodo_link(
+        self, client: AsyncClient, auth_headers, test_user, db_session, monkeypatch
+    ):
+        _enable_dodo(monkeypatch, api_key="test_dodo_key")
+        test_user.dodo_customer_id = "cus_portal_1"
+        db_session.add(test_user)
+        await db_session.flush()
+
+        async def fake_portal(customer_id: str) -> str:
+            assert customer_id == "cus_portal_1"
+            return "https://customer.dodopayments.com/session/portal_test"
+
+        monkeypatch.setattr("app.services.dodo.create_customer_portal_session", fake_portal)
+
+        response = await client.post("/api/v1/billing/portal", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json()["url"] == "https://customer.dodopayments.com/session/portal_test"
+
+
+class TestDodoWebhooks:
+    @pytest.mark.asyncio
+    async def test_subscription_active_upgrades_and_links_customer(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
+
+        response = await _post_webhook(client, _subscription_event("subscription.active", test_user))
+        assert response.status_code == 200
+        assert response.json() == {"received": True}
+
+        assert test_user.plan == PlanName.pro
+        assert test_user.subscription_status.value == "active"
+        assert test_user.dodo_customer_id == "cus_test_1"
+        assert test_user.dodo_subscription_id == "sub_test_1"
+        assert test_user.current_period_end is not None
+
+    @pytest.mark.asyncio
+    async def test_subscription_renewed_resets_usage(
+        self, client: AsyncClient, auth_headers, test_user, db_session, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
+        test_user.dodo_customer_id = "cus_test_1"  # already linked
+        test_user.plan = PlanName.pro
+        test_user.scans_used = 42
+        db_session.add(test_user)
+        await db_session.flush()
+
+        response = await _post_webhook(client, _subscription_event("subscription.renewed", test_user))
+        assert response.status_code == 200
+        assert test_user.scans_used == 0  # a renewal opens a fresh budget
+
+    @pytest.mark.asyncio
+    async def test_scheduled_cancellation_keeps_plan_until_term_end(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
+        await _post_webhook(client, _subscription_event("subscription.active", test_user))
+
+        event = _subscription_event(
+            "subscription.cancelled",
+            test_user,
+            status="cancelled",
+            cancel_at_next_billing_date=True,
+        )
+        response = await _post_webhook(client, event)
+        assert response.status_code == 200
+        assert test_user.subscription_status.value == "canceled"
+        assert test_user.plan == PlanName.pro  # access continues to the term end
+
+    @pytest.mark.asyncio
+    async def test_immediate_cancellation_downgrades_to_free(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
+        await _post_webhook(client, _subscription_event("subscription.active", test_user))
+
+        event = _subscription_event(
+            "subscription.cancelled",
+            test_user,
+            status="cancelled",
+            cancel_at_next_billing_date=False,
+        )
+        response = await _post_webhook(client, event)
+        assert response.status_code == 200
+        assert test_user.plan == PlanName.free
+        assert test_user.subscription_status.value == "canceled"
+        assert test_user.dodo_subscription_id is None
+
+    @pytest.mark.asyncio
+    async def test_subscription_expired_downgrades_to_free(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
+        await _post_webhook(client, _subscription_event("subscription.active", test_user))
+
+        event = _subscription_event("subscription.expired", test_user, status="expired")
+        response = await _post_webhook(client, event)
+        assert response.status_code == 200
+        assert test_user.plan == PlanName.free
+        assert test_user.subscription_status.value == "canceled"
+
+    @pytest.mark.asyncio
+    async def test_payment_succeeded_links_customer_without_plan_change(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        event = {
+            "business_id": "bus_test",
+            "type": "payment.succeeded",
+            "timestamp": "2026-11-01T00:00:00Z",
+            "data": {
+                "payload_type": "Payment",
+                "payment_id": "pay_test_1",
+                "status": "succeeded",
+                "subscription_id": "sub_test_1",
+                "customer": {"customer_id": "cus_pay_1", "email": test_user.email, "name": "Test"},
+                "metadata": {"user_id": str(test_user.id)},
+            },
+        }
+        response = await _post_webhook(client, event)
+        assert response.status_code == 200
+        assert test_user.dodo_customer_id == "cus_pay_1"
+        assert test_user.plan == PlanName.free  # plan changes arrive via subscription events
+
+    @pytest.mark.asyncio
+    async def test_webhook_rejects_invalid_signature(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        wrong = "whsec_" + base64.b64encode(b"not-the-signing-secret").decode()
+        response = await _post_webhook(
+            client, _subscription_event("subscription.active", test_user), secret=wrong
+        )
+        assert response.status_code == 400
+        assert test_user.plan == PlanName.free
+
+    @pytest.mark.asyncio
+    async def test_unknown_event_type_is_ignored(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        event = _subscription_event("refund.succeeded", test_user)
+        response = await _post_webhook(client, event)
+        assert response.status_code == 200
+        assert test_user.plan == PlanName.free
+
+    @pytest.mark.asyncio
+    async def test_webhook_resolves_account_by_email_when_metadata_missing(
+        self, client: AsyncClient, auth_headers, test_user, monkeypatch
+    ):
+        _enable_dodo(monkeypatch)
+        monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
+        event = _subscription_event("subscription.active", test_user)
+        event["data"]["metadata"] = {}  # e.g. a subscription created outside the checkout flow
+        response = await _post_webhook(client, event)
+        assert response.status_code == 200
+        assert test_user.plan == PlanName.pro

@@ -70,4 +70,9 @@ export const FAQS: Faq[] = [
     answer:
       'No, and the product says so on the pages where that could be misread. A scan reports what the configured stages found in the files they can parse. Absence of findings is not a statement about the repository as a whole.',
   },
+  {
+    question: 'How does billing and payment work?',
+    answer:
+      'Paid plans are monthly subscriptions processed by Dodo Payments, the merchant of record: checkout, invoices, tax and receipts all come from Dodo. The billing screen shows the live plan and usage, and its billing portal manages or cancels the subscription. Cancelling keeps the plan until the end of the term that was paid for.',
+  },
 ];

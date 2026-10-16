@@ -101,7 +101,7 @@ function PlanColumn({
         <p className="text-[12.5px] leading-relaxed text-faint">
           {plan.name === 'free'
             ? 'No card required. Deterministic analysis runs without any provider key.'
-            : 'Checkout is handled by the API. Cancel from the billing screen at any time.'}
+            : 'Checkout runs on Dodo Payments. Cancel from the billing screen at any time.'}
         </p>
       ) : null}
     </div>
@@ -126,7 +126,7 @@ export function PricingPlans({ showLimits = true }: { showLimits?: boolean }) {
     setPendingPlan(plan.name);
     try {
       const result = await checkout.mutateAsync(plan.name);
-      // Demo deployments return a URL on this app; live Stripe returns its own.
+      // Demo deployments return a URL on this app; live Dodo Payments returns its hosted checkout.
       if (result.url) {
         window.location.href = result.url;
         return;

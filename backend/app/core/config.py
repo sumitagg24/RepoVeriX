@@ -198,15 +198,22 @@ class Settings(BaseSettings):
     # Enforce plan entitlements (402 when a quota is exhausted). Tests and
     # local dev often disable this; production deployments enable it.
     billing_enforce: bool = True
-    # Demo mode: checkout & billing pages simulate success without Stripe
-    # credentials (enables trying the full paid flow locally).
+    # Demo mode: checkout & billing pages simulate success without Dodo
+    # Payments credentials (enables trying the full paid flow locally).
     billing_demo_mode: bool = True
     # Monthly usage period length used by the entitlement engine.
     billing_period_days: int = 30
-    stripe_secret_key: str | None = None
-    stripe_webhook_secret: str | None = None
-    stripe_pro_price_id: str | None = None
-    stripe_team_price_id: str | None = None
+    # --- Dodo Payments (merchant of record: checkout, subscriptions, tax) ---
+    # API key from the Dodo dashboard (Bearer token). Optional: without it the
+    # product stays in demo mode and paid flows degrade gracefully.
+    dodo_api_key: str | None = None
+    # Webhook signing secret (whsec_…) from the Dodo webhook endpoint config.
+    dodo_webhook_secret: str | None = None
+    # Product IDs of the recurring Pro / Team subscriptions.
+    dodo_product_id_pro: str | None = None
+    dodo_product_id_team: str | None = None
+    # "test_mode" talks to test.dodopayments.com; "live_mode" to live.dodopayments.com.
+    dodo_environment: str = "test_mode"
 
     # Absolute URL of the frontend, used as the post-OAuth landing origin.
     # --- security: outbound fetches (SSRF) & secrets at rest ---

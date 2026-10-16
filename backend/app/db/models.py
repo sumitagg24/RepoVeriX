@@ -191,7 +191,7 @@ class UserStatus(str, enum.Enum):
 
 
 class SubscriptionStatus(str, enum.Enum):
-    """Stripe subscription lifecycle (mirrors the API)."""
+    """Subscription lifecycle (mirrors the Dodo Payments statuses)."""
 
     active = "active"
     trialing = "trialing"
@@ -216,8 +216,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         enum_type(SubscriptionStatus, "subscription_status"), nullable=True
     )
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    stripe_customer_id: Mapped[str | None] = mapped_column(String(200), index=True)
-    stripe_subscription_id: Mapped[str | None] = mapped_column(String(200))
+    # Dodo Payments identifiers (merchant of record for subscriptions).
+    dodo_customer_id: Mapped[str | None] = mapped_column(String(200), index=True)
+    dodo_subscription_id: Mapped[str | None] = mapped_column(String(200))
     # Monthly usage counters, rolled over when ``current_period_end`` passes.
     scans_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     fixes_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

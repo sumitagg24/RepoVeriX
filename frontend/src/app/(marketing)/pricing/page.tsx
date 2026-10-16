@@ -93,7 +93,7 @@ export default function PricingPage() {
       <Section>
         <Shell>
           <SectionHeading title="Pricing questions" />
-          <FaqList className="mt-8" entries={[FAQS[6], FAQS[7], FAQS[5], FAQS[4]]} />
+          <FaqList className="mt-8" entries={[FAQS[12], FAQS[6], FAQS[7], FAQS[5]]} />
         </Shell>
       </Section>
 

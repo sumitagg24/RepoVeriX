@@ -345,8 +345,8 @@ async def delete_current_user(
     graph, plus explicit deletes for rows not wired into it), the on-disk
     repository working copies/archives under ``REPOVERIX_REPOSITORY_STORAGE_DIR``
     and the user row itself. There is no undo — callers must confirm first.
-    Active Stripe subscriptions are *not* cancelled here because doing so
-    requires the payment provider; operators should cancel via the billing
+    Active Dodo Payments subscriptions are *not* cancelled here because doing
+    so requires the payment provider; operators should cancel via the billing
     dashboard (the webhook will then observe the account is gone).
     """
     repo_rows = (

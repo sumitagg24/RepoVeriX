@@ -131,41 +131,59 @@ Also tune session length: `REPOVERIX_ACCESS_TOKEN_EXPIRE_MINUTES=1440` (1 day).
 
 ---
 
-## 5. Billing (Stripe subscriptions + plan quotas)
+## 5. Billing (Dodo Payments subscriptions + plan quotas)
 
 The product ships with a full paid flow: Free / Pro ($29/mo) / Team ($99/mo),
-monthly usage quotas (repositories, scans, AI fixes, sandbox verifications), a
-billing page with usage meters, Stripe Checkout, and a customer portal. It
-works in **two modes**:
+monthly usage quotas (repositories, scans, AI fixes, sandbox verifications,
+website audits), a billing page with usage meters, Dodo Payments hosted
+checkout, and a customer portal. It works in **two modes**:
 
 - **Demo mode** (default, zero config): `REPOVERIX_BILLING_DEMO_MODE=true` —
   clicking “Upgrade” on the billing page instantly activates the plan so the
   entire flow is testable without any keys. **Never leave this on in
   production** — anyone can grant themselves Pro.
-- **Live Stripe**: set demo mode to `false` and configure:
+- **Live Dodo Payments**: set demo mode to `false` and configure:
 
 ```bash
 REPOVERIX_BILLING_DEMO_MODE=false
 REPOVERIX_BILLING_ENFORCE=true
 REPOVERIX_BILLING_PERIOD_DAYS=30
-REPOVERIX_STRIPE_SECRET_KEY=sk_live_…
-REPOVERIX_STRIPE_WEBHOOK_SECRET=whsec_…
-REPOVERIX_STRIPE_PRO_PRICE_ID=price_…   # recurring $29/mo price
-REPOVERIX_STRIPE_TEAM_PRICE_ID=price_…  # recurring $99/mo price
+REPOVERIX_DODO_API_KEY=…                 # API key from the Dodo dashboard
+REPOVERIX_DODO_WEBHOOK_SECRET=whsec_…    # webhook endpoint signing secret
+REPOVERIX_DODO_PRODUCT_ID_PRO=pdt_…      # recurring $29/mo product
+REPOVERIX_DODO_PRODUCT_ID_TEAM=pdt_…     # recurring $99/mo product
+REPOVERIX_DODO_ENVIRONMENT=live_mode     # test_mode → test.dodopayments.com
 ```
 
-Steps (one-time, in Stripe dashboard):
+Steps (one-time, in the Dodo dashboard):
 
-1. Create a Stripe account and find the secret key (Developers → API keys).
-2. Create **Products → Recurring prices**: Pro at $29/month and Team at
-   $99/month; paste the `price_…` IDs into the two env vars above.
+1. Create a Dodo Payments account and an API key; start in **Test Mode** —
+   test keys talk to `test.dodopayments.com`, live keys to
+   `live.dodopayments.com` (`REPOVERIX_DODO_ENVIRONMENT`).
+2. Create **Products** with recurring monthly prices: Pro at $29/month and
+   Team at $99/month; paste the `pdt_…` IDs into the two env vars above.
+   The helper does this through the API from the PLANS table:
+
+   ```bash
+   cd backend && .venv/Scripts/python scripts/setup_dodo_products.py
+   # prints REPOVERIX_DODO_PRODUCT_ID_PRO=… / …_TEAM=…
+   ```
 3. Add a **webhook endpoint** pointing at
-   `https://<your-api>/api/v1/billing/webhook` with the events
-   `checkout.session.completed`, `customer.subscription.updated` and
-   `customer.subscription.deleted`; copy the signing secret into
-   `REPOVERIX_STRIPE_WEBHOOK_SECRET`.
+   `https://<your-api>/api/v1/billing/webhook`, subscribed to the
+   `subscription.*` lifecycle events (`subscription.active`,
+   `subscription.renewed`, `subscription.plan_changed`,
+   `subscription.on_hold`, `subscription.cancelled`,
+   `subscription.expired`, …) and `payment.succeeded`; copy the signing
+   secret into `REPOVERIX_DODO_WEBHOOK_SECRET`. Every delivery is verified
+   against the Standard Webhooks signature before it touches any plan.
 4. Make sure `REPOVERIX_FRONTEND_URL` is the public frontend origin — it is
-   used for Stripe's success/cancel return URLs.
+   used for the checkout return URLs and the billing screen.
+
+How plan state flows: checkout carries the account id in its metadata; when a
+subscription activates or renews, the webhook sets the plan from the product
+id, the status from the event and the next billing date as the period end.
+Renewals start a fresh usage budget; a cancellation scheduled for the end of
+the term keeps the plan until the expiry event arrives.
 
 How quotas behave: every user gets a monthly budget that rolls over when the
 period ends. Over-quota actions (import, scan, generate-fix, verify) return
@@ -281,6 +299,6 @@ installed, open ports 80/443.
 - [ ] `NEXT_PUBLIC_API_URL` = public backend origin; frontend rebuilt
 - [ ] `REPOVERIX_CORS_ORIGINS` includes the real frontend origin
 - [ ] Backend `git` installed and egress to github.com allowed (for git imports)
-- [ ] Billing: demo mode OFF in production; Stripe key, webhook secret and both price IDs set (§5)
+- [ ] Billing: demo mode OFF in production; Dodo API key, webhook secret and both product IDs set (§5)
 - [ ] Smoke test with a real account: signup (incl. Google/GitHub) → import repo (GitHub URL, S3 link, ZIP) → scan → generate fix → verify
 - [ ] Paid flow smoke: upgrade to Pro (demo mode) → quotas on billing page move → downgrade back

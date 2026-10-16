@@ -110,11 +110,23 @@ PLANS: dict[str, PlanLimits] = {
     ),
 }
 
-# Stripes price IDs per plan; wired to Stripe in production (billing service).
-STRIPE_PRICE_IDS: dict[str, str] = {
-    PlanName.pro.value: get_settings().stripe_pro_price_id or "",
-    PlanName.team.value: get_settings().stripe_team_price_id or "",
+# Dodo Payments product IDs per paid plan; wired to the checkout sessions in
+# ``app/services/dodo.py``. Empty when the deployment runs without credentials
+# (demo mode), in which case checkout degrades gracefully.
+DODO_PRODUCT_IDS: dict[str, str] = {
+    PlanName.pro.value: get_settings().dodo_product_id_pro or "",
+    PlanName.team.value: get_settings().dodo_product_id_team or "",
 }
+
+
+def plan_for_product_id(product_id: str | None) -> PlanName | None:
+    """Map a Dodo product ID back to the plan it sells (None if unknown)."""
+    if not product_id:
+        return None
+    for plan, configured in DODO_PRODUCT_IDS.items():
+        if configured and configured == product_id:
+            return PlanName(plan)
+    return None
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
