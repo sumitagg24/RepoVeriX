@@ -41,11 +41,16 @@ class FeedbackRead(TimestampedORMModel):
 class FeedbackSummary(BaseModel):
     """Aggregate verdicts for one finding (across all users)."""
 
+    finding_id: uuid.UUID | None = None
     total: int = 0
     correct: int = 0
     incorrect: int = 0
     already_fixed: int = 0
     not_useful: int = 0
+    # Non-zero verdict tallies keyed by verdict ("correct", "incorrect", ...).
+    counts: dict[str, int] = Field(default_factory=dict)
+    # Most recent non-empty note left on this finding (any user, any verdict).
+    last_note: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -140,10 +145,22 @@ async def get_feedback_summary(
             .group_by(FindingFeedback.verdict)
         )
     ).all()
-    summary = FeedbackSummary()
+    summary = FeedbackSummary(finding_id=finding_id)
     for verdict_value, count in rows:
         setattr(summary, verdict_value, count)
         summary.total += count
+        summary.counts[verdict_value] = count
+    summary.last_note = (
+        await db.execute(
+            select(FindingFeedback.note)
+            .where(
+                FindingFeedback.finding_id == finding_id,
+                FindingFeedback.note.is_not(None),
+            )
+            .order_by(FindingFeedback.updated_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
     return summary
 
 

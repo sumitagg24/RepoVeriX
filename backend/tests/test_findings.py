@@ -153,6 +153,7 @@ class TestFindings:
         response = await client.get(f"/api/v1/findings/scan/{test_scan.id}/summary", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
+        assert data["scan_id"] == str(test_scan.id)
         assert data["total"] == 4
         assert data["by_category"]["security"] == 2
         assert data["by_category"]["logic"] == 2

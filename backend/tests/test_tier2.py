@@ -408,6 +408,101 @@ async def test_finding_impact_route(client, auth_headers, db_session, test_user)
     # evidence chain preserved
     kinds = [e["kind"] for e in body["evidence_chain"]]
     assert kinds == ["source_input", "sink"]
+    # frontend-contract fields are always present (empty without a snapshot)
+    assert body["reachable"] is False
+    assert body["affected_files"] == []
+    assert body["call_chain"] == []
+
+
+class TestImpactReachability:
+    """The structured reachability the finding-detail UI renders."""
+
+    def _graph(self, sources: dict[str, str]) -> KnowledgeGraph:
+        parsed = {path: parse_source(code, "python", path) for path, code in sources.items()}
+        return KnowledgeGraph(list(parsed.values()))
+
+    def _transient(self, function: str, line: int, file_path: str = "app.py") -> Finding:
+        return Finding(
+            external_id="impact-unit",
+            category=FindingCategory.security,
+            severity=Severity.critical,
+            status=FindingStatus.verified,
+            confidence=0.9,
+            title="Unsafe query",
+            description="desc",
+            file_path=file_path,
+            function_name=function,
+            line_start=line,
+            source=FindingSource.static,
+        )
+
+    def test_call_chain_lists_in_repo_call_sites(self):
+        from app.analysis import impact as impact_mod
+
+        graph = self._graph(
+            {
+                "app.py": (
+                    "def handler(name):\n"
+                    "    return query(name)\n"
+                    "\n"
+                    "\n"
+                    "def query(name):\n"
+                    "    return name\n"
+                )
+            }
+        )
+        result = impact_mod.analyze_impact(self._transient("query", 5), graph)
+        assert result["reachable"] is True
+        step = next(s for s in result["call_chain"] if s["symbol"] == "handler")
+        assert step["file"] == "app.py"
+        assert step["line"] == 1
+        assert result["affected_files"] == []
+
+    def test_cross_file_callers_appear(self):
+        from app.analysis import impact as impact_mod
+
+        graph = self._graph(
+            {
+                "routes.py": (
+                    "from app import query\n"
+                    "\n"
+                    "\n"
+                    "def handle_search(name):\n"
+                    "    return query(name)\n"
+                ),
+                "app.py": "def query(name):\n    return name\n",
+            }
+        )
+        result = impact_mod.analyze_impact(self._transient("query", 1), graph)
+        step = next(s for s in result["call_chain"] if s["symbol"] == "handle_search")
+        assert step["file"] == "routes.py"
+        assert step["line"] == 4
+
+    def test_affected_files_lists_dependent_files(self):
+        from app.analysis import impact as impact_mod
+
+        graph = self._graph(
+            {
+                "service.py": (
+                    "from helpers import persist\n"
+                    "\n"
+                    "\n"
+                    "def save(name):\n"
+                    "    return persist(name)\n"
+                ),
+                "helpers.py": "def persist(name):\n    return name\n",
+            }
+        )
+        result = impact_mod.analyze_impact(self._transient("save", 4, file_path="service.py"), graph)
+        assert result["affected_files"] == ["helpers.py"]
+
+    def test_missing_graph_degrades_to_empty(self):
+        from app.analysis import impact as impact_mod
+
+        result = impact_mod.analyze_impact(self._transient("build_query", 43), None)
+        assert result["reachable"] is False
+        assert result["affected_files"] == []
+        assert result["call_chain"] == []
 
 
 # --------------------------------------------------------------------------- 16. change explanation

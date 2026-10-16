@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
@@ -127,3 +128,9 @@ class RepositoryRead(TimestampedORMModel):
     storage_path: str | None
     primary_languages: list[str]
     status: str
+    # Scan aggregates for list/detail views — populated by the route handlers so
+    # the UI never has to fan out one request per repository. Freshly created
+    # repositories have no scans yet, hence the safe defaults.
+    last_scan_at: datetime | None = None
+    scan_count: int = 0
+    finding_count: int = 0

@@ -4,7 +4,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -140,7 +140,7 @@ async def get_scan(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get a single scan with its analysis runs."""
+    """Get a single scan with its analysis runs and finding count."""
     result = await db.execute(
         select(Scan)
         .options(selectinload(Scan.analysis_runs))
@@ -153,7 +153,10 @@ async def get_scan(
     scan = result.scalar_one_or_none()
     if scan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
-    return scan
+    finding_count = (
+        await db.execute(select(func.count(Finding.id)).where(Finding.scan_id == scan_id))
+    ).scalar_one()
+    return ScanDetail.model_validate(scan).model_copy(update={"finding_count": finding_count})
 
 
 @router.get("/{scan_id}/report")

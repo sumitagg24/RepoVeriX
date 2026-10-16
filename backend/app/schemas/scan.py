@@ -46,6 +46,7 @@ class ScanRead(TimestampedORMModel):
 
 class ScanDetail(ScanRead):
     analysis_runs: list[AnalysisRunRead] = Field(default_factory=list)
+    finding_count: int = 0
 
 
 class FindingSummary(BaseModel):

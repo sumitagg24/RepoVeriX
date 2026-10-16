@@ -40,7 +40,10 @@ class WebsiteAuditRead(BaseModel):
     id: uuid.UUID
     website_id: uuid.UUID
     status: str
+    max_pages: int
+    max_depth: int
     pages_crawled: int
+    started_at: datetime | None
     error: str | None
     created_at: datetime
     finished_at: datetime | None

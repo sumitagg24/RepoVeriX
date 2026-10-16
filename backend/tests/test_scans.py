@@ -67,6 +67,40 @@ class TestScans:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == str(test_scan.id)
+        assert data["finding_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_scan_reports_finding_count(
+        self, client: AsyncClient, auth_headers, test_scan, db_session
+    ):
+        """Scan detail carries the number of findings the scan produced."""
+        from app.db.models import (
+            Finding,
+            FindingCategory,
+            FindingSource,
+            FindingStatus,
+            Severity,
+        )
+
+        db_session.add(
+            Finding(
+                scan_id=test_scan.id,
+                external_id="RVX-TEST-COUNT",
+                category=FindingCategory.security,
+                severity=Severity.high,
+                status=FindingStatus.verified,
+                confidence=0.8,
+                title="Counted finding",
+                description="desc",
+                file_path="app.py",
+                source=FindingSource.static,
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get(f"/api/v1/scans/{test_scan.id}", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json()["finding_count"] == 1
 
     @pytest.mark.asyncio
     async def test_get_scan_not_found(self, client: AsyncClient, auth_headers):

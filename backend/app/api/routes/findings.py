@@ -542,6 +542,7 @@ async def get_scan_findings_summary(
         by_status[st.value] = count
 
     return {
+        "scan_id": str(scan_id),
         "total": total,
         "by_category": by_category,
         "by_severity": by_severity,

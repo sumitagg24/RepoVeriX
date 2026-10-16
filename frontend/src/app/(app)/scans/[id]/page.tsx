@@ -449,19 +449,25 @@ export default function ScanDetailPage() {
             {dedup.data ? (
               <div className="border-t border-hairline pt-3">
                 <h3 className="text-[12.5px] font-medium text-ink">
-                  Duplicates collapsed: {dedup.data.duplicates.length}
+                  Duplicate findings collapsed: {dedup.data.duplicated_findings}
                 </h3>
-                {dedup.data.duplicates.length === 0 ? (
+                {dedup.data.clusters.length === 0 ? (
                   <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
                     No two detectors described the same location, so no finding was merged.
                   </p>
                 ) : (
                   <ul className="mt-2 space-y-1.5">
-                    {dedup.data.duplicates.map((entry) => (
-                      <li key={entry.kept} className="text-[12.5px] leading-relaxed text-body">
-                        <span className="font-mono text-[11.5px] text-muted">{entry.kept}</span>{' '}
-                        kept against {entry.dropped.length} duplicate
-                        {entry.dropped.length === 1 ? '' : 's'} — {entry.reason}
+                    {dedup.data.clusters.map((cluster) => (
+                      <li
+                        key={cluster.primary_finding_id}
+                        className="text-[12.5px] leading-relaxed text-body"
+                      >
+                        <span className="font-mono text-[11.5px] text-muted">
+                          {cluster.file_path}
+                          {cluster.line_start != null ? `:${cluster.line_start}` : ''}
+                        </span>{' '}
+                        — {cluster.primary_title} kept against {cluster.size - 1} duplicate
+                        {cluster.size - 1 === 1 ? '' : 's'} from the same location.
                       </li>
                     ))}
                   </ul>

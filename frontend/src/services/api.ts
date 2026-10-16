@@ -595,13 +595,13 @@ export const onboardingService = {
 // ---------------------------------------------------------------- API tokens
 
 export const tokenService = {
-  list: async (): Promise<ApiToken[]> => (await api.get<ApiToken[]>('/api-tokens')).data,
+  list: async (): Promise<ApiToken[]> => (await api.get<ApiToken[]>('/tokens')).data,
 
   create: async (name: string): Promise<ApiTokenCreated> =>
-    (await api.post<ApiTokenCreated>('/api-tokens', { name })).data,
+    (await api.post<ApiTokenCreated>('/tokens', { name })).data,
 
   revoke: async (tokenId: string): Promise<void> => {
-    await api.delete(`/api-tokens/${tokenId}`);
+    await api.delete(`/tokens/${tokenId}`);
   },
 };
 
@@ -682,11 +682,11 @@ export const patchQualityService = {
 // ---------------------------------------------------------------- finding chat
 
 export const findingChatService = {
-  send: async (findingId: string, message: string, history: { role: string; content: string }[]): Promise<ChatResponse> =>
+  send: async (findingId: string, question: string, useLlm = false): Promise<ChatResponse> =>
     (
       await api.post<ChatResponse>(`/findings/${findingId}/chat`, {
-        message,
-        history,
+        question,
+        use_llm: useLlm,
       })
     ).data,
 };

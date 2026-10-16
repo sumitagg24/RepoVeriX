@@ -158,6 +158,22 @@ def analyze_impact(finding: Finding, graph: KnowledgeGraph | None) -> dict[str, 
         "regression test and the sandbox verifier before merging."
     )
 
+    # Structured reachability for the finding-detail UI: the same facts as the
+    # narrative above, in the exact shape the frontend renders (reachable flag,
+    # affected files, and the recorded call sites as a step list).
+    call_chain: list[dict[str, Any]] = []
+    if graph is not None:
+        for caller_q in callers:
+            caller_ref = graph.find_qualified(caller_q)
+            if caller_ref is not None:
+                call_chain.append(
+                    {
+                        "file": caller_ref.file_path,
+                        "symbol": caller_ref.name,
+                        "line": caller_ref.line_start,
+                    }
+                )
+
     return {
         "finding_id": str(finding.id),
         "summary": (
@@ -174,4 +190,8 @@ def analyze_impact(finding: Finding, graph: KnowledgeGraph | None) -> dict[str, 
         "fix_direction": fix_direction,
         "category": category,
         "severity": severity,
+        # Frontend contract aliases (kept alongside the narrative fields).
+        "reachable": entrypoint_reachable,
+        "affected_files": sorted(set(dependent_files)),
+        "call_chain": call_chain,
     }

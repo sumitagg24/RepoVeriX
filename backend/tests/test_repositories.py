@@ -26,6 +26,10 @@ class TestRepositories:
         assert data["source_type"] == "github"
         assert data["source_url"] == "https://github.com/user/my-repo"
         assert data["owner_id"] is not None
+        # Fresh repositories have no scans yet — zeroed aggregates.
+        assert data["scan_count"] == 0
+        assert data["finding_count"] == 0
+        assert data["last_scan_at"] is None
 
     @pytest.mark.asyncio
     async def test_create_repository_zip(self, client: AsyncClient, auth_headers):
@@ -58,6 +62,65 @@ class TestRepositories:
             },
         )
         assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_repository_without_scans_has_zero_aggregates(
+        self, client: AsyncClient, auth_headers, test_repository
+    ):
+        """A repository with no scans reports null/zero aggregates (UI shows 'Never scanned')."""
+        response = await client.get(f"/api/v1/repositories/{test_repository.id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["scan_count"] == 0
+        assert data["finding_count"] == 0
+        assert data["last_scan_at"] is None
+
+    @pytest.mark.asyncio
+    async def test_repository_scan_aggregates(
+        self, client: AsyncClient, auth_headers, db_session, test_repository, test_scan
+    ):
+        """List and detail carry last_scan_at / scan_count / finding_count."""
+        from datetime import UTC, datetime
+
+        from app.db.models import (
+            Finding,
+            FindingCategory,
+            FindingSource,
+            FindingStatus,
+            Severity,
+        )
+
+        finished = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+        test_scan.finished_at = finished
+        db_session.add(
+            Finding(
+                scan_id=test_scan.id,
+                external_id="RVX-REPO-AGG-1",
+                category=FindingCategory.security,
+                severity=Severity.high,
+                status=FindingStatus.verified,
+                confidence=0.9,
+                title="Aggregate finding",
+                description="desc",
+                file_path="src/app.py",
+                source=FindingSource.static,
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get(f"/api/v1/repositories/{test_repository.id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["scan_count"] == 1
+        assert data["finding_count"] == 1
+        assert data["last_scan_at"].startswith("2026-01-02T03:04:05")
+
+        listing = await client.get("/api/v1/repositories", headers=auth_headers)
+        assert listing.status_code == 200
+        row = next(r for r in listing.json() if r["id"] == str(test_repository.id))
+        assert row["scan_count"] == 1
+        assert row["finding_count"] == 1
+        assert row["last_scan_at"].startswith("2026-01-02T03:04:05")
 
     @pytest.mark.asyncio
     async def test_list_repositories(self, client: AsyncClient, auth_headers, test_repository):

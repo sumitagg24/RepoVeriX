@@ -41,6 +41,7 @@ export type VerificationStatus =
   | 'repair_failed'
   | 'repair_not_verified';
 export type PatchStatus = 'candidate' | 'applied' | 'verified' | 'failed' | 'not_verified';
+export type TestOutcome = 'passed' | 'failed' | 'error' | 'skipped';
 export type PlanName = 'free' | 'pro' | 'team';
 export type OrgRole = 'member' | 'admin' | 'owner';
 
@@ -255,13 +256,35 @@ export interface ScanCreate {
 export interface FindingSummary {
   scan_id: string;
   total: number;
+  by_category: Record<string, number>;
   by_severity: Record<string, number>;
   by_status: Record<string, number>;
 }
 
+export interface DedupClusterMember {
+  id: string;
+  title: string;
+  rule: string | null;
+  severity: string;
+  status: string;
+}
+
+export interface DedupCluster {
+  file_path: string;
+  line_start: number | null;
+  size: number;
+  primary_finding_id: string;
+  primary_title: string;
+  primary_severity: string;
+  members: DedupClusterMember[];
+}
+
 export interface DedupReport {
   scan_id: string;
-  duplicates: { kept: string; dropped: string[]; reason: string }[];
+  total_findings: number;
+  cluster_count: number;
+  duplicated_findings: number;
+  clusters: DedupCluster[];
 }
 
 export interface ReportShare {
@@ -492,23 +515,28 @@ export interface Patch extends Timestamped {
 
 export interface VerificationRun extends Timestamped {
   patch_id: string;
-  status: 'pending' | 'running' | 'passed' | 'failed' | 'error';
+  status: VerificationStatus;
+  patch_applied: boolean;
+  deps_installed: boolean;
+  tests_passed: boolean | null;
+  static_passed: boolean | null;
+  finding_still_detected: boolean | null;
+  logs: string | null;
   started_at: string | null;
   finished_at: string | null;
 }
 
-export interface VerificationCheck {
-  label: string;
-  passed: boolean;
-  detail: string | null;
+/** One test the sandbox executed while verifying a candidate repair. */
+export interface TestResult extends Timestamped {
+  verification_run_id: string;
+  test_name: string;
+  outcome: TestOutcome;
+  duration_ms: number | null;
+  output: string | null;
 }
 
 export interface VerificationRunDetail extends VerificationRun {
-  exit_code: number | null;
-  duration_seconds: number | null;
-  stdout: string | null;
-  stderr: string | null;
-  checks: VerificationCheck[];
+  test_results: TestResult[];
 }
 
 // -------------------------------------------------------------------- dashboard
@@ -741,11 +769,12 @@ export interface WebsiteAudit {
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
-  scores: Record<string, number> | null;
-  summary: Record<string, unknown> | null;
-  pages: Record<string, unknown>[] | null;
-  findings: Record<string, unknown>[] | null;
   created_at: string;
+  /** Detail-only payloads — present on the single-audit endpoint, absent in lists. */
+  scores?: Record<string, number> | null;
+  summary?: Record<string, unknown> | null;
+  pages?: Record<string, unknown>[] | null;
+  findings?: Record<string, unknown>[] | null;
 }
 
 // ------------------------------------------------------------ pull-request audits
@@ -814,12 +843,19 @@ export interface ArchitectureSmells {
 
 // ---------------------------------------------------------------- patch quality
 
+export interface PatchQualityBreakdown {
+  criterion: string;
+  points: number;
+  detail: string;
+}
+
 export interface PatchQuality {
-  patch_id: string;
-  diff_lines: number;
-  changed_files: number;
-  complexity_estimate: string;
-  notes: string[];
+  score: number;
+  grade: 'excellent' | 'good' | 'fair' | 'poor';
+  verified: boolean;
+  verification_status: string | null;
+  breakdown: PatchQualityBreakdown[];
+  stats: { files: string[]; added: number; removed: number };
 }
 
 // ---------------------------------------------------------------- finding chat
@@ -829,7 +865,19 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ChatSource {
+  kind: string;
+  file: string | null;
+  line_start?: number | null;
+}
+
 export interface ChatResponse {
-  message: string;
-  finding_id: string;
+  question: string;
+  intent: string;
+  intent_title: string;
+  answer: string;
+  sources: ChatSource[];
+  mode: 'deterministic' | 'llm';
+  model?: string | null;
+  usage?: Record<string, unknown>;
 }

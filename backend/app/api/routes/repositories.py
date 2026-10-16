@@ -3,17 +3,18 @@
 import logging
 import shutil
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.ingest import archive_path, repository_dir
 from app.api.dependencies import get_current_user, get_db, get_verified_user
 from app.core.config import get_settings
 from app.core.ratelimit import check_action, enforce
-from app.db.models import OAuthAccount, Repository, SourceType
+from app.db.models import Finding, OAuthAccount, Repository, Scan, SourceType
 from app.schemas.repository import (
     ArchiveImportRequest,
     OAuthImportRequest,
@@ -29,6 +30,46 @@ _ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06")
 _logger = logging.getLogger("repoverix.http")
 
 router = APIRouter(prefix="/repositories", tags=["repositories"])
+
+
+async def _scan_stats_by_repository(
+    db: AsyncSession, repository_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[datetime | None, int, int]]:
+    """Aggregate (last finished scan, scan count, finding count) per repository.
+
+    One grouped query covers a whole page — the list view never fans out one
+    aggregate request per repository.
+    """
+    if not repository_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(
+                Scan.repository_id,
+                func.max(Scan.finished_at),
+                func.count(func.distinct(Scan.id)),
+                func.count(Finding.id),
+            )
+            .outerjoin(Finding, Finding.scan_id == Scan.id)
+            .where(Scan.repository_id.in_(repository_ids))
+            .group_by(Scan.repository_id)
+        )
+    ).all()
+    return {row[0]: (row[1], row[2] or 0, row[3] or 0) for row in rows}
+
+
+def _with_scan_stats(
+    repository: Repository, stats: dict[uuid.UUID, tuple[datetime | None, int, int]]
+) -> RepositoryRead:
+    """Serialise a repository with its scan aggregates merged in."""
+    last_scan_at, scan_count, finding_count = stats.get(repository.id, (None, 0, 0))
+    return RepositoryRead.model_validate(repository).model_copy(
+        update={
+            "last_scan_at": last_scan_at,
+            "scan_count": scan_count,
+            "finding_count": finding_count,
+        }
+    )
 
 
 @router.post("", response_model=RepositoryRead, status_code=status.HTTP_201_CREATED)
@@ -162,7 +203,9 @@ async def list_repositories(
         .where(Repository.owner_id == current_user.id)
         .order_by(Repository.created_at.desc())
     )
-    return list(result.scalars().all())
+    repositories = list(result.scalars().all())
+    stats = await _scan_stats_by_repository(db, [repository.id for repository in repositories])
+    return [_with_scan_stats(repository, stats) for repository in repositories]
 
 
 @router.get("/{repository_id}", response_model=RepositoryRead)
@@ -181,7 +224,8 @@ async def get_repository(
     repository = result.scalar_one_or_none()
     if repository is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found")
-    return repository
+    stats = await _scan_stats_by_repository(db, [repository.id])
+    return _with_scan_stats(repository, stats)
 
 
 @router.delete("/{repository_id}", status_code=status.HTTP_204_NO_CONTENT)

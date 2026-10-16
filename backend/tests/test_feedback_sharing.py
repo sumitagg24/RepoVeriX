@@ -47,11 +47,11 @@ async def _seed_finding(db_session, test_scan) -> Finding:
     return finding
 
 
-async def _second_user(db_session) -> User:
+async def _second_user(db_session, email: str = "feedback-second@example.com") -> User:
     from app.core.security import hash_password
 
     user = User(
-        email="feedback-second@example.com",
+        email=email,
         hashed_password=hash_password("password123"),
         full_name="Second User",
         is_active=True,
@@ -128,7 +128,7 @@ async def test_feedback_summary_aggregates(client, db_session, test_user, test_s
     finding = await _seed_finding(db_session, test_scan)
     await client.post(
         f"{API}/findings/{finding.id}/feedback",
-        json={"verdict": "incorrect"},
+        json={"verdict": "incorrect", "note": "Guarded by the sanitizer above."},
         headers=auth_headers,
     )
     # A teammate's verdict (team members gain finding access via future
@@ -139,9 +139,58 @@ async def test_feedback_summary_aggregates(client, db_session, test_user, test_s
     resp = await client.get(f"{API}/findings/{finding.id}/feedback/summary", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
+    assert body["finding_id"] == str(finding.id)
     assert body["total"] == 2
     assert body["incorrect"] == 1 and body["correct"] == 1
     assert body["false_positive_share"] == 0.5
+    # UI contract: non-zero verdict tallies plus the latest non-empty note.
+    assert body["counts"] == {"correct": 1, "incorrect": 1}
+    assert body["last_note"] == "Guarded by the sanitizer above."
+
+
+async def test_feedback_summary_empty_defaults(client, db_session, test_scan, auth_headers):
+    """No feedback yet: the shape stays stable (counts {} / note null)."""
+    finding = await _seed_finding(db_session, test_scan)
+    resp = await client.get(f"{API}/findings/{finding.id}/feedback/summary", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["finding_id"] == str(finding.id)
+    assert body["total"] == 0
+    assert body["counts"] == {}
+    assert body["last_note"] is None
+    assert body["false_positive_share"] is None
+
+
+async def test_feedback_summary_last_note_is_most_recent(client, db_session, test_scan, auth_headers):
+    """The newest non-empty note wins; a note-less verdict never blanks it."""
+    from datetime import UTC, datetime, timedelta
+
+    finding = await _seed_finding(db_session, test_scan)
+    await client.post(
+        f"{API}/findings/{finding.id}/feedback",
+        json={"verdict": "correct", "note": "First note."},
+        headers=auth_headers,
+    )
+    now = datetime.now(UTC)
+    other = await _second_user(db_session)
+    later = FindingFeedback(
+        finding_id=finding.id,
+        user_id=other.id,
+        verdict="incorrect",
+        note="Later note.",
+    )
+    later.updated_at = now + timedelta(hours=1)
+    db_session.add(later)
+    third = await _second_user(db_session, email="feedback-third@example.com")
+    note_less = FindingFeedback(finding_id=finding.id, user_id=third.id, verdict="not_useful")
+    note_less.updated_at = now + timedelta(hours=2)
+    db_session.add(note_less)
+    await db_session.commit()
+    resp = await client.get(f"{API}/findings/{finding.id}/feedback/summary", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["last_note"] == "Later note."
+    assert "not_useful" in body["counts"]
 
 
 async def test_delete_withdraws_feedback(client, db_session, test_scan, auth_headers):
