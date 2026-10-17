@@ -85,6 +85,10 @@ services:
         sync: false
       - key: REPOVERIX_NVIDIA_API_KEY
         sync: false
+      # Operator accounts: comma-separated emails with every plan gate lifted
+      # (reported with the "admin" plan). Set in the dashboard.
+      - key: REPOVERIX_ADMIN_EMAILS
+        sync: false
       - key: REPOVERIX_TOKEN_ENCRYPTION_KEY
         sync: false
       - key: REPOVERIX_EMAIL_BACKEND

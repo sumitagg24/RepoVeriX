@@ -185,7 +185,11 @@ export default function SettingsPage() {
             <div className="px-5 py-5 sm:px-6">
               <DetailList className="border-t border-hairline">
                 <DetailRow label="Plan">
-                  <PlanBadge plan={user.plan} />
+                  {user.is_admin ? (
+                    <Badge tone="accent">Admin</Badge>
+                  ) : (
+                    <PlanBadge plan={user.plan} />
+                  )}
                 </DetailRow>
                 <DetailRow label="Email">
                   {user.email_verified ? (

@@ -145,6 +145,50 @@ def get_plan(plan: str | PlanName) -> PlanLimits:
     return limits
 
 
+# Operator plan: every feature, no practical quota. Chosen automatically for
+# accounts listed in ``REPOVERIX_ADMIN_EMAILS``; the stored plan column is
+# left untouched, so removing the email revokes the access on the next request.
+ADMIN_QUOTA = 1_000_000
+ADMIN_PLAN = PlanLimits(
+    name="admin",
+    display_name="Admin",
+    price_monthly=0,
+    max_repositories=ADMIN_QUOTA,
+    scans_per_month=ADMIN_QUOTA,
+    fixes_per_month=ADMIN_QUOTA,
+    verifications_per_month=ADMIN_QUOTA,
+    website_audits_per_month=ADMIN_QUOTA,
+    llm_enabled=True,
+    sandbox_enabled=True,
+    collaborators=ADMIN_QUOTA,
+    highlights=(
+        "Everything unlocked",
+        "No practical quotas",
+        "Operator access",
+    ),
+)
+
+
+def is_admin_email(email: str | None) -> bool:
+    """True when ``email`` is listed in ``REPOVERIX_ADMIN_EMAILS``."""
+    configured = (get_settings().admin_emails or "").split(",")
+    allowed = {value.strip().lower() for value in configured if value.strip()}
+    candidate = (email or "").strip().lower()
+    return bool(candidate) and candidate in allowed
+
+
+def is_admin(user) -> bool:
+    """True when the account holds operator (unrestricted) access."""
+    return is_admin_email(getattr(user, "email", None))
+
+
+def plan_for_user(user) -> PlanLimits:
+    """Effective limits for a user: operators get the unrestricted plan."""
+    if is_admin(user):
+        return ADMIN_PLAN
+    return get_plan(user.plan)
+
+
 def current_period(user) -> datetime:
     """The end of the user's current billing period (always in the future)."""
     period_end = _as_utc(user.current_period_end)
@@ -189,7 +233,7 @@ async def repo_count(db, user_id: uuid.UUID) -> int:
 async def assert_can_import_repository(db, user) -> None:
     """Block creating a repository when the plan's repository cap is reached."""
     await rollover_if_needed(db, user)
-    limits = get_plan(user.plan)
+    limits = plan_for_user(user)
     if await repo_count(db, user.id) >= limits.max_repositories:
         _raise_upgrade("repository-cap", limits)
 
@@ -197,7 +241,7 @@ async def assert_can_import_repository(db, user) -> None:
 async def assert_can_scan(db, user) -> None:
     """Block starting a scan when the monthly scan budget is exhausted."""
     await rollover_if_needed(db, user)
-    limits = get_plan(user.plan)
+    limits = plan_for_user(user)
     if user.scans_used >= limits.scans_per_month:
         _raise_upgrade("scan-quota", limits)
     user.scans_used += 1
@@ -206,7 +250,7 @@ async def assert_can_scan(db, user) -> None:
 
 async def assert_can_generate_fix(db, user) -> None:
     await rollover_if_needed(db, user)
-    limits = get_plan(user.plan)
+    limits = plan_for_user(user)
     if user.fixes_used >= limits.fixes_per_month:
         _raise_upgrade("fix-quota", limits)
     user.fixes_used += 1
@@ -215,7 +259,7 @@ async def assert_can_generate_fix(db, user) -> None:
 
 async def assert_can_verify(db, user) -> None:
     await rollover_if_needed(db, user)
-    limits = get_plan(user.plan)
+    limits = plan_for_user(user)
     if user.verifications_used >= limits.verifications_per_month:
         _raise_upgrade("verify-quota", limits)
     user.verifications_used += 1
@@ -225,7 +269,7 @@ async def assert_can_verify(db, user) -> None:
 async def assert_can_audit_website(db, user) -> None:
     """Block starting a website audit when the monthly budget is exhausted."""
     await rollover_if_needed(db, user)
-    limits = get_plan(user.plan)
+    limits = plan_for_user(user)
     if user.website_audits_used >= limits.website_audits_per_month:
         _raise_upgrade("website-audit-quota", limits)
     user.website_audits_used += 1
@@ -268,7 +312,7 @@ async def require_premium(db, user, feature: str) -> None:
     plans (the quotas above still apply per-feature).
     """
     await rollover_if_needed(db, user)
-    limits = get_plan(user.plan)
+    limits = plan_for_user(user)
     if limits.name != "free":
         return
     label = PREMIUM_FEATURES.get(feature, feature.replace("-", " ").title())
@@ -292,7 +336,7 @@ async def require_llm_scan_config(db, user, configuration) -> None:
     if configuration not in (ScanConfiguration.llm_only, ScanConfiguration.repoverix):
         return
     await rollover_if_needed(db, user)
-    if get_plan(user.plan).llm_enabled:
+    if plan_for_user(user).llm_enabled:
         return
     raise HTTPException(
         status_code=status.HTTP_402_PAYMENT_REQUIRED,

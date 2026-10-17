@@ -42,7 +42,7 @@ export type VerificationStatus =
   | 'repair_not_verified';
 export type PatchStatus = 'candidate' | 'applied' | 'verified' | 'failed' | 'not_verified';
 export type TestOutcome = 'passed' | 'failed' | 'error' | 'skipped';
-export type PlanName = 'free' | 'pro' | 'team';
+export type PlanName = 'free' | 'pro' | 'team' | 'admin';
 export type OrgRole = 'member' | 'admin' | 'owner';
 
 /**
@@ -78,6 +78,8 @@ export interface User {
   email_verified: boolean;
   email_verified_at: string | null;
   plan: PlanName;
+  /** Computed from REPOVERIX_ADMIN_EMAILS — never stored. */
+  is_admin?: boolean;
   role?: OrgRole | null;
   organization_id?: string | null;
   created_at: string;
@@ -591,6 +593,8 @@ export interface BillingOverview {
   plan: PlanInfo;
   /** True when billing runs without a payment provider configured. */
   demo_mode: boolean;
+  /** True when the account holds operator (unrestricted) access. */
+  admin?: boolean;
   subscription: BillingSubscription;
   usage: BillingUsage;
   limits?: PlanLimits;

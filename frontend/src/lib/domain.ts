@@ -348,6 +348,7 @@ export const PLAN_LABEL: Record<PlanName, string> = {
   free: 'Free',
   pro: 'Pro',
   team: 'Team',
+  admin: 'Admin',
 };
 
 /**
@@ -441,6 +442,24 @@ export const PLAN_CATALOG: Record<PlanName, PlanFacts> = {
       'Team dashboard and security center',
       'Everything in Pro',
     ],
+  },
+  // Operator plan (REPOVERIX_ADMIN_EMAILS on the backend). Never listed on the
+  // public pricing page — PLAN_ORDER, which drives those lists, excludes it.
+  admin: {
+    name: 'admin',
+    displayName: 'Admin',
+    priceMonthly: 0,
+    blurb: 'Operator access: every feature unlocked, no practical quotas.',
+    limits: {
+      maxRepositories: 1000000,
+      scansPerMonth: 1000000,
+      fixesPerMonth: 1000000,
+      verificationsPerMonth: 1000000,
+      collaborators: 1000000,
+      llmEnabled: true,
+      sandboxEnabled: true,
+    },
+    highlights: ['Every feature unlocked', 'No practical quotas', 'Operator access'],
   },
 };
 

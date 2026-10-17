@@ -278,7 +278,7 @@ export function FindingStatusBadge({ status, className }: { status: string; clas
 }
 
 export function PlanBadge({ plan, className }: { plan: string; className?: string }) {
-  const labels: Record<string, string> = { free: 'Free', pro: 'Pro', team: 'Team' };
+  const labels: Record<string, string> = { free: 'Free', pro: 'Pro', team: 'Team', admin: 'Admin' };
   const tone: Tone = plan === 'free' ? 'neutral' : 'accent';
   return (
     <Badge tone={tone} className={className}>

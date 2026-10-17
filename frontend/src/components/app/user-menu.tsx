@@ -7,7 +7,7 @@ import { CreditCard, KeyRound, LifeBuoy, LogOut, Plug, Settings } from 'lucide-r
 import { toast } from 'sonner';
 
 import { Avatar } from '@/components/ui/misc';
-import { PlanBadge } from '@/components/ui/badge';
+import { Badge, PlanBadge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +51,11 @@ export function UserMenu() {
           <p className="truncate text-[13.5px] font-medium text-ink">{user.full_name}</p>
           <p className="truncate text-[12px] text-muted">{user.email}</p>
           <div className="mt-2 flex items-center gap-2">
-            <PlanBadge plan={user.plan} />
+            {user.is_admin ? (
+              <Badge tone="accent">Admin</Badge>
+            ) : (
+              <PlanBadge plan={user.plan} />
+            )}
             {user.email_verified === false ? (
               <span className="text-[11.5px] text-high">Email not verified</span>
             ) : null}

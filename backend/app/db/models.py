@@ -259,6 +259,18 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="user", cascade="all, delete-orphan"
     )
 
+    @property
+    def is_admin(self) -> bool:
+        """True when the account's email holds operator access.
+
+        Computed from ``REPOVERIX_ADMIN_EMAILS`` on every read — never stored,
+        so removing an email from the setting revokes access immediately.
+        Surfaced on auth responses via ``UserRead`` for the Admin badge.
+        """
+        from app.services.billing import is_admin_email
+
+        return is_admin_email(self.email)
+
 
 class OAuthAccount(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A user's connected third-party account (Google/GitHub/GitLab).

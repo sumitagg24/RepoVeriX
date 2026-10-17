@@ -109,6 +109,13 @@ export default function BillingPage() {
             </Callout>
           ) : null}
 
+          {billing.data.admin ? (
+            <Callout tone="info" title="Operator access">
+              This account holds unrestricted access: every plan limit is lifted and all tools are
+              available, whatever plan is shown below.
+            </Callout>
+          ) : null}
+
           <Panel>
             <PanelHeader
               title="Current plan"
@@ -179,7 +186,8 @@ export default function BillingPage() {
               {PLAN_ORDER.map((name) => {
                 const facts = PLANS[name];
                 const current = name === plan.name;
-                const upgrade = PLAN_ORDER.indexOf(name) > PLAN_ORDER.indexOf(plan.name);
+                const upgrade =
+                  plan.name !== 'admin' && PLAN_ORDER.indexOf(name) > PLAN_ORDER.indexOf(plan.name);
                 return (
                   <Panel key={name} className={current ? 'border-accent-line' : undefined}>
                     <div className="flex flex-col gap-4 p-5">
@@ -225,6 +233,10 @@ export default function BillingPage() {
                         {current ? (
                           <Button size="sm" variant="secondary" disabled className="w-full justify-center">
                             Your current plan
+                          </Button>
+                        ) : plan.name === 'admin' ? (
+                          <Button size="sm" variant="secondary" disabled className="w-full justify-center">
+                            Included with Admin access
                           </Button>
                         ) : (
                           <Button

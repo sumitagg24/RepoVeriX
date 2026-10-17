@@ -44,6 +44,9 @@ class UserRead(TimestampedORMModel):
     is_active: bool
     plan: PlanName
     email_verified: bool = True
+    # Computed from ``REPOVERIX_ADMIN_EMAILS`` (never stored): the interface
+    # shows an Admin badge and the billing endpoint reports the admin plan.
+    is_admin: bool = False
 
 
 class ProfileUpdateRequest(BaseModel):

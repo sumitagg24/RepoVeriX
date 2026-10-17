@@ -224,6 +224,13 @@ linking to the billing page. Prices/limits live in
 `backend/app/services/billing.py` — change them there if you want to sell at
 different numbers, and mirror the prices on the landing page.
 
+**Operator access:** set `REPOVERIX_ADMIN_EMAILS` to a comma-separated list of
+account emails (for example the deployment owner's). Those accounts bypass
+every gate — quotas, premium tools and LLM-only scan configurations — without
+changing any stored plan, are reported with the `admin` plan on the billing
+endpoint, and see an Admin badge in the interface. The grant is computed on
+every request, so removing an email from the setting revokes it immediately.
+
 ---
 
 ## 6. Docker (needed for verification + sandboxed test runs)

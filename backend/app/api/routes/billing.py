@@ -41,10 +41,15 @@ async def billing_overview(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the user's plan, entitlements and current-period usage."""
+    """Return the user's plan, entitlements and current-period usage.
+
+    Operators listed in ``REPOVERIX_ADMIN_EMAILS`` are reported with the
+    ``admin`` plan: every feature enabled and no practical quotas, regardless
+    of the stored plan.
+    """
     await billing_service.rollover_if_needed(db, current_user)
 
-    plan = billing_service.get_plan(current_user.plan)
+    plan = billing_service.plan_for_user(current_user)
     repositories = await billing_service.repo_count(db, current_user.id)
 
     return {
@@ -78,6 +83,7 @@ async def billing_overview(
             else None,
         },
         "demo_mode": get_settings().billing_demo_mode,
+        "admin": billing_service.is_admin(current_user),
     }
 
 

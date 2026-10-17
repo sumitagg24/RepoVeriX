@@ -225,6 +225,11 @@ class Settings(BaseSettings):
     # Enforce plan entitlements (402 when a quota is exhausted). Tests and
     # local dev often disable this; production deployments enable it.
     billing_enforce: bool = True
+    # Operator accounts with unrestricted access, comma-separated emails.
+    # Listed accounts bypass every quota and premium gate and are reported
+    # with the "admin" plan on the billing endpoint. Keep it in the
+    # deployment env (never hardcode personal emails in the repo).
+    admin_emails: str = ""
     # Demo mode: checkout & billing pages simulate success without Dodo
     # Payments credentials (enables trying the full paid flow locally).
     billing_demo_mode: bool = True

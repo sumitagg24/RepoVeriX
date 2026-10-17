@@ -9,8 +9,11 @@
  *
  * Prices are integers in US cents, exactly as the API reports them.
  */
+/** Plans offered publicly; the `admin` operator plan is deliberately excluded. */
+export type PublicPlanName = 'free' | 'pro' | 'team';
+
 export interface PlanFacts {
-  name: 'free' | 'pro' | 'team';
+  name: PublicPlanName | 'admin';
   displayName: string;
   priceMonthly: number;
   audience: string;
@@ -26,7 +29,7 @@ export interface PlanFacts {
   recommended?: boolean;
 }
 
-export const PLAN_ORDER: PlanFacts['name'][] = ['free', 'pro', 'team'];
+export const PLAN_ORDER: PublicPlanName[] = ['free', 'pro', 'team'];
 
 export const PLANS: Record<PlanFacts['name'], PlanFacts> = {
   free: {
@@ -72,6 +75,25 @@ export const PLANS: Record<PlanFacts['name'], PlanFacts> = {
     llmEnabled: true,
     sandboxEnabled: true,
   },
+  /**
+   * Operator plan (REPOVERIX_ADMIN_EMAILS on the backend). Deliberately not a
+   * member of PLAN_ORDER, so it never appears on the public pricing page or in
+   * the plan-comparison grid.
+   */
+  admin: {
+    name: 'admin',
+    displayName: 'Admin',
+    priceMonthly: 0,
+    audience: 'Deployment operator: every feature unlocked, no practical quotas.',
+    maxRepositories: 1000000,
+    scansPerMonth: 1000000,
+    fixesPerMonth: 1000000,
+    verificationsPerMonth: 1000000,
+    websiteAuditsPerMonth: 1000000,
+    collaborators: 1000000,
+    llmEnabled: true,
+    sandboxEnabled: true,
+  },
 };
 
 export function formatPrice(cents: number): string {
@@ -109,7 +131,7 @@ export const LIMIT_GROUPS = [
     rows: [
       { label: 'Evidence and findings', value: () => 'Unlimited on every plan' },
       { label: 'Exports', value: (plan: PlanFacts) => (plan.name === 'free' ? 'JSON and SARIF' : 'JSON, SARIF and Markdown') },
-      { label: 'Audit history', value: (plan: PlanFacts) => (plan.name === 'team' ? 'Included' : 'Not included') },
+      { label: 'Audit history', value: (plan: PlanFacts) => (plan.name === 'team' || plan.name === 'admin' ? 'Included' : 'Not included') },
     ],
   },
 ] as const;
