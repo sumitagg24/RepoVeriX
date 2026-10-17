@@ -16,10 +16,20 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Same fallback order as `next.config.mjs`: an explicit origin wins, and a
+ * production deploy without one defaults to the canonical backend instead of
+ * localhost (which would make every proxied request fail).
+ */
+const DEFAULT_API_ORIGIN =
+  process.env.VERCEL_ENV === 'production'
+    ? 'https://repoverix.onrender.com'
+    : 'http://localhost:8000';
+
 const API_ORIGIN = (
   process.env.NEXT_PUBLIC_API_ORIGIN ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8000'
+  DEFAULT_API_ORIGIN
 ).replace(/\/$/, '');
 
 /** Headers worth forwarding. Anything absent here is dropped. */

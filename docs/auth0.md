@@ -67,11 +67,11 @@ credentials are set the **Auth0** button appears on `/auth/sign-in` and
 4. The frontend `/auth/oauth/callback` adopts the token and navigates to
    `next`.
 
-## Social buttons (Google, GitHub, GitLab)
+## Social buttons (Google, GitHub)
 
 When the tenant is configured, the sign-in page renders the generic **Auth0**
 button (full Auth0 login page: database connection + every enabled social
-connection) *plus* one button per federated provider — Google, GitHub, GitLab —
+connection) *plus* one button per federated provider — Google, GitHub —
 that deep-links into the tenant:
 
 ```
@@ -87,7 +87,11 @@ provider. The button/connection mapping lives in `AUTH0_CONNECTIONS` in
 | -------- | --------------------- |
 | Google   | `google-oauth2`       |
 | GitHub   | `github`              |
-| GitLab   | `gitlab`              |
+
+A button renders only for providers that can actually sign in: add a row here
+(and enable the matching connection for the app in Auth0) to surface another
+provider. GitLab, for example, gets its button the moment its tenant
+connection exists.
 
 A button only renders when the Auth0 credentials are configured; if a provider
 is also configured for *direct* OAuth (its own `REPOVERIX_<PROVIDER>_OAUTH_*`

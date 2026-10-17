@@ -1,9 +1,24 @@
 /** @type {import('next').NextConfig} */
 
-const API_ORIGIN = (process.env.NEXT_PUBLIC_API_ORIGIN || 'http://localhost:8000').replace(
-  /\/$/,
-  '',
-);
+/**
+ * Production builds must never fall back to localhost.
+ *
+ * A bundle that points at http://localhost:8000 ships a site whose proxy
+ * cannot reach the API at all — every request 502s and pages render without
+ * any live data. When no explicit origin is configured, production therefore
+ * defaults to the canonical deployed backend; `NEXT_PUBLIC_API_ORIGIN` /
+ * `NEXT_PUBLIC_API_URL` still win whenever they are set.
+ */
+const DEFAULT_API_ORIGIN =
+  process.env.VERCEL_ENV === 'production'
+    ? 'https://repoverix.onrender.com'
+    : 'http://localhost:8000';
+
+const API_ORIGIN = (
+  process.env.NEXT_PUBLIC_API_ORIGIN ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  DEFAULT_API_ORIGIN
+).replace(/\/$/, '');
 
 /**
  * The browser only ever talks to its own origin.

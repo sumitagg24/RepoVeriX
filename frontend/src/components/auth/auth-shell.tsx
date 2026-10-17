@@ -213,7 +213,6 @@ const AUTH0_CONNECTIONS: Array<{
 }> = [
   { provider: 'google', label: 'Google', connection: 'google-oauth2' },
   { provider: 'github', label: 'GitHub', connection: 'github' },
-  { provider: 'gitlab', label: 'GitLab', connection: 'gitlab' },
 ];
 
 export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {

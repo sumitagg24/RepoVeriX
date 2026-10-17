@@ -240,16 +240,22 @@ default branch isn't `main`.
 
 ## 8. Frontend → backend URL
 
-The Next.js app talks to the API through one build-time variable:
+The Next.js app reaches the API through build-time variables
+(`NEXT_PUBLIC_API_ORIGIN` is canonical; `NEXT_PUBLIC_API_URL` is still
+honoured — an explicit value always wins):
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000   # dev; NO /api/v1 suffix — the app appends it
+NEXT_PUBLIC_API_ORIGIN=http://localhost:8000   # dev; NO /api/v1 suffix — the app appends it
 ```
 
 In production set it to the public backend origin (e.g.
-`https://api.repoverix.example.com`). Because it is baked in at build time,
-rebuild the frontend image when you change it. CORS on the backend must list
-the frontend origin: `REPOVERIX_CORS_ORIGINS=["https://repoverix.example.com"]`
+`https://repoverix.onrender.com`). The browser calls `/api/v1/*` on its own
+origin and a Next.js route handler proxies to this value, so the backend needs
+no CORS change for the frontend. Because it is baked in at build time, rebuild
+the frontend when you change it. A production build with neither variable set
+falls back to `https://repoverix.onrender.com` — never localhost, so a
+forgotten variable cannot ship a site whose every request fails. CORS on the
+backend must list the frontend origin: `REPOVERIX_CORS_ORIGINS=["https://repoverix.example.com"]`
 (defaults allow `localhost:3000` and `127.0.0.1:3000`).
 
 ---
@@ -296,7 +302,7 @@ installed, open ports 80/443.
 - [ ] OAuth clients registered and redirect URIs added (Google for sign-in; GitHub/GitLab for private imports)
 - [ ] `REPOVERIX_FRONTEND_URL` matches the public frontend origin
 - [ ] Docker daemon reachable from the backend; `python:3.12-slim` pull works
-- [ ] `NEXT_PUBLIC_API_URL` = public backend origin; frontend rebuilt
+- [ ] `NEXT_PUBLIC_API_ORIGIN` (or `NEXT_PUBLIC_API_URL`) = public backend origin; frontend rebuilt
 - [ ] `REPOVERIX_CORS_ORIGINS` includes the real frontend origin
 - [ ] Backend `git` installed and egress to github.com allowed (for git imports)
 - [ ] Billing: demo mode OFF in production; Dodo API key, webhook secret and both product IDs set (§5)
