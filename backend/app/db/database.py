@@ -148,9 +148,20 @@ async def _ensure_column(conn, table: str, column: str, column_ddl: str) -> None
     ``create_all`` only creates missing tables; databases created before the
     OAuth feature need ``oauth_account_id`` added in place. The statement is a
     no-op when the column already exists.
+
+    Every ALTER runs inside a SAVEPOINT. On PostgreSQL a failed statement
+    aborts the *whole* transaction (every later statement then fails with
+    "current transaction is aborted, commands ignored until end of transaction
+    block") — swallowing the Python exception alone is not enough. The
+    savepoint confines the duplicate-column error to this statement, matching
+    SQLite's statement-level rollback behaviour. Without it, a fresh
+    PostgreSQL/Neon database cannot boot: ``create_all`` already creates these
+    columns, so every ALTER fails and poisons the transaction before the
+    remaining DDL runs.
     """
     try:
-        await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_ddl}"))
+        async with conn.begin_nested():
+            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_ddl}"))
     except Exception:
         # duplicate-column (SQLite) / already-exists (PostgreSQL) — column present
         pass
