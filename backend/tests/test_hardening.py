@@ -94,9 +94,7 @@ class TestDatabaseUrlNormalisation:
         assert settings.database_url == "postgresql+asyncpg://u:p@db.example.com:5432/repoverix"
 
     def test_postgresql_scheme_is_upgraded_and_query_kept(self):
-        settings = _settings(
-            database_url="postgresql://u:p@host/db?sslmode=require&channel_binding=require"
-        )
+        settings = _settings(database_url="postgresql://u:p@host/db?sslmode=require&channel_binding=require")
         assert settings.database_url == (
             "postgresql+asyncpg://u:p@host/db?sslmode=require&channel_binding=require"
         )
