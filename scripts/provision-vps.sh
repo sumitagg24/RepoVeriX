@@ -47,6 +47,10 @@ if [[ ! -f .env ]]; then
 fi
 rsync -avz -e "ssh ${SSH_OPTS[*]}" .env "$REPOVERIX_VPS_USER@$REPOVERIX_VPS_HOST:/opt/repoverix/.env"
 
+# Caddy terminates TLS for API_DOMAIN (set in .env); reuse it for the smoke test.
+API_DOMAIN="${API_DOMAIN:-$(grep -E '^API_DOMAIN=' .env | head -n1 | cut -d= -f2- | tr -d '\r')}"
+: "${API_DOMAIN:?set API_DOMAIN in .env (e.g. api.example.com)}"
+
 echo "==> [3/4] Starting stack"
 "${SSH_CMD[@]}" "cd /opt/repoverix && docker compose -f docker-compose.vps.yml pull && \
   docker compose -f docker-compose.vps.yml up -d --remove-orphans && \
