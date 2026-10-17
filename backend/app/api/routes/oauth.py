@@ -15,6 +15,7 @@ Authenticated callers can then list importable repositories with
 """
 
 import logging
+import re
 import secrets
 from datetime import UTC, datetime
 from typing import Literal
@@ -46,6 +47,11 @@ Provider = Literal[
 _logger = logging.getLogger("repoverix.http")
 
 _STATE_COOKIE = "rvx_oauth_state"
+
+# Auth0 connection names (google-oauth2, github, windowslive, …). Only the
+# character set Auth0 allows is accepted; the value is appended to the tenant
+# authorize URL, never interpreted locally.
+_CONNECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,60}$")
 
 
 def _sanitize_next_path(path: str | None) -> str:
@@ -87,10 +93,22 @@ async def oauth_providers() -> dict:
 
 
 @router.get("/{provider}/login")
-async def oauth_login(provider: str, request: Request, next: str = "/dashboard"):
-    """Start the browser OAuth flow for the given provider with PKCE and state protection."""
+async def oauth_login(
+    provider: str,
+    request: Request,
+    next: str = "/dashboard",
+    connection: str | None = None,
+):
+    """Start the browser OAuth flow for the given provider with PKCE and state protection.
+
+    ``connection`` is an Auth0 connection name (e.g. ``google-oauth2``); it is
+    forwarded to the tenant authorize URL so the sign-in page's Google/GitHub
+    buttons skip the Auth0 connection picker. Ignored by every other provider.
+    """
     if provider not in oauth_service.PROVIDER_SPECS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown OAuth provider")
+    if connection is not None and not _CONNECTION_NAME_RE.fullmatch(connection):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid connection name")
     if oauth_service.provider_credentials(provider) is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -106,6 +124,7 @@ async def oauth_login(provider: str, request: Request, next: str = "/dashboard")
         state,
         _redirect_uri(request, provider),
         code_challenge=pkce_challenge,
+        connection=connection,
     )
     cookie_value = f"{state}:{pkce_verifier}:{safe_next}"
     response = RedirectResponse(url=authorize_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)

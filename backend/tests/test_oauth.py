@@ -318,3 +318,32 @@ async def test_auth0_profile_normalization():
         "email": "user@example.com",
         "name": "Example User",
     }
+
+
+def test_auth0_authorize_url_forwards_connection():
+    """The sign-in page's Google/GitHub buttons deep-link into a tenant connection."""
+    settings = Settings(
+        auth0_domain="tenant.auth0.com",
+        auth0_oauth_client_id="a0-id",
+        auth0_oauth_client_secret="a0-secret",
+    )
+    url = oauth_service.build_authorize_url(
+        "auth0", "st-1", "http://test/cb", settings, connection="google-oauth2"
+    )
+    assert "connection=google-oauth2" in url
+    assert "state=st-1" in url
+
+
+def test_non_auth0_authorize_url_ignores_connection():
+    """``connection`` is Auth0-only — other providers must never receive it."""
+    settings = Settings(github_oauth_client_id="gh-id", github_oauth_client_secret="gh-sec")
+    url = oauth_service.build_authorize_url(
+        "github", "st-1", "http://test/cb", settings, connection="google-oauth2"
+    )
+    assert "connection=" not in url
+
+
+async def test_auth0_login_rejects_malformed_connection(client):
+    """Only Auth0's connection-name character set reaches the authorize URL."""
+    resp = await client.get("/api/v1/auth/oauth/auth0/login", params={"connection": "bad name!"})
+    assert resp.status_code == 400

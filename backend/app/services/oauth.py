@@ -186,6 +186,7 @@ def build_authorize_url(
     settings: Settings | None = None,
     *,
     code_challenge: str | None = None,
+    connection: str | None = None,
 ) -> str:
     """Build the provider authorization URL for the browser redirect."""
     spec = get_provider_spec(provider, settings)
@@ -202,6 +203,11 @@ def build_authorize_url(
     if code_challenge:
         params["code_challenge"] = code_challenge
         params["code_challenge_method"] = "S256"
+    # Auth0 (and only Auth0) supports deep-linking to a specific connection,
+    # which backs the Google/GitHub/... buttons on the sign-in page: they skip
+    # the Auth0 connection picker while still federating through the tenant.
+    if connection and provider == "auth0":
+        params["connection"] = connection
     return f"{spec.authorize_url}?{urlencode(params)}"
 
 

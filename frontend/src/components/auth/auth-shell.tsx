@@ -186,31 +186,67 @@ export function AuthError({ message, className }: { message: React.ReactNode; cl
  * that cannot sign in is never shown — a disabled GitHub button on a deployment
  * without a GitHub app would be a lie the interface cannot afford.
  */
+
+// Deterministic display order regardless of what the backend sends back.
+const PROVIDER_ORDER: OAuthProviderName[] = [
+  'github',
+  'gitlab',
+  'google',
+  'microsoft',
+  'bitbucket',
+  'auth0',
+  'oracle',
+];
+
+/**
+ * Providers offered through the Auth0 tenant.
+ *
+ * Auth0 deep-links straight to a named connection (`connection=…`), so each
+ * social button federates through the tenant while skipping Auth0's connection
+ * picker. The names are Auth0's defaults for each strategy — if a connection
+ * is renamed in the Auth0 dashboard, update it here to match.
+ */
+const AUTH0_CONNECTIONS: Array<{
+  provider: OAuthProviderName;
+  label: string;
+  connection: string;
+}> = [
+  { provider: 'google', label: 'Google', connection: 'google-oauth2' },
+  { provider: 'github', label: 'GitHub', connection: 'github' },
+  { provider: 'gitlab', label: 'GitLab', connection: 'gitlab' },
+];
+
 export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
   const providers = useOAuthProviders();
-  const [pending, setPending] = React.useState<OAuthProviderName | null>(null);
+  const [pending, setPending] = React.useState<string | null>(null);
 
-  // Deterministic display order regardless of what the backend sends back.
-  const ORDER: OAuthProviderName[] = [
-    'github',
-    'gitlab',
-    'google',
-    'microsoft',
-    'bitbucket',
-    'oracle',
-  ];
-
-  const available = React.useMemo(() => {
+  const configured = React.useMemo(() => {
     const data = providers.data;
-    if (!data) return [];
-    const configured = (Object.entries(data) as [OAuthProviderName, { configured: boolean; supports_signin: boolean }][])
+    if (!data) return [] as OAuthProviderName[];
+    return (
+      Object.entries(data) as [OAuthProviderName, { configured: boolean; supports_signin: boolean }][]
+    )
       .filter(([, info]) => info.configured && info.supports_signin)
       .map(([name]) => name);
-    return ORDER.filter((p) => configured.includes(p));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers.data]);
 
-  if (providers.isLoading || available.length === 0) return null;
+  const available = React.useMemo(
+    () => PROVIDER_ORDER.filter((p) => configured.includes(p)),
+    [configured]
+  );
+
+  // Auth0-mediated social buttons: shown when the tenant is configured, and
+  // skipped for providers also configured for direct OAuth so the same
+  // provider never renders twice.
+  const auth0Buttons = React.useMemo(
+    () =>
+      configured.includes('auth0')
+        ? AUTH0_CONNECTIONS.filter((c) => !configured.includes(c.provider))
+        : [],
+    [configured]
+  );
+
+  if (providers.isLoading || (available.length === 0 && auth0Buttons.length === 0)) return null;
 
   const label: Record<OAuthProviderName, string> = {
     github: 'GitHub',
@@ -251,6 +287,24 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
         <span className="h-px flex-1 bg-hairline" />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
+        {auth0Buttons.map(({ provider, connection }) => (
+          <Button
+            key={`auth0:${connection}`}
+            variant="secondary"
+            size="md"
+            className="flex-1 min-w-[120px]"
+            loading={pending === `auth0:${connection}`}
+            onClick={() => {
+              setPending(`auth0:${connection}`);
+              // Federates through the Auth0 tenant but skips its connection
+              // picker by deep-linking straight to the named connection.
+              window.location.href = oauthService.loginUrl('auth0', next, { connection });
+            }}
+          >
+            <ProviderIcon provider={provider} />
+            {label[provider]}
+          </Button>
+        ))}
         {available.map((provider) => (
           <Button
             key={provider}

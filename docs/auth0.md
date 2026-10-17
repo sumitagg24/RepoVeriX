@@ -27,7 +27,9 @@ configure Auth0 on both sides and where each value lands.
 
 4. Under **Connections**, enable the identity sources you want your users to be
    able to sign in with (Username-Password-Authentication, Google, GitHub, etc.).
-   Auth0 then federates those back into RepoVeriX.
+   Auth0 then federates those back into RepoVeriX. Keep Auth0's default
+   connection names (`google-oauth2`, `github`, `gitlab`, …) so the sign-in
+   page's social buttons can deep-link to them (see below).
 
 ## Backend configuration
 
@@ -64,6 +66,33 @@ credentials are set the **Auth0** button appears on `/auth/sign-in` and
      token in the URL query.
 4. The frontend `/auth/oauth/callback` adopts the token and navigates to
    `next`.
+
+## Social buttons (Google, GitHub, GitLab)
+
+When the tenant is configured, the sign-in page renders the generic **Auth0**
+button (full Auth0 login page: database connection + every enabled social
+connection) *plus* one button per federated provider — Google, GitHub, GitLab —
+that deep-links into the tenant:
+
+```
+GET /api/v1/auth/oauth/auth0/login?next=/dashboard&connection=google-oauth2
+```
+
+The `connection` parameter (Auth0-only, validated against Auth0's connection
+name charset) makes Auth0 skip its connection picker and go straight to that
+provider. The button/connection mapping lives in `AUTH0_CONNECTIONS` in
+`frontend/src/components/auth/auth-shell.tsx`:
+
+| Button   | Auth0 connection name |
+| -------- | --------------------- |
+| Google   | `google-oauth2`       |
+| GitHub   | `github`              |
+| GitLab   | `gitlab`              |
+
+A button only renders when the Auth0 credentials are configured; if a provider
+is also configured for *direct* OAuth (its own `REPOVERIX_<PROVIDER>_OAUTH_*`
+credentials), the direct button wins and the Auth0 one is skipped so a provider
+never appears twice.
 
 ## Verification
 
