@@ -16,7 +16,10 @@ COPY package.json package-lock.json* ./
 
 # npm ci is safe here: the lockfile pins the Linux/musl lightningcss binaries
 # (declared as optionalDependencies in package.json).
-RUN npm ci --legacy-peer-deps
+# --include=dev: NODE_ENV=production above would otherwise skip devDependencies
+# (tailwind/postcss), which `next build` needs. The runner stage stays
+# production-only.
+RUN npm ci --legacy-peer-deps --include=dev
 
 COPY . .
 

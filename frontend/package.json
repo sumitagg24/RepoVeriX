@@ -67,6 +67,8 @@
     "@next/swc-linux-arm64-musl": "^14.2.33",
     "@next/swc-linux-x64-gnu": "^14.2.33",
     "@next/swc-linux-x64-musl": "^14.2.33",
+    "@next/swc-win32-arm64-msvc": "^14.2.33",
+    "@next/swc-win32-ia32-msvc": "^14.2.33",
     "@next/swc-win32-x64-msvc": "^14.2.33",
     "@tailwindcss/oxide-darwin-arm64": "^4.3.3",
     "@tailwindcss/oxide-darwin-x64": "^4.3.3",
