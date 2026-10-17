@@ -254,7 +254,10 @@ origin and a Next.js route handler proxies to this value, so the backend needs
 no CORS change for the frontend. Because it is baked in at build time, rebuild
 the frontend when you change it. A production build with neither variable set
 falls back to `https://repoverix.onrender.com` — never localhost, so a
-forgotten variable cannot ship a site whose every request fails. CORS on the
+forgotten variable cannot ship a site whose every request fails. Example
+values copied from the templates (`api.repoverix.com`, `api.yourdomain.com`,
+`*.example.com`) are ignored on purpose — they break every request and must
+never be used as-is. CORS on the
 backend must list the frontend origin: `REPOVERIX_CORS_ORIGINS=["https://repoverix.example.com"]`
 (defaults allow `localhost:3000` and `127.0.0.1:3000`).
 

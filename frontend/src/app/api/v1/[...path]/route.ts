@@ -19,18 +19,35 @@ export const dynamic = 'force-dynamic';
 /**
  * Same fallback order as `next.config.mjs`: an explicit origin wins, and a
  * production deploy without one defaults to the canonical backend instead of
- * localhost (which would make every proxied request fail).
+ * localhost (which would make every proxied request fail). Placeholder values
+ * copied from the template files are ignored — keep the guard in sync with
+ * `next.config.mjs` and `src/services/api.ts`.
  */
 const DEFAULT_API_ORIGIN =
   process.env.VERCEL_ENV === 'production'
     ? 'https://repoverix.onrender.com'
     : 'http://localhost:8000';
 
-const API_ORIGIN = (
-  process.env.NEXT_PUBLIC_API_ORIGIN ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  DEFAULT_API_ORIGIN
-).replace(/\/$/, '');
+const PLACEHOLDER_ORIGIN_HOSTS = ['api.repoverix.com', 'api.yourdomain.com', 'api.your-domain.com'];
+function isPlaceholderOrigin(origin: string): boolean {
+  if (!origin) return false;
+  try {
+    const host = new URL(origin).hostname;
+    return (
+      PLACEHOLDER_ORIGIN_HOSTS.includes(host) ||
+      host === 'example.com' ||
+      host.endsWith('.example.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
+const configuredOrigin = [process.env.NEXT_PUBLIC_API_ORIGIN, process.env.NEXT_PUBLIC_API_URL].find(
+  (value) => value && !isPlaceholderOrigin(value),
+);
+
+const API_ORIGIN = (configuredOrigin || DEFAULT_API_ORIGIN).replace(/\/$/, '');
 
 /** Headers worth forwarding. Anything absent here is dropped. */
 const FORWARD_REQUEST_HEADERS = [

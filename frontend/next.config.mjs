@@ -14,11 +14,36 @@ const DEFAULT_API_ORIGIN =
     ? 'https://repoverix.onrender.com'
     : 'http://localhost:8000';
 
-const API_ORIGIN = (
-  process.env.NEXT_PUBLIC_API_ORIGIN ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  DEFAULT_API_ORIGIN
-).replace(/\/$/, '');
+/**
+ * Placeholder origins must never be used: they are copied verbatim from the
+ * template files (`.env.prod.example`, `docs/DEPLOYMENT_GUIDE.md`) and
+ * silently break every request — `api.repoverix.com`, for example, does not
+ * even resolve. Keep in sync with `src/app/api/v1/[...path]/route.ts` and
+ * `src/services/api.ts`.
+ */
+const PLACEHOLDER_ORIGIN_HOSTS = ['api.repoverix.com', 'api.yourdomain.com', 'api.your-domain.com'];
+function isPlaceholderOrigin(origin) {
+  if (!origin) return false;
+  try {
+    const host = new URL(origin).hostname;
+    return (
+      PLACEHOLDER_ORIGIN_HOSTS.includes(host) ||
+      host === 'example.com' ||
+      host.endsWith('.example.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
+const configuredOrigin = [process.env.NEXT_PUBLIC_API_ORIGIN, process.env.NEXT_PUBLIC_API_URL].find(
+  (value) => value && !isPlaceholderOrigin(value),
+);
+if (!configuredOrigin && (process.env.NEXT_PUBLIC_API_ORIGIN || process.env.NEXT_PUBLIC_API_URL)) {
+  console.warn(`[next.config] ignoring placeholder API origin — using ${DEFAULT_API_ORIGIN}`);
+}
+
+const API_ORIGIN = (configuredOrigin || DEFAULT_API_ORIGIN).replace(/\/$/, '');
 
 /**
  * The browser only ever talks to its own origin.

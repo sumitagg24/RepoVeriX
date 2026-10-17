@@ -68,13 +68,36 @@ import type {
  * so the existing backend needs no CORS change. Setting `NEXT_PUBLIC_API_URL`
  * switches to direct cross-origin calls for deployments that prefer it.
  */
-const DIRECT_API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || '';
+/**
+ * Example/placeholder API origins must never be used — they are copied from
+ * the template files (`.env.prod.example`, `docs/DEPLOYMENT_GUIDE.md`) and
+ * silently break every request. Keep in sync with `next.config.mjs` and
+ * `src/app/api/v1/[...path]/route.ts`.
+ */
+const PLACEHOLDER_ORIGIN_HOSTS = ['api.repoverix.com', 'api.yourdomain.com', 'api.your-domain.com'];
+function isPlaceholderOrigin(origin: string): boolean {
+  if (!origin) return false;
+  try {
+    const host = new URL(origin).hostname;
+    return (
+      PLACEHOLDER_ORIGIN_HOSTS.includes(host) ||
+      host === 'example.com' ||
+      host.endsWith('.example.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
+const rawDirectUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || '';
+const DIRECT_API_URL = isPlaceholderOrigin(rawDirectUrl) ? '' : rawDirectUrl;
 const API_PREFIX = '/api/v1';
 export const API_BASE = DIRECT_API_URL ? `${DIRECT_API_URL}${API_PREFIX}` : API_PREFIX;
 
 /** Absolute backend origin — used only for full-page redirects (OAuth). */
+const rawOrigin = process.env.NEXT_PUBLIC_API_ORIGIN || '';
 export const API_ORIGIN = (
-  process.env.NEXT_PUBLIC_API_ORIGIN ||
+  (isPlaceholderOrigin(rawOrigin) ? '' : rawOrigin) ||
   DIRECT_API_URL ||
   'http://localhost:8000'
 ).replace(/\/$/, '');
