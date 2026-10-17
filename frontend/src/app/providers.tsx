@@ -7,6 +7,7 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from '@/context/auth-context';
 import { ThemeProvider } from '@/context/theme-context';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { Auth0ProviderWrapper } from '@/components/auth0-provider';
 import { UPGRADE_EVENT } from '@/services/api';
 
 /** One client per browser session; transient failures retry once. */
@@ -63,7 +64,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <TooltipProvider delayDuration={200} skipDelayDuration={300}>
             <UpgradeListener />
-            {children}
+            <Auth0ProviderWrapper>{children}</Auth0ProviderWrapper>
             <Toaster
               position="bottom-right"
               closeButton

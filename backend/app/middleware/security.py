@@ -58,14 +58,18 @@ def _host_allowed(host: str, allowed: list[str]) -> bool:
     """Return whether ``host`` (which may carry a ``:port``) is allowed.
 
     An empty allowlist accepts every host (used when a deployment does not
-    know its public hostname yet); otherwise each entry may be a bare hostname
-    (optionally with a port) and matching ignores the port of the request.
+    know its public hostname yet), as does a single ``"*"`` entry — the same
+    wildcard convention the CORS setting uses. Otherwise each entry may be a
+    bare hostname (optionally with a port) and matching ignores the port of
+    the request.
     """
     if not allowed:
         return True
     host_no_port = host.split(":", 1)[0].strip("[]")  # drop IPv6 brackets too
     for entry in allowed:
         entry_no_port = entry.split(":", 1)[0].strip("[]")
+        if entry_no_port == "*":
+            return True
         if entry_no_port == host_no_port:
             return True
     return False

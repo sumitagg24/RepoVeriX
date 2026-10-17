@@ -87,10 +87,17 @@ services:
       context: ./frontend
       args:
         # Public URL of the backend, from the *browser's* point of view.
-        # Change this to your deployed API domain.
+        # Change this to your deployed API domain. Both variables are set so
+        # the same-origin proxy route (`/api/v1/*`) also knows where the API
+        # lives; NEXT_PUBLIC_API_ORIGIN is what OAuth redirects resolve.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_ORIGIN: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     image: ghcr.io/sumitagg24/repoverix-frontend:latest
     restart: unless-stopped
+    # Runtime fallback so the API proxy works even if the image was built
+    # without the build args (e.g. a stale GHCR image).
+    environment:
+      NEXT_PUBLIC_API_ORIGIN: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     depends_on:

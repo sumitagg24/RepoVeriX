@@ -260,3 +260,61 @@ async def test_connections_lists_connected_providers(client, db_session, test_us
     assert resp.status_code == 200
     assert [c["provider"] for c in resp.json()] == ["github"]
     assert resp.json()[0]["provider_email"] == "octo@example.com"
+
+
+# --------------------------------------------------------------------------- auth0
+
+
+def test_auth0_domain_resolves_tenant_urls():
+    settings = Settings(
+        auth0_domain="repoverix.us.auth0.com",
+        auth0_oauth_client_id="a0-id",
+        auth0_oauth_client_secret="a0-secret",
+    )
+    spec = oauth_service.get_provider_spec("auth0", settings)
+    assert spec.authorize_url == "https://repoverix.us.auth0.com/authorize"
+    assert spec.token_url == "https://repoverix.us.auth0.com/oauth/token"
+    assert spec.userinfo_url == "https://repoverix.us.auth0.com/userinfo"
+    assert spec.scope == "openid email profile"
+
+
+def test_auth0_domain_accepts_bare_domain_without_scheme():
+    settings = Settings(auth0_domain="tenant.auth0.com")
+    spec = oauth_service.get_provider_spec("auth0", settings)
+    assert spec.authorize_url.startswith("https://tenant.auth0.com/authorize")
+
+
+def test_auth0_configured_only_with_credentials():
+    settings = Settings(auth0_domain="tenant.auth0.com")
+    providers = oauth_service.configured_providers(settings)
+    assert providers["auth0"]["configured"] is False
+    assert providers["auth0"]["supports_signin"] is True
+
+    settings = Settings(
+        auth0_domain="tenant.auth0.com",
+        auth0_oauth_client_id="a0-id",
+        auth0_oauth_client_secret="a0-secret",
+    )
+    providers = oauth_service.configured_providers(settings)
+    assert providers["auth0"]["configured"] is True
+
+
+async def test_auth0_profile_normalization():
+    user_body = {
+        "sub": "auth0|1234567890",
+        "email": "user@example.com",
+        "name": "Example User",
+        "nickname": "example",
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=user_body)
+
+    transport = _mock_transport(handler)
+    async with httpx.AsyncClient(transport=transport) as client:
+        profile = await oauth_service.fetch_profile("auth0", "tok", client=client)
+    assert profile == {
+        "id": "auth0|1234567890",
+        "email": "user@example.com",
+        "name": "Example User",
+    }

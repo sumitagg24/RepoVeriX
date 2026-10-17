@@ -60,7 +60,7 @@ function BitbucketIcon({ className }: { className?: string }) {
   );
 }
 
-function Auth0Icon({ className }: { className?: string }) {
+export function Auth0Icon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
       <path
@@ -197,7 +197,6 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
     'google',
     'microsoft',
     'bitbucket',
-    'auth0',
     'oracle',
   ];
 

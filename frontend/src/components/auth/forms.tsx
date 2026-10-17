@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { Check, KeyRound, MailCheck, ShieldAlert } from 'lucide-react';
 
 import { AuthError, AuthNotice, AuthShell, OAuthButtons } from '@/components/auth/auth-shell';
+import { Auth0SignInButton, Auth0SignUpButton } from '@/components/auth0-buttons';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { Callout } from '@/components/ui/panel';
@@ -127,6 +128,8 @@ export function SignInForm() {
       </form>
 
       <OAuthButtons next={next} />
+
+      <Auth0SignInButton />
 
       <p className="mt-6 text-[12.5px] leading-relaxed text-muted">
         Signing in with a provider skips the verification step. Nothing is imported until you choose a
@@ -256,6 +259,8 @@ export function SignUpForm() {
       </form>
 
       <OAuthButtons next="/onboarding" />
+
+      <Auth0SignUpButton />
     </AuthShell>
   );
 }

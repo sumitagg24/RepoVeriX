@@ -1,3 +1,34 @@
+# RepoVeriX — Render blueprint (backend + managed PostgreSQL).
+#
+# Deploy with:  Render Dashboard → New → Blueprint → point at this repository.
+# Or via CLI:   render blueprint launch
+#
+# What this provisions:
+#   * repoverix-db      — Render PostgreSQL instance (backups + TLS included).
+#   * repoverix-backend — the FastAPI API from backend/Dockerfile, with a
+#                         persistent disk at /data/repositories so cloned
+#                         repositories survive deploys (Render's normal
+#                         filesystem is ephemeral).
+#
+# The frontend is expected on Vercel (set its NEXT_PUBLIC_API_URL to this
+# service's URL, then list the frontend origin in REPOVERIX_CORS_ORIGINS).
+#
+# After the first deploy, set these secrets in the Render dashboard
+# (Environment → Add environment variable) — they are deliberately not
+# defaulted here:
+#   REPOVERIX_TOKEN_ENCRYPTION_KEY   # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+#   REPOVERIX_EMAIL_BACKEND=smtp     # + REPOVERIX_SMTP_* — required for real
+#                                    # email verification / password resets
+#   REPOVERIX_LLM_PROVIDER / REPOVERIX_OPENAI_API_KEY (or Anthropic/Gemini)
+#   REPOVERIX_DODO_API_KEY / _WEBHOOK_SECRET / _PRODUCT_ID_PRO / _PRODUCT_ID_TEAM
+
+databases:
+  - name: repoverix-db
+    databaseName: repoverix
+    user: repoverix
+    plan: basic-256mb
+    # Render's managed Postgres ships point-in-time recovery on paid plans.
+
 services:
   - type: web
     name: repoverix-backend
@@ -6,7 +37,19 @@ services:
     dockerContext: backend
     plan: starter
     healthCheckPath: /health
+    # Cloned/uploaded repositories and generated artifacts must survive
+    # deploys — without this disk every push would lose them.
+    disk:
+      name: repoverix-repos
+      mountPath: /data/repositories
+      sizeGB: 10
     envVars:
+      - key: REPOVERIX_DATABASE_URL
+        fromDatabase:
+          name: repoverix-db
+          property: connectionString
+      - key: REPOVERIX_JWT_SECRET
+        generateValue: true
       - key: REPOVERIX_AUTO_CREATE_TABLES
         value: "true"
       - key: REPOVERIX_RATE_LIMIT_ENABLED
@@ -15,11 +58,48 @@ services:
         value: "false"
       - key: REPOVERIX_REPOSITORY_STORAGE_DIR
         value: /data/repositories
-      - key: REPOVERIX_DATABASE_URL
-        sync: false
-      - key: REPOVERIX_JWT_SECRET
-        generateValue: true
-      - key: REPOVERIX_CORS_ORIGINS
-        value: '["https://repoverix.vercel.app"]'
+      # "*" = accept any Host header (the deployment hostname is assigned by
+      # Render); the production guard still enforces a strong JWT secret.
       - key: REPOVERIX_ALLOWED_HOSTS
         value: '["*"]'
+      # Set this to your real frontend origin once deployed, e.g.
+      # '["https://repoverix.vercel.app"]'
+      - key: REPOVERIX_CORS_ORIGINS
+        sync: false
+      - key: REPOVERIX_FRONTEND_URL
+        sync: false
+      # --- optional integrations (set in the dashboard; empty = feature off) ---
+      - key: REPOVERIX_LLM_PROVIDER
+        sync: false
+      - key: REPOVERIX_OPENAI_API_KEY
+        sync: false
+      - key: REPOVERIX_ANTHROPIC_API_KEY
+        sync: false
+      - key: REPOVERIX_GEMINI_API_KEY
+        sync: false
+      - key: REPOVERIX_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: REPOVERIX_EMAIL_BACKEND
+        sync: false
+      - key: REPOVERIX_SMTP_HOST
+        sync: false
+      - key: REPOVERIX_SMTP_PORT
+        sync: false
+      - key: REPOVERIX_SMTP_USERNAME
+        sync: false
+      - key: REPOVERIX_SMTP_PASSWORD
+        sync: false
+      - key: REPOVERIX_SMTP_FROM
+        sync: false
+      - key: REPOVERIX_DODO_API_KEY
+        sync: false
+      - key: REPOVERIX_DODO_WEBHOOK_SECRET
+        sync: false
+      - key: REPOVERIX_DODO_PRODUCT_ID_PRO
+        sync: false
+      - key: REPOVERIX_DODO_PRODUCT_ID_TEAM
+        sync: false
+      - key: REPOVERIX_DODO_ENVIRONMENT
+        value: test_mode
+      - key: REPOVERIX_BILLING_DEMO_MODE
+        value: "true"

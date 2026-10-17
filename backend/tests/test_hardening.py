@@ -50,6 +50,92 @@ class TestProductionGuard:
         ensure_production_safety(_settings(allowed_hosts=[], jwt_secret="x" * 32))
 
 
+# --------------------------------------------------------------------------- host allowlist
+
+
+class TestHostAllowlist:
+    """``_host_allowed`` semantics behind ``reject_untrusted_host``.
+
+    The CORS setting and ``REPOVERIX_ALLOWED_HOSTS`` use the same ``["*"]``
+    wildcard convention, and a deployed backend that cannot know its public
+    hostname at startup relies on it. Exact-match-only parsing here would pass
+    the production guard (``["*"]`` is treated as production there) and then
+    403 every request.
+    """
+
+    def test_wildcard_entry_accepts_any_host(self):
+        from app.middleware.security import _host_allowed
+
+        assert _host_allowed("repoverix.onrender.com", ["*"])
+        assert _host_allowed("api.example.com:443", ["*"])
+        assert _host_allowed("[::1]:8000", ["*"])
+
+    def test_empty_allowlist_accepts_every_host(self):
+        from app.middleware.security import _host_allowed
+
+        assert _host_allowed("anything.example.com", [])
+
+    def test_exact_and_port_insensitive_matching(self):
+        from app.middleware.security import _host_allowed
+
+        assert _host_allowed("api.example.com", ["api.example.com"])
+        assert _host_allowed("api.example.com:8443", ["api.example.com"])
+        assert _host_allowed("other.example.com", ["api.example.com"]) is False
+
+
+# --------------------------------------------------------------------------- config url normalisation
+
+
+class TestDatabaseUrlNormalisation:
+    """Managed-Postgres URLs are rewritten to the asyncpg scheme."""
+
+    def test_postgres_scheme_is_upgraded(self):
+        settings = _settings(database_url="postgres://u:p@db.example.com:5432/repoverix")
+        assert settings.database_url == "postgresql+asyncpg://u:p@db.example.com:5432/repoverix"
+
+    def test_postgresql_scheme_is_upgraded_and_query_kept(self):
+        settings = _settings(
+            database_url="postgresql://u:p@host/db?sslmode=require&channel_binding=require"
+        )
+        assert settings.database_url == (
+            "postgresql+asyncpg://u:p@host/db?sslmode=require&channel_binding=require"
+        )
+
+    def test_asyncpg_url_and_sqlite_are_untouched(self):
+        url = "postgresql+asyncpg://u:p@localhost/repoverix"
+        assert _settings(database_url=url).database_url == url
+        assert _settings(database_url="sqlite+aiosqlite:///:memory:").database_url == (
+            "sqlite+aiosqlite:///:memory:"
+        )
+
+
+# --------------------------------------------------------------------------- sqlite parent dir
+
+
+class TestSqliteParentDir:
+    """A file-backed SQLite URL gets its parent directory created up front
+    (a fresh checkout otherwise crashes at startup with "unable to open
+    database file")."""
+
+    def test_missing_parent_directory_is_created(self, tmp_path):
+        from app.db.database import _ensure_sqlite_parent_dir
+
+        target = tmp_path / "deep" / "nested" / "app.db"
+        assert not target.parent.exists()
+        _ensure_sqlite_parent_dir(f"sqlite+aiosqlite:///{target.as_posix()}")
+        assert target.parent.is_dir()
+
+    def test_existing_dir_and_memory_and_postgres_are_noops(self, tmp_path):
+        from app.db.database import _ensure_sqlite_parent_dir
+
+        existing = tmp_path / "already"
+        existing.mkdir()
+        _ensure_sqlite_parent_dir(f"sqlite+aiosqlite:///{(existing / 'db.sqlite').as_posix()}")
+        # must not raise or create anything for memory / non-sqlite URLs
+        _ensure_sqlite_parent_dir("sqlite+aiosqlite:///:memory:")
+        _ensure_sqlite_parent_dir("postgresql+asyncpg://u:p@localhost/repoverix")
+
+
 # --------------------------------------------------------------------------- SSRF pinning
 
 

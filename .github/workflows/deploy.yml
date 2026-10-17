@@ -63,6 +63,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:8000' }}
+            NEXT_PUBLIC_API_ORIGIN=${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:8000' }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/repoverix-frontend:latest
             ghcr.io/${{ github.repository_owner }}/repoverix-frontend:${{ github.sha }}

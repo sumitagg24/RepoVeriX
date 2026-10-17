@@ -1,14 +1,35 @@
 """Async engine, session factory and FastAPI dependency."""
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.db.base import Base
 
 settings = get_settings()
+
+
+def _ensure_sqlite_parent_dir(url: str) -> None:
+    """Create the parent directory for a file-backed SQLite database.
+
+    ``sqlite3.connect`` fails with "unable to open database file" when the
+    parent directory is missing (fresh checkout / fresh deploy), so make the
+    directory up front. In-memory databases are untouched.
+    """
+    sa_url = make_url(url)
+    if not sa_url.drivername.startswith("sqlite"):
+        return
+    database = sa_url.database
+    if not database or database == ":memory:":
+        return
+    Path(database).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
+
+
+_ensure_sqlite_parent_dir(settings.database_url)
 
 # Production hardening: managed providers (Neon, RDS, ...) close idle TCP
 # connections, so pooled connections must be validated before reuse

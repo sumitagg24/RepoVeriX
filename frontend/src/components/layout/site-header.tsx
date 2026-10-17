@@ -11,6 +11,8 @@ import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Wordmark } from '@/components/layout/logo';
 import { PUBLIC_NAV } from '@/lib/site';
 import { cn } from '@/lib/utils';
+import { useAuth0 } from '@auth0/auth0-react';
+import { Auth0UserMenu } from '@/components/auth0-buttons';
 
 /**
  * Public navigation.
@@ -21,6 +23,7 @@ import { cn } from '@/lib/utils';
  */
 export function SiteHeader() {
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth0();
   const [open, setOpen] = React.useState(false);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -52,12 +55,18 @@ export function SiteHeader() {
           <div className="hidden lg:block">
             <ThemeToggle />
           </div>
-          <Button asChild variant="ghost" size="sm" className="hidden lg:inline-flex">
-            <Link href="/auth/sign-in">Sign in</Link>
-          </Button>
-          <Button asChild variant="primary" size="sm" className="hidden lg:inline-flex">
-            <Link href="/auth/sign-up">Start free</Link>
-          </Button>
+          {isAuthenticated ? (
+            <Auth0UserMenu />
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm" className="hidden lg:inline-flex">
+                <Link href="/auth/sign-in">Sign in</Link>
+              </Button>
+              <Button asChild variant="primary" size="sm" className="hidden lg:inline-flex">
+                <Link href="/auth/sign-up">Start free</Link>
+              </Button>
+            </>
+          )}
 
           <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
             <DialogPrimitive.Trigger asChild>
@@ -98,16 +107,22 @@ export function SiteHeader() {
                   </div>
                 </nav>
                 <div className="space-y-2 border-t border-hairline px-5 py-5">
-                  <Button asChild variant="primary" size="lg" className="w-full">
-                    <Link href="/auth/sign-up" onClick={() => setOpen(false)}>
-                      Start free
-                    </Link>
-                  </Button>
-                  <Button asChild variant="secondary" size="lg" className="w-full">
-                    <Link href="/auth/sign-in" onClick={() => setOpen(false)}>
-                      Sign in
-                    </Link>
-                  </Button>
+                  {isAuthenticated ? (
+                    <Auth0UserMenu className="w-full" />
+                  ) : (
+                    <>
+                      <Button asChild variant="primary" size="lg" className="w-full">
+                        <Link href="/auth/sign-up" onClick={() => setOpen(false)}>
+                          Start free
+                        </Link>
+                      </Button>
+                      <Button asChild variant="secondary" size="lg" className="w-full">
+                        <Link href="/auth/sign-in" onClick={() => setOpen(false)}>
+                          Sign in
+                        </Link>
+                      </Button>
+                    </>
+                  )}
                 </div>
               </DialogPrimitive.Content>
             </DialogPrimitive.Portal>

@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,19 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="REPOVERIX_", extra="ignore")
+
+    # Managed Postgres providers (Render, Neon, Heroku, Supabase) hand out
+    # connection strings in the sync-driver form ``postgres://`` or
+    # ``postgresql://``. The app runs on asyncpg, so normalise the scheme here
+    # instead of asking every deployment to rewrite the URL by hand.
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _normalize_async_database_url(cls, value: str) -> str:
+        if value.startswith("postgres://"):
+            return "postgresql+asyncpg://" + value[len("postgres://") :]
+        if value.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + value[len("postgresql://") :]
+        return value
 
     app_name: str = "RepoVeriX"
     environment: str = "development"
