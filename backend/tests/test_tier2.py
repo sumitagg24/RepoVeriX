@@ -442,12 +442,7 @@ class TestImpactReachability:
         graph = self._graph(
             {
                 "app.py": (
-                    "def handler(name):\n"
-                    "    return query(name)\n"
-                    "\n"
-                    "\n"
-                    "def query(name):\n"
-                    "    return name\n"
+                    "def handler(name):\n    return query(name)\n\n\ndef query(name):\n    return name\n"
                 )
             }
         )
@@ -464,11 +459,7 @@ class TestImpactReachability:
         graph = self._graph(
             {
                 "routes.py": (
-                    "from app import query\n"
-                    "\n"
-                    "\n"
-                    "def handle_search(name):\n"
-                    "    return query(name)\n"
+                    "from app import query\n\n\ndef handle_search(name):\n    return query(name)\n"
                 ),
                 "app.py": "def query(name):\n    return name\n",
             }
@@ -484,11 +475,7 @@ class TestImpactReachability:
         graph = self._graph(
             {
                 "service.py": (
-                    "from helpers import persist\n"
-                    "\n"
-                    "\n"
-                    "def save(name):\n"
-                    "    return persist(name)\n"
+                    "from helpers import persist\n\n\ndef save(name):\n    return persist(name)\n"
                 ),
                 "helpers.py": "def persist(name):\n    return name\n",
             }

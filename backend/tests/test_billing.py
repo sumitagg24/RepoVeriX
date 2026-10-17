@@ -366,9 +366,7 @@ class TestDodoCheckout:
         assert response.status_code == 503
 
     @pytest.mark.asyncio
-    async def test_checkout_returns_dodo_url(
-        self, client: AsyncClient, auth_headers, test_user, monkeypatch
-    ):
+    async def test_checkout_returns_dodo_url(self, client: AsyncClient, auth_headers, test_user, monkeypatch):
         _enable_dodo(monkeypatch, api_key="test_dodo_key")
         monkeypatch.setitem(svc.DODO_PRODUCT_IDS, "pro", "pdt_pro_test")
 
