@@ -75,11 +75,18 @@ def test_no_sensitive_next_public_env_vars():
         ),
     ]
 
-    # Safe allowlist for standard public URL / origin keys
+    # Safe allowlist for standard public URL / origin keys, plus Supabase's
+    # browser keys. Supabase publishable (and the legacy anon) keys are built
+    # for client-side use — Row Level Security protects the data — and are
+    # documented as safe to ship. The secret / service_role names are NOT
+    # allowlisted and still fail this guard.
     safe_allowlist = {
         "NEXT_PUBLIC_API_URL",
         "NEXT_PUBLIC_API_ORIGIN",
         "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     }
 
     found_public_vars: set[str] = set()

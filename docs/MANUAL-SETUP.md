@@ -35,12 +35,22 @@ in the scan log). To enable AI reasoning, generate-fix fallback, and the
 | OpenAI | `REPOVERIX_OPENAI_API_KEY` | https://platform.openai.com/api-keys | `gpt-4o-mini` |
 | Anthropic | `REPOVERIX_ANTHROPIC_API_KEY` | https://console.anthropic.com | `claude-3-5-haiku-latest` |
 | Google Gemini | `REPOVERIX_GEMINI_API_KEY` | https://aistudio.google.com/apikey | `gemini-1.5-flash` |
+| OpenRouter | `REPOVERIX_OPENROUTER_API_KEY` | https://openrouter.ai/keys | `openai/gpt-4o-mini` |
+| NVIDIA NIM | `REPOVERIX_NVIDIA_API_KEY` | https://build.nvidia.com | `openai/gpt-oss-20b` |
+
+OpenRouter and NVIDIA NIM are OpenAI-compatible gateways: they reuse the same
+client with their own key and endpoint (`REPOVERIX_OPENROUTER_BASE_URL` /
+`REPOVERIX_NVIDIA_BASE_URL`). Model ids are gateway-specific — OpenRouter uses
+ids like `deepseek/deepseek-chat-v3` (and `:free` variants), NVIDIA NIM uses
+catalog ids like `openai/gpt-oss-20b` — note some listed models return 404
+"not found for account" until enabled for your NVIDIA account, so test the id
+you pick with a single chat-completions call.
 
 Then pick the active provider:
 
 ```bash
-REPOVERIX_LLM_PROVIDER=openai      # openai | anthropic | gemini | mock
-REPOVERIX_LLM_MODEL=gpt-4o-mini    # override per provider
+REPOVERIX_LLM_PROVIDER=openai      # openai | anthropic | gemini | openrouter | nvidia | mock
+REPOVERIX_LLM_MODEL=gpt-4o-mini    # optional override — wins over the per-provider default
 ```
 
 Notes:

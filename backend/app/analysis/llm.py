@@ -2,7 +2,8 @@
 
 ``LLMProvider`` is the seam between the pipeline and any model vendor:
 
-- ``OpenAIProvider``  — OpenAI chat completions (and any OpenAI-compatible endpoint)
+- ``OpenAIProvider``  — OpenAI chat completions (also serves OpenRouter, NVIDIA
+  NIM and any OpenAI-compatible endpoint)
 - ``AnthropicProvider`` — Anthropic messages API
 - ``GeminiProvider``   — Google Gemini via its OpenAI-compatible endpoint
 - ``MockProvider``     — deterministic in-process provider used by tests
@@ -350,13 +351,31 @@ class MockProvider:
 
 # --------------------------------------------------------------------------- factory
 
+# OpenAI-compatible gateways that reuse the OpenAI chat-completions client but
+# keep their own credentials, endpoint and model namespace. Maps the provider
+# name to (api_key setting, base_url setting, default model).
+_OPENAI_COMPATIBLE_GATEWAYS: dict[str, tuple[str, str, str]] = {
+    "openrouter": ("openrouter_api_key", "openrouter_base_url", "openai/gpt-4o-mini"),
+    "nvidia": ("nvidia_api_key", "nvidia_base_url", "openai/gpt-oss-20b"),
+}
+
+# ``REPOVERIX_LLM_MODEL`` ships with this default. While it is untouched the
+# gateway providers fall back to a model that exists on that gateway; any
+# other value is treated as an explicit override.
+_SHARED_DEFAULT_MODEL = "gpt-4o-mini"
+
 
 def build_llm_provider(settings: Any) -> LLMProvider | None:
-    """Construct the configured provider, or ``None`` when no key is available."""
+    """Construct the configured provider, or ``None`` when no key is available.
+
+    Providers: ``openai`` (any OpenAI-compatible endpoint via
+    ``REPOVERIX_OPENAI_BASE_URL``), ``anthropic``, ``gemini``, ``openrouter``,
+    ``nvidia`` and ``mock``.
+    """
     provider_name = (settings.llm_provider or "openai").lower()
     config = LLMConfig(
         provider=provider_name,
-        model=settings.llm_model or "gpt-4o-mini",
+        model=settings.llm_model or _SHARED_DEFAULT_MODEL,
         temperature=settings.llm_temperature,
         timeout_seconds=settings.llm_timeout_seconds,
         max_retries=settings.llm_max_retries,
@@ -364,6 +383,17 @@ def build_llm_provider(settings: Any) -> LLMProvider | None:
     )
     if provider_name == "mock":
         return MockProvider()
+    if provider_name in _OPENAI_COMPATIBLE_GATEWAYS:
+        key_attr, base_attr, gateway_model = _OPENAI_COMPATIBLE_GATEWAYS[provider_name]
+        key = getattr(settings, key_attr, None)
+        if not key:
+            return None
+        if config.model == _SHARED_DEFAULT_MODEL:
+            config.model = gateway_model
+        config.base_url = getattr(settings, base_attr, None) or None
+        provider = OpenAIProvider(config, key)
+        provider.name = provider_name  # report the real route, not "openai"
+        return provider
     if provider_name in ("openai", "gemini"):
         key = settings.gemini_api_key if provider_name == "gemini" else settings.openai_api_key
         if not key:

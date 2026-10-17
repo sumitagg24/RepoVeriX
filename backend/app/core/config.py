@@ -206,6 +206,14 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-1.5-flash"
     openai_base_url: str | None = None
+    # OpenAI-compatible gateways: OpenRouter and NVIDIA NIM. Both reuse the
+    # OpenAI chat-completions client with their own key and endpoint; select
+    # one with ``REPOVERIX_LLM_PROVIDER=openrouter`` / ``nvidia``. An explicit
+    # ``REPOVERIX_LLM_MODEL`` overrides each gateway's built-in default model.
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    nvidia_api_key: str | None = None
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
 
     # --- OAuth (Google / GitHub / GitLab sign-in & repo import) ---
     # --- billing / subscription ---

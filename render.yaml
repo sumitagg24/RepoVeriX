@@ -81,6 +81,10 @@ services:
         sync: false
       - key: REPOVERIX_GEMINI_API_KEY
         sync: false
+      - key: REPOVERIX_OPENROUTER_API_KEY
+        sync: false
+      - key: REPOVERIX_NVIDIA_API_KEY
+        sync: false
       - key: REPOVERIX_TOKEN_ENCRYPTION_KEY
         sync: false
       - key: REPOVERIX_EMAIL_BACKEND
