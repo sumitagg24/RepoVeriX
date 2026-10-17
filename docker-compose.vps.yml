@@ -28,7 +28,9 @@ services:
       REPOVERIX_ALLOWED_HOSTS: ${REPOVERIX_ALLOWED_HOSTS}
       REPOVERIX_RATE_LIMIT_ENABLED: ${REPOVERIX_RATE_LIMIT_ENABLED:-true}
       REPOVERIX_AUTH_REQUIRE_EMAIL_VERIFICATION: ${REPOVERIX_AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
-      REPOVERIX_REPOSITORY_STORAGE_DIR: /data/repositories
+      # Bind-mounted at an identical host path (see volumes) so sandbox
+      # containers spawned over the Docker socket can see the repo files.
+      REPOVERIX_REPOSITORY_STORAGE_DIR: ${REPOVERIX_DATA_DIR:-/opt/repoverix/data}/repositories
       REPOVERIX_EMAIL_BACKEND: ${REPOVERIX_EMAIL_BACKEND:-console}
       REPOVERIX_SMTP_HOST: ${REPOVERIX_SMTP_HOST:-}
       REPOVERIX_SMTP_PORT: ${REPOVERIX_SMTP_PORT:-}
@@ -53,7 +55,9 @@ services:
       REPOVERIX_DODO_PRODUCT_ID_TEAM: ${REPOVERIX_DODO_PRODUCT_ID_TEAM:-}
       REPOVERIX_DODO_ENVIRONMENT: ${REPOVERIX_DODO_ENVIRONMENT:-test_mode}
     volumes:
-      - repoverix-data:/data/repositories
+      # Same path on host and in-container: required so sandbox bind mounts
+      # resolve on the host daemon (override with REPOVERIX_DATA_DIR).
+      - ${REPOVERIX_DATA_DIR:-/opt/repoverix/data}:${REPOVERIX_DATA_DIR:-/opt/repoverix/data}
       # Proof-of-Fix sandbox (see warning in the header):
       # - /var/run/docker.sock:/var/run/docker.sock
     # user: root
@@ -91,7 +95,6 @@ services:
       - repoverix
 
 volumes:
-  repoverix-data:
   caddy_data:
   caddy_config:
 
