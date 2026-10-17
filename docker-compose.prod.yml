@@ -55,6 +55,16 @@ services:
       REPOVERIX_SANDBOX_CPU_LIMIT: ${REPOVERIX_SANDBOX_CPU_LIMIT:-1.0}
       REPOVERIX_SANDBOX_MEMORY_LIMIT: ${REPOVERIX_SANDBOX_MEMORY_LIMIT:-1g}
       REPOVERIX_SANDBOX_TIMEOUT_SECONDS: ${REPOVERIX_SANDBOX_TIMEOUT_SECONDS:-600}
+      # Public origin of the deployed frontend (checkout return URLs, portal).
+      REPOVERIX_FRONTEND_URL: ${REPOVERIX_FRONTEND_URL:-http://localhost:3000}
+      # Billing (Dodo Payments): set demo mode to false once keys are in place.
+      REPOVERIX_BILLING_ENFORCE: ${REPOVERIX_BILLING_ENFORCE:-true}
+      REPOVERIX_BILLING_DEMO_MODE: ${REPOVERIX_BILLING_DEMO_MODE:-true}
+      REPOVERIX_DODO_API_KEY: ${REPOVERIX_DODO_API_KEY:-}
+      REPOVERIX_DODO_WEBHOOK_SECRET: ${REPOVERIX_DODO_WEBHOOK_SECRET:-}
+      REPOVERIX_DODO_PRODUCT_ID_PRO: ${REPOVERIX_DODO_PRODUCT_ID_PRO:-}
+      REPOVERIX_DODO_PRODUCT_ID_TEAM: ${REPOVERIX_DODO_PRODUCT_ID_TEAM:-}
+      REPOVERIX_DODO_ENVIRONMENT: ${REPOVERIX_DODO_ENVIRONMENT:-test_mode}
     volumes:
       - repoverix-data:/data/repositories
       # Only needed if you want in-Docker patch verification on this host.

@@ -23,8 +23,11 @@ publishes them to **GitHub Container Registry**
   migrations on start, and terminates TLS via the bundled Caddyfile.
   Provision with `scripts/provision-vps.sh` after filling in `.env`
   (see `.env.prod.example`; every variable is classified PUBLIC/SECRET).
+  The GHCR image is **multi-arch (amd64 + arm64)**, so a free
+  **Oracle Cloud Always Free** Ampere A1 (ARM) instance works with the exact
+  same steps — pick the Mumbai/Hyderabad region for low latency from India.
 - **Database**: Neon managed PostgreSQL (pooled endpoint, `ssl=require`).
-  The full Alembic chain 001→006 has been validated against Neon.
+  The full Alembic chain 001→009 has been validated against Neon.
 - **LLM keys**: optional — static/evidence analysis works without them.
 - **Proof-of-Fix sandbox**: needs a Docker socket mount on the VPS (see the
   warning in `docker-compose.vps.yml`); without it, verification reports an
@@ -90,6 +93,15 @@ REPOVERIX_OPENAI_API_KEY=sk-...
 POSTGRES_USER=repoverix
 POSTGRES_PASSWORD=<strong-password>
 POSTGRES_DB=repoverix
+
+# Billing (Dodo Payments) — see docs/MANUAL-SETUP.md section 5
+REPOVERIX_FRONTEND_URL=https://repoverix.vercel.app
+REPOVERIX_BILLING_DEMO_MODE=false
+REPOVERIX_DODO_API_KEY=...
+REPOVERIX_DODO_WEBHOOK_SECRET=whsec_...
+REPOVERIX_DODO_PRODUCT_ID_PRO=pdt_...
+REPOVERIX_DODO_PRODUCT_ID_TEAM=pdt_...
+REPOVERIX_DODO_ENVIRONMENT=live_mode   # test_mode while validating
 ```
 
 Environment variable reference: see `.env.example` at the repository root. Every
@@ -172,6 +184,8 @@ Then set `NEXT_PUBLIC_API_URL=https://api.your-domain.com` and
 - [ ] No real API keys were committed (the repo keeps `.env*` out of Git)
 - [ ] CORS allow-list contains exactly the browser origin(s) you serve
 - [ ] Docker socket mount is only enabled on a dedicated host
+- [ ] Billing: `REPOVERIX_BILLING_DEMO_MODE=false` with Dodo keys and product
+      IDs set (never ship with demo mode on — anyone could grant themselves Pro)
 - [ ] Migrations: run `alembic upgrade head` against PostgreSQL on deploy
       (keep `REPOVERIX_AUTO_CREATE_TABLES=false` in production; SQLite dev
       environments use `create_all` instead)
