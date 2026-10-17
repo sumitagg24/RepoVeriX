@@ -214,6 +214,11 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     nvidia_api_key: str | None = None
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    # Ordered backup providers tried when the primary fails (timeout, network
+    # error, provider 4xx/5xx), comma-separated — e.g. "openrouter,openai".
+    # Empty = automatic: any other configured provider in gateway-first order
+    # (openrouter, nvidia, openai, gemini, anthropic). One provider = no chain.
+    llm_fallback_providers: str = ""
 
     # --- OAuth (Google / GitHub / GitLab sign-in & repo import) ---
     # --- billing / subscription ---

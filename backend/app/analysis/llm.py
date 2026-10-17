@@ -6,6 +6,7 @@
   NIM and any OpenAI-compatible endpoint)
 - ``AnthropicProvider`` — Anthropic messages API
 - ``GeminiProvider``   — Google Gemini via its OpenAI-compatible endpoint
+- ``FallbackProvider``  — ordered chain over several configured providers
 - ``MockProvider``     — deterministic in-process provider used by tests
 
 Prompts live in ``backend/prompts/*.txt`` (versioned). Structured JSON responses
@@ -349,6 +350,42 @@ class MockProvider:
         )
 
 
+class FallbackProvider:
+    """Answer from the first provider that responds, trying each in order.
+
+    Built automatically when more than one provider has credentials — for
+    example ``REPOVERIX_LLM_PROVIDER=nvidia`` with an
+    ``REPOVERIX_OPENROUTER_API_KEY`` backup. A timeout, network error or
+    provider-side error on one provider moves the request to the next.
+    ``name``/``model`` are updated to the provider that actually answered so
+    scan logs and reports stay truthful about which model did the analysis.
+    """
+
+    def __init__(self, providers: list[LLMProvider]):
+        self.providers = list(providers)
+        primary = self.providers[0]
+        self.name = primary.name
+        self.model = primary.model
+        self.config = getattr(primary, "config", None)
+
+    async def complete(self, system: str, user: str, temperature: float | None = None) -> LLMResult:
+        failures: list[str] = []
+        for provider in self.providers:
+            try:
+                result = await provider.complete(system, user, temperature=temperature)
+            except Exception as exc:  # timeout, network or provider error — try the next one
+                failures.append(f"{provider.name}: {exc}")
+                continue
+            self.name = provider.name
+            self.model = getattr(result, "model", None) or provider.model
+            return result
+        raise AnalysisError(
+            "all LLM providers failed: " + "; ".join(failures),
+            code="llm_providers_exhausted",
+            retryable=False,
+        )
+
+
 # --------------------------------------------------------------------------- factory
 
 # OpenAI-compatible gateways that reuse the OpenAI chat-completions client but
@@ -364,15 +401,26 @@ _OPENAI_COMPATIBLE_GATEWAYS: dict[str, tuple[str, str, str]] = {
 # other value is treated as an explicit override.
 _SHARED_DEFAULT_MODEL = "gpt-4o-mini"
 
+# Fallback order used when ``REPOVERIX_LLM_FALLBACK_PROVIDERS`` is not set: any
+# of these with credentials configured backs up the primary provider.
+_AUTO_FALLBACK_ORDER = ("openrouter", "nvidia", "openai", "gemini", "anthropic")
 
-def build_llm_provider(settings: Any) -> LLMProvider | None:
-    """Construct the configured provider, or ``None`` when no key is available.
 
-    Providers: ``openai`` (any OpenAI-compatible endpoint via
-    ``REPOVERIX_OPENAI_BASE_URL``), ``anthropic``, ``gemini``, ``openrouter``,
-    ``nvidia`` and ``mock``.
-    """
-    provider_name = (settings.llm_provider or "openai").lower()
+def _has_credentials(provider_name: str, settings: Any) -> bool:
+    if provider_name in _OPENAI_COMPATIBLE_GATEWAYS:
+        key_attr = _OPENAI_COMPATIBLE_GATEWAYS[provider_name][0]
+        return bool(getattr(settings, key_attr, None))
+    if provider_name == "openai":
+        return bool(settings.openai_api_key)
+    if provider_name == "gemini":
+        return bool(settings.gemini_api_key)
+    if provider_name == "anthropic":
+        return bool(settings.anthropic_api_key)
+    return False
+
+
+def _build_single_provider(provider_name: str, settings: Any) -> LLMProvider | None:
+    """Construct one named provider; ``None`` when its credentials are missing."""
     config = LLMConfig(
         provider=provider_name,
         model=settings.llm_model or _SHARED_DEFAULT_MODEL,
@@ -395,9 +443,9 @@ def build_llm_provider(settings: Any) -> LLMProvider | None:
         provider.name = provider_name  # report the real route, not "openai"
         return provider
     if provider_name in ("openai", "gemini"):
-        key = settings.gemini_api_key if provider_name == "gemini" else settings.openai_api_key
-        if not key:
+        if not _has_credentials(provider_name, settings):
             return None
+        key = settings.gemini_api_key if provider_name == "gemini" else settings.openai_api_key
         if provider_name == "gemini":
             return GeminiProvider(config, key)
         return OpenAIProvider(config, key)
@@ -407,6 +455,55 @@ def build_llm_provider(settings: Any) -> LLMProvider | None:
         config.model = settings.anthropic_model
         return AnthropicProvider(config, settings.anthropic_api_key)
     return None
+
+
+def build_llm_provider(settings: Any) -> LLMProvider | None:
+    """Construct the configured provider chain, or ``None`` when no key exists.
+
+    Primary providers: ``openai`` (any OpenAI-compatible endpoint via
+    ``REPOVERIX_OPENAI_BASE_URL``), ``anthropic``, ``gemini``, ``openrouter``,
+    ``nvidia`` and ``mock``.
+
+    Extra providers with credentials become an ordered fallback chain where the
+    first provider to answer wins: the explicit
+    ``REPOVERIX_LLM_FALLBACK_PROVIDERS`` list when set, otherwise any other
+    configured provider in ``_AUTO_FALLBACK_ORDER``. With a single provider the
+    chain collapses to that provider itself.
+    """
+    primary_name = (settings.llm_provider or "openai").lower()
+    if primary_name == "mock":
+        return MockProvider()
+    explicit = [
+        name.strip().lower()
+        for name in (getattr(settings, "llm_fallback_providers", "") or "").split(",")
+        if name.strip()
+    ]
+    if explicit:
+        fallback_names = [name for name in explicit if name != primary_name]
+    else:
+        fallback_names = [
+            name
+            for name in _AUTO_FALLBACK_ORDER
+            if name != primary_name and _has_credentials(name, settings)
+        ]
+    chain: list[LLMProvider] = []
+    primary = _build_single_provider(primary_name, settings)
+    if primary is not None:
+        chain.append(primary)
+    seen = {primary_name} if primary is not None else set()
+    for name in fallback_names:
+        if name in seen:
+            continue
+        fallback = _build_single_provider(name, settings)
+        if fallback is None:
+            continue
+        seen.add(name)
+        chain.append(fallback)
+    if not chain:
+        return None
+    if len(chain) == 1:
+        return chain[0]
+    return FallbackProvider(chain)
 
 
 def provider_label(provider: LLMProvider | None) -> str:

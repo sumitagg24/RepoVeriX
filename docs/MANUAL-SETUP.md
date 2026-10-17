@@ -46,6 +46,16 @@ catalog ids like `openai/gpt-oss-20b` — note some listed models return 404
 "not found for account" until enabled for your NVIDIA account, so test the id
 you pick with a single chat-completions call.
 
+**Automatic failover:** when more than one provider key is configured, the extra
+providers become an ordered fallback — a timeout, network error or 4xx/5xx on
+the primary moves the same request to the next provider, so scans keep running
+(and findings keep getting adjudicated) when one gateway is down. For example,
+`REPOVERIX_LLM_PROVIDER=nvidia` plus `REPOVERIX_OPENROUTER_API_KEY` set falls
+back to OpenRouter automatically. `REPOVERIX_LLM_FALLBACK_PROVIDERS`
+(comma-separated, e.g. `openrouter,openai`) pins the order; empty means
+automatic (any other configured provider). Scan reports name the provider that
+actually answered.
+
 Then pick the active provider:
 
 ```bash
