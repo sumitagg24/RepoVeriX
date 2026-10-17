@@ -707,7 +707,10 @@ export interface OAuthConnection {
 export type OAuthProviders = Record<
   OAuthProviderName,
   {
+    /** Credentials configured *and* the provider is in the operator allowlist. */
     configured: boolean;
+    /** Present in `REPOVERIX_AUTH_ALLOWED_SOCIAL_PROVIDERS`. */
+    allowed?: boolean;
     label: string;
     display_name: string;
     supports_signin: boolean;

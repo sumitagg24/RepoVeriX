@@ -93,6 +93,11 @@ before pointing anything public at it.
 Three OAuth clients are supported. All are optional — email/password auth and
 URL/ZIP imports always work without them.
 
+The sign-in and sign-up pages **always show Google, GitHub and GitLab
+buttons**. A provider without credentials renders with a `Setup` badge;
+clicking it lists the steps and the exact redirect URI to register, so the
+page is never missing a control and never starts a flow that cannot finish.
+
 | Provider | Purpose | Where to register | Redirect URI to add |
 |---|---|---|---|
 | **Google** | One-click sign in/up | console.cloud.google.com/apis/credentials (Web client) | `http://localhost:8000/api/v1/auth/oauth/google/callback` |
@@ -103,6 +108,9 @@ Then set the env vars (see `.env.example`):
 
 ```bash
 REPOVERIX_FRONTEND_URL=http://localhost:3000          # where OAuth lands
+# Behind a reverse proxy, set the public API origin so the redirect URI is
+# built with https:// and the public hostname:
+REPOVERIX_BACKEND_PUBLIC_URL=https://api.example.com
 REPOVERIX_GOOGLE_OAUTH_CLIENT_ID=…
 REPOVERIX_GOOGLE_OAUTH_CLIENT_SECRET=…
 REPOVERIX_GITHUB_OAUTH_CLIENT_ID=…
@@ -110,6 +118,10 @@ REPOVERIX_GITHUB_OAUTH_CLIENT_SECRET=…
 REPOVERIX_GITLAB_OAUTH_CLIENT_ID=…
 REPOVERIX_GITLAB_OAUTH_CLIENT_SECRET=…
 ```
+
+`REPOVERIX_AUTH_ALLOWED_SOCIAL_PROVIDERS` (default: all providers) is the
+operator allowlist. A provider outside it is never offered, even when its
+credentials are present.
 
 Scope requests: Google asks for `openid email profile`; GitHub for
 `read:user user:email repo` (needed to list/clone private repos); GitLab for

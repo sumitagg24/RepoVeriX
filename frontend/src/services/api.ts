@@ -389,6 +389,14 @@ export const oauthService = {
     if (options?.connection) params.set('connection', options.connection);
     return `${API_ORIGIN}${API_PREFIX}/auth/oauth/${provider}/login?${params.toString()}`;
   },
+
+  /**
+   * The value that must be registered as the provider's authorized redirect
+   * URI. Shown in the sign-in page's setup dialog so an operator can copy it
+   * instead of reconstructing the path from the source.
+   */
+  callbackUrl: (provider: OAuthProviderName) =>
+    `${API_ORIGIN}${API_PREFIX}/auth/oauth/${provider}/callback`,
 };
 
 // ------------------------------------------------------------ repositories

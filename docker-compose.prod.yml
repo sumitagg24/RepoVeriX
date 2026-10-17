@@ -57,6 +57,9 @@ services:
       REPOVERIX_SANDBOX_TIMEOUT_SECONDS: ${REPOVERIX_SANDBOX_TIMEOUT_SECONDS:-600}
       # Public origin of the deployed frontend (checkout return URLs, portal).
       REPOVERIX_FRONTEND_URL: ${REPOVERIX_FRONTEND_URL:-http://localhost:3000}
+      # Public origin of the API as the browser reaches it. Set when the API is
+      # behind a TLS-terminating proxy so OAuth redirect URIs match the apps.
+      REPOVERIX_BACKEND_PUBLIC_URL: ${REPOVERIX_BACKEND_PUBLIC_URL:-}
       # Billing (Dodo Payments): set demo mode to false once keys are in place.
       REPOVERIX_BILLING_ENFORCE: ${REPOVERIX_BILLING_ENFORCE:-true}
       REPOVERIX_BILLING_DEMO_MODE: ${REPOVERIX_BILLING_DEMO_MODE:-true}

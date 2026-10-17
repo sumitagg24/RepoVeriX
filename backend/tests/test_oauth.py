@@ -347,3 +347,80 @@ async def test_auth0_login_rejects_malformed_connection(client):
     """Only Auth0's connection-name character set reaches the authorize URL."""
     resp = await client.get("/api/v1/auth/oauth/auth0/login", params={"connection": "bad name!"})
     assert resp.status_code == 400
+
+
+# ------------------------------------------------------------------- sign-in UI
+
+
+def test_configured_providers_report_label_and_allowlist():
+    settings = Settings(
+        google_oauth_client_id="gid",
+        google_oauth_client_secret="gsec",
+        auth_allowed_social_providers=["google", "github"],
+    )
+    providers = oauth_service.configured_providers(settings)
+    # Advertised (configured) only when credentials exist *and* the operator
+    # allowlist includes the provider.
+    assert providers["google"]["configured"] is True
+    assert providers["google"]["label"] == "Google"
+    assert providers["github"]["configured"] is False
+    assert providers["github"]["allowed"] is True
+    # The allowlist can switch a provider off even with credentials present.
+    settings = Settings(
+        github_oauth_client_id="gh-id",
+        github_oauth_client_secret="gh-sec",
+        auth_allowed_social_providers=["google"],
+    )
+    providers = oauth_service.configured_providers(settings)
+    assert providers["github"]["configured"] is False
+    assert providers["github"]["allowed"] is False
+
+
+def test_signin_redirect_keeps_token_in_fragment():
+    from app.api.routes import oauth as oauth_routes
+
+    response = oauth_routes._signin_redirect("jwt-token", "github", "/repositories")
+    location = response.headers["location"]
+    assert "/auth/oauth/callback#token=jwt-token" in location
+    assert "provider=github" in location
+    assert "next=%2Frepositories" in location
+    # A fragment is never sent to a server; the query string would be logged.
+    assert "?token=" not in location
+
+
+def test_redirect_uri_prefers_public_backend_url(monkeypatch):
+    from starlette.requests import Request
+
+    from app.api.routes import oauth as oauth_routes
+    from app.core.config import get_settings
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "raw_path": b"/",
+            "query_string": b"",
+            "headers": [(b"host", b"internal:8000")],
+            "scheme": "http",
+            "server": ("internal", 8000),
+            "root_path": "",
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+    monkeypatch.setenv("REPOVERIX_BACKEND_PUBLIC_URL", "https://api.example.com/")
+    get_settings.cache_clear()
+    try:
+        assert (
+            oauth_routes._redirect_uri(request, "gitlab")
+            == "https://api.example.com/api/v1/auth/oauth/gitlab/callback"
+        )
+
+        monkeypatch.delenv("REPOVERIX_BACKEND_PUBLIC_URL")
+        get_settings.cache_clear()
+        assert (
+            oauth_routes._redirect_uri(request, "gitlab")
+            == "http://internal:8000/api/v1/auth/oauth/gitlab/callback"
+        )
+    finally:
+        get_settings.cache_clear()

@@ -246,6 +246,12 @@ class Settings(BaseSettings):
     backup_retention_days: int = 14
 
     frontend_url: str = "http://localhost:3000"
+    # Public origin of the API as the *browser* reaches it, used to build the
+    # OAuth ``redirect_uri``. Behind a reverse proxy the request's own base URL
+    # can be an internal address/scheme, and providers require the redirect URI
+    # to match the one registered on the OAuth app byte for byte. Leave unset
+    # when the API is reached directly (the request base URL is used).
+    backend_public_url: str | None = None
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     github_oauth_client_id: str | None = None

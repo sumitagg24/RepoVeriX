@@ -142,6 +142,19 @@ def get_provider_spec(provider: str, settings: Settings | None = None) -> Provid
     return PROVIDER_SPECS[provider]
 
 
+def provider_allowed(provider: str, settings: Settings | None = None) -> bool:
+    """Return whether the deployment offers sign-in for ``provider``.
+
+    ``REPOVERIX_AUTH_ALLOWED_SOCIAL_PROVIDERS`` is the operator's allowlist: a
+    provider outside it is never advertised, even when credentials exist (for
+    example, a tenant kept configured for repository import only). An empty
+    list turns every social provider off; the default lists all of them.
+    """
+    settings = settings or get_settings()
+    allowed = {item.strip().lower() for item in settings.auth_allowed_social_providers}
+    return provider in allowed
+
+
 def provider_credentials(provider: str, settings: Settings | None = None) -> tuple[str, str] | None:
     """Return (client_id, client_secret) for a provider, or None if unconfigured."""
     settings = settings or get_settings()
@@ -161,14 +174,27 @@ def provider_credentials(provider: str, settings: Settings | None = None) -> tup
 
 
 def configured_providers(settings: Settings | None = None) -> dict[str, dict[str, Any]]:
-    """Public capability map: which providers have credentials configured."""
+    """Public capability map: which providers can actually be used here.
+
+    ``configured`` requires both OAuth credentials *and* an entry in the
+    operator allowlist, so the sign-in page never offers a button that would
+    fail server-side. ``label`` is the display name the frontend uses; it is
+    duplicated as ``display_name`` for the settings screens.
+
+    ``supports_signin`` / ``supports_repo_import`` describe what the provider
+    is *for*, not whether it is available in this deployment.
+    """
     settings = settings or get_settings()
     out: dict[str, dict[str, Any]] = {}
     for name in PROVIDER_SPECS:
         creds = provider_credentials(name, settings)
+        allowed = provider_allowed(name, settings)
+        label = _DISPLAY_NAMES.get(name, name.capitalize())
         out[name] = {
-            "configured": creds is not None,
-            "display_name": _DISPLAY_NAMES.get(name, name.capitalize()),
+            "configured": creds is not None and allowed,
+            "allowed": allowed,
+            "label": label,
+            "display_name": label,
             "supports_repo_import": name in ("github", "gitlab", "bitbucket"),
             "supports_signin": True,
         }
