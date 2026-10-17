@@ -81,7 +81,7 @@ docs/            architecture, pipeline, evidence, verification, security, api, 
 
 ## Quick start
 
-Prerequisites: Python 3.12+, Node 20+, Docker (for verification).
+Prerequisites: Python 3.11+, Node 20+, Docker (for verification).
 
 ```bash
 # 1. environment
@@ -90,14 +90,15 @@ cp .env.example .env        # set REPOVERIX_JWT_SECRET, optionally DB/LLM keys
 # 2. backend
 cd backend
 python -m venv .venv
-.venv/Scripts/python -m pip install -e .
+# Windows: .venv\Scripts\activate      macOS/Linux: source .venv/bin/activate
+pip install -e ".[dev]"
 REPOVERIX_DATABASE_URL=sqlite+aiosqlite:///./data/dev.db \
-  .venv/Scripts/python -m uvicorn app.main:app --reload --port 8000
+  python -m uvicorn app.main:app --reload --port 8000
 
 # 3. frontend
 cd ../frontend
 npm install
-npm run dev                 # http://localhost:3000
+npm run dev                 # http://localhost:3001
 ```
 
 API docs: http://localhost:8000/docs · health: `/health`.
@@ -126,18 +127,19 @@ guide.
 
 ```bash
 cd backend
-.venv/Scripts/python -m pytest tests/ -q      # 79 tests
-.venv/Scripts/python -m ruff check app tests
+python -m pytest tests/ -q              # 525 tests
+python -m ruff check app tests
 cd ../frontend
 npm run type-check
+npm test
 ```
 
 ## Benchmark & experiments
 
 ```bash
 cd backend
-.venv/Scripts/python -m app.benchmark list
-.venv/Scripts/python -m app.benchmark run --config ../bench/configs/experiments.json --out ../bench/reports
+python -m app.benchmark list
+python -m app.benchmark run --config ../bench/configs/experiments.json --out ../bench/reports
 ```
 
 Results are computed only from real runs (`bench/reports/`); empty cells render

@@ -156,6 +156,13 @@ def git_clone_url(url: str, provider: str | None = None, token: str | None = Non
     Tokens are placed in the URL userinfo so ``git clone`` authenticates with
     the remote. The stored ``source_url`` on the repository row never contains
     the token — it is only injected at clone time.
+
+    A URL that already carries credentials (the import page tells users they
+    may paste ``https://x-access-token:ghp_xxx@github.com/owner/repo.git``)
+    keeps them as they are: the userinfo is taken from the URL *once*. The
+    original implementation prefixed the username onto a netloc that already
+    contained it, producing ``user:user:token@host``, which git rejects with
+    "URL using bad/illegal format or missing URL".
     """
     from urllib.parse import urlparse, urlunparse
 
@@ -163,15 +170,29 @@ def git_clone_url(url: str, provider: str | None = None, token: str | None = Non
     if parsed.scheme not in ("http", "https"):
         raise AnalysisError("Invalid repository URL", code="invalid_url")
     clean_path = parsed.path[:-4] if parsed.path.endswith(".git") else parsed.path
-    if token and provider == "gitlab":
-        userinfo = "oauth2:" + token
-    elif token and provider == "github":
-        userinfo = "x-access-token:" + token
+
+    # Host[:port] with any userinfo stripped off.
+    host = parsed.netloc.rsplit("@", 1)[-1]
+
+    if token:
+        # An explicit token replaces whatever credentials the URL carried.
+        if provider == "gitlab":
+            userinfo = f"oauth2:{token}"
+        elif provider == "github":
+            userinfo = f"x-access-token:{token}"
+        elif parsed.username:
+            userinfo = f"{parsed.username}:{token}"
+        else:
+            userinfo = token
+    elif parsed.username:
+        # No injected token: keep the credentials the URL already carries.
+        userinfo = parsed.username
+        if parsed.password:
+            userinfo = f"{userinfo}:{parsed.password}"
     else:
-        userinfo = parsed.username or ""
-    netloc = parsed.netloc
-    if userinfo:
-        netloc = f"{userinfo}@{netloc}"
+        userinfo = ""
+
+    netloc = f"{userinfo}@{host}" if userinfo else host
     return urlunparse((parsed.scheme, netloc, clean_path, "", "", ""))
 
 
@@ -342,6 +363,9 @@ async def download_archive(
         raise AnalysisError(f"This archive URL is blocked (SSRF guard): {exc}", code="ssrf_blocked") from None
 
     fetch_url = plan.pinned_url if plan else url
+    # The host the pinned request is actually sent to — the resolved IP, not
+    # the original hostname. The pinning below is keyed off *this* value.
+    pinned_host = httpx.URL(fetch_url).host if plan is not None else None
 
     async def _guard_redirects(request):
         decision = validate_url(str(request.url))
@@ -349,9 +373,16 @@ async def download_archive(
             raise SSRFBlocked(decision.reason)
 
     async def _keep_host_pinned(request):
-        if plan is not None and request.url.host and plan.extensions["sni_hostname"] == request.url.host:
-            request.headers["Host"] = plan.headers["Host"]
-            request.extensions = {**request.extensions, **plan.extensions}
+        # The pinned request goes to the resolved IP address, so it must carry
+        # the original hostname in the TLS SNI and the Host header — otherwise
+        # the server answers for the wrong virtual host and the TLS handshake
+        # fails ("TLS/SSL connection has been closed"). Redirect hops to a
+        # different host are preflighted separately by _guard_redirects and
+        # must keep their own hostname, so they are left alone here.
+        if plan is None or pinned_host is None or request.url.host != pinned_host:
+            return
+        request.headers["Host"] = plan.headers.get("Host", request.url.host)
+        request.extensions = {**request.extensions, **plan.extensions}
 
     if client is None:
         # Our own transport follows redirects, so each hop is preflighted too.

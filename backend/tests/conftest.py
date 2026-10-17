@@ -28,9 +28,18 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import Settings
-from app.core.security import hash_password
-from app.db.base import Base
-from app.db.models import (
+
+# A developer's local .env must never change test behaviour. A stray
+# REPOVERIX_AUTH_REQUIRE_EMAIL_VERIFICATION=false (or a configured LLM
+# provider) in backend/.env silently disables gates that several tests assert
+# on, so the suite would pass locally and fail in CI — or the other way
+# round. Neutralise the env-file lookup for the whole session: every setting
+# the suite relies on is pinned through os.environ above.
+Settings.model_config["env_file"] = None
+
+from app.core.security import hash_password  # noqa: E402
+from app.db.base import Base  # noqa: E402
+from app.db.models import (  # noqa: E402
     Repository,
     Scan,
     ScanConfiguration,
@@ -38,7 +47,7 @@ from app.db.models import (
     SourceType,
     User,
 )
-from app.main import app
+from app.main import app  # noqa: E402
 
 # Override settings for testing
 test_settings = Settings(

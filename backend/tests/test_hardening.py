@@ -275,3 +275,52 @@ class TestRedirectPinning:
         finally:
             await client.aclose()
         assert seen and "93.184.216.34" in seen[0], seen
+
+    @pytest.mark.asyncio
+    async def test_download_archive_pins_sni_and_host_for_real_ip_plan(self, tmp_path, monkeypatch):
+        """The pinned request must carry the hostname in SNI and Host.
+
+        ``preflight_and_pin`` returns a plan whose ``pinned_url`` points at the
+        *resolved IP* while ``sni_hostname`` holds the original hostname. The
+        request hook therefore has to be keyed off the pinned address, not off
+        the hostname — otherwise the TLS handshake is made against the bare IP
+        and every HTTPS archive download fails with
+        "TLS/SSL connection has been closed (EOF)".
+        """
+        import httpx
+
+        import app.core.ssrf
+        from app.analysis.ingest import download_archive
+        from app.core.ssrf import PinPlan
+
+        seen_hosts: list[str | None] = []
+        seen_sni: list[str | None] = []
+
+        def handler(request):
+            seen_hosts.append(request.headers.get("host"))
+            seen_sni.append(request.extensions.get("sni_hostname"))
+            return httpx.Response(200, content=b"PK\x05\x06" + b"\x00" * 18)
+
+        monkeypatch.setattr(
+            app.core.ssrf,
+            "preflight_and_pin",
+            lambda url, **kwargs: PinPlan(
+                # Realistic shape: the pinned URL carries the IP address.
+                pinned_url=url.replace("example.com", "93.184.216.34"),
+                headers={"Host": "example.com"},
+                extensions={"sni_hostname": "example.com"},
+            ),
+        )
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            await download_archive(
+                "pin-sni-repo",
+                "https://example.com/a.zip",
+                storage_root=tmp_path,
+                client=client,
+            )
+        finally:
+            await client.aclose()
+        assert seen_hosts, "no request reached the mock transport"
+        assert seen_hosts[0] == "example.com", seen_hosts
+        assert seen_sni[0] == "example.com", seen_sni

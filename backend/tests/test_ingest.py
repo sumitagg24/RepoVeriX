@@ -104,6 +104,33 @@ def test_git_clone_url_embeds_provider_token_without_leaking_path():
         git_clone_url("file:///etc/passwd")
 
 
+def test_git_clone_url_preserves_credentials_already_in_the_url():
+    """The import page tells users they may paste a token into the URL.
+
+    The userinfo must be taken from the URL exactly once — prefixing the
+    username onto a netloc that already contains it yields
+    "user:user:token@host", which git rejects as an illegal URL.
+    """
+    embedded = git_clone_url(
+        "https://x-access-token:ghp_REALTOKEN1234567890abc@github.com/pallets/flask.git",
+        provider="git",
+    )
+    assert embedded == "https://x-access-token:ghp_REALTOKEN1234567890abc@github.com/pallets/flask"
+    # exactly one userinfo section
+    assert embedded.count("@") == 1
+
+    user_pass = git_clone_url("https://alice:hunter2@git.internal.example/team/app.git", provider="git")
+    assert user_pass == "https://alice:hunter2@git.internal.example/team/app"
+    assert user_pass.count("@") == 1
+
+
+def test_git_clone_url_injected_token_replaces_url_credentials():
+    """An OAuth token must win over credentials the URL already carried."""
+    url = git_clone_url("https://bob@github.com/acme/private-repo.git", provider="github", token="ghp_abc")
+    assert url == "https://x-access-token:ghp_abc@github.com/acme/private-repo"
+    assert url.count("@") == 1
+
+
 async def test_download_archive_extracts_hosted_zip(tmp_path):
     import httpx
 

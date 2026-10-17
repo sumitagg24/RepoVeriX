@@ -116,6 +116,36 @@ def _looks_like_source(name: str) -> bool:
     return True
 
 
+def _resolve_git_ref(git_dir: Path, ref: str) -> str | None:
+    """Resolve a git ref (``refs/heads/main``) to the commit id it points at.
+
+    A fresh clone keeps the branch in a loose ref file, but the bounded
+    ``fetch`` that deepens the history repacks the refs into ``packed-refs``.
+    Both are checked so the scan's reproducibility metadata always records
+    the exact commit that was analysed. Never raises.
+    """
+    try:
+        loose = git_dir / ref
+        if loose.is_file():
+            value = loose.read_text(encoding="utf-8", errors="replace").strip()
+            if value:
+                return value
+    except OSError:
+        pass
+    try:
+        packed = (git_dir / "packed-refs").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for line in packed.splitlines():
+        line = line.strip()
+        if not line or line.startswith(("#", "^")):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) == 2 and parts[1].strip() == ref:
+            return parts[0].strip()
+    return None
+
+
 def walk_repo_files(root: Path) -> tuple[list[Path], int]:
     """Walk ``root`` returning (files, ignored_count) honouring ignore rules and limits."""
     settings = get_settings()
@@ -280,11 +310,16 @@ def discover_project(root: Path, source: str, prewalked: list[Path] | None = Non
     # git metadata
     git_dir = root / ".git"
     if git_dir.exists():
-        head_file = root / ".git" / "HEAD"
+        head_file = git_dir / "HEAD"
         try:
             head = head_file.read_text(encoding="utf-8", errors="replace").strip()
             if head.startswith("ref: "):
-                manifest.git_branch = head[5:].replace("refs/heads/", "")
+                ref = head[5:].strip()
+                manifest.git_branch = ref.replace("refs/heads/", "")
+                manifest.git_commit = _resolve_git_ref(git_dir, ref)
+            elif head:
+                # detached HEAD: the HEAD file already holds the commit id
+                manifest.git_commit = head
         except OSError:
             pass
 

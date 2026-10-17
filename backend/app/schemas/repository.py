@@ -134,3 +134,20 @@ class RepositoryRead(TimestampedORMModel):
     last_scan_at: datetime | None = None
     scan_count: int = 0
     finding_count: int = 0
+
+    @field_validator("source_url")
+    @classmethod
+    def _redact_source_url(cls, v: str | None) -> str | None:
+        """Never echo credentials embedded in a clone URL back to the browser.
+
+        The import page explicitly invites users to put a read-only token in
+        the repository URL. That token is kept on the repository row (it is
+        needed for the clone), so it has to be redacted on the way *out* —
+        otherwise it is rendered in the repository list and detail views and
+        travels in every API response.
+        """
+        if not v:
+            return v
+        from app.core.redact import redact_url
+
+        return redact_url(v)

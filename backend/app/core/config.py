@@ -13,7 +13,14 @@ class Settings(BaseSettings):
     ``REPOVERIX_`` (for example ``REPOVERIX_DATABASE_URL``).
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="REPOVERIX_", extra="ignore")
+    model_config = SettingsConfigDict(
+        # The repo-root ``.env`` (the file the README tells you to create) is
+        # read as a fallback; a ``backend/.env`` next to the package wins when
+        # both exist. Later files take priority in pydantic-settings.
+        env_file=("../.env", ".env"),
+        env_prefix="REPOVERIX_",
+        extra="ignore",
+    )
 
     # Managed Postgres providers (Render, Neon, Heroku, Supabase) hand out
     # connection strings in the sync-driver form ``postgres://`` or
@@ -43,6 +50,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        # The Next.js dev server (``npm run dev`` in frontend/) listens on
+        # 3001 — the browser must be allowed to reach the API from there too.
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
     ]
 
     # --- HTTP security hardening ---
@@ -245,7 +256,7 @@ class Settings(BaseSettings):
     backup_dir: str = "./data/backups"
     backup_retention_days: int = 14
 
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = "http://localhost:3001"
     # Public origin of the API as the *browser* reaches it, used to build the
     # OAuth ``redirect_uri``. Behind a reverse proxy the request's own base URL
     # can be an internal address/scheme, and providers require the redirect URI
