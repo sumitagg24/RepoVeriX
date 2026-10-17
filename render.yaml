@@ -68,6 +68,10 @@ services:
         sync: false
       - key: REPOVERIX_FRONTEND_URL
         sync: false
+      # Public API origin (browser-facing). Required for OAuth behind Render's
+      # proxy so the registered callback URI matches the redirect URI exactly.
+      - key: REPOVERIX_BACKEND_PUBLIC_URL
+        sync: false
       # --- optional integrations (set in the dashboard; empty = feature off) ---
       - key: REPOVERIX_LLM_PROVIDER
         sync: false

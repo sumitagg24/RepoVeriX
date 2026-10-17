@@ -2,10 +2,11 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Github, Gitlab } from 'lucide-react';
+import { Check, Copy, Github, Gitlab } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Callout } from '@/components/ui/panel';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Wordmark } from '@/components/layout/logo';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -182,99 +183,128 @@ export function AuthError({ message, className }: { message: React.ReactNode; cl
 /**
  * Provider sign-in.
  *
- * Only providers the deployment actually configured are rendered, and a provider
- * that cannot sign in is never shown — a disabled GitHub button on a deployment
- * without a GitHub app would be a lie the interface cannot afford.
+ * Google, GitHub and GitLab are always present: they are the three identity
+ * providers this product is built around, and a sign-in page missing them
+ * reads as unfinished. A provider the deployment has configured starts the
+ * real consent flow. One it has not configured opens an explanation of the
+ * exact server setting that is missing — the button is never a silent dead
+ * end, and it never pretends a sign-in is available when it is not.
+ *
+ * The remaining providers (Microsoft, Bitbucket, Auth0, Oracle) stay opt-in:
+ * they appear only when configured, because they are capabilities an operator
+ * chooses rather than part of the standard front door.
+ *
+ * When Auth0 is configured and a standard provider is not configured directly,
+ * its button federates through the tenant's connection of the same name
+ * instead of rendering a duplicate button for the same provider.
  */
+const PRIMARY_PROVIDERS: OAuthProviderName[] = ['google', 'github', 'gitlab'];
 
-// Deterministic display order regardless of what the backend sends back.
-const PROVIDER_ORDER: OAuthProviderName[] = [
-  'github',
-  'gitlab',
-  'google',
-  'microsoft',
-  'bitbucket',
-  'auth0',
-  'oracle',
-];
+const SECONDARY_PROVIDERS: OAuthProviderName[] = ['microsoft', 'bitbucket', 'oracle'];
 
 /**
- * Providers offered through the Auth0 tenant.
- *
- * Auth0 deep-links straight to a named connection (`connection=…`), so each
- * social button federates through the tenant while skipping Auth0's connection
- * picker. The names are Auth0's defaults for each strategy — if a connection
- * is renamed in the Auth0 dashboard, update it here to match.
+ * Auth0 connection names for the standard social buttons. These are Auth0's
+ * defaults; a renamed connection in the tenant must be updated here.
  */
-const AUTH0_CONNECTIONS: Array<{
-  provider: OAuthProviderName;
-  label: string;
-  connection: string;
-}> = [
-  { provider: 'google', label: 'Google', connection: 'google-oauth2' },
-  { provider: 'github', label: 'GitHub', connection: 'github' },
-];
+const AUTH0_CONNECTIONS: Partial<Record<OAuthProviderName, string>> = {
+  google: 'google-oauth2',
+  github: 'github',
+  gitlab: 'gitlab',
+};
+
+const PROVIDER_LABEL: Record<OAuthProviderName, string> = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  google: 'Google',
+  microsoft: 'Microsoft',
+  bitbucket: 'Bitbucket',
+  auth0: 'Auth0',
+  oracle: 'Oracle',
+};
+
+/** `REPOVERIX_<PREFIX>_OAUTH_CLIENT_ID` / `..._SECRET` for the setup dialog. */
+const OAUTH_ENV_PREFIX: Record<OAuthProviderName, string> = {
+  github: 'GITHUB',
+  gitlab: 'GITLAB',
+  google: 'GOOGLE',
+  microsoft: 'MICROSOFT',
+  bitbucket: 'BITBUCKET',
+  auth0: 'AUTH0',
+  oracle: 'ORACLE',
+};
+
+function ProviderIcon({ provider }: { provider: OAuthProviderName }) {
+  switch (provider) {
+    case 'github':
+      return <Github className="size-4" aria-hidden="true" />;
+    case 'gitlab':
+      return <Gitlab className="size-4" aria-hidden="true" />;
+    case 'google':
+      return <GoogleIcon className="size-4" />;
+    case 'microsoft':
+      return <MicrosoftIcon className="size-4" />;
+    case 'bitbucket':
+      return <BitbucketIcon className="size-4" />;
+    case 'auth0':
+      return <Auth0Icon className="size-4" />;
+    case 'oracle':
+      return <OracleIcon className="size-4" />;
+    default:
+      return null;
+  }
+}
 
 export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
   const providers = useOAuthProviders();
   const [pending, setPending] = React.useState<string | null>(null);
+  const [setupProvider, setSetupProvider] = React.useState<OAuthProviderName | null>(null);
+  const [copied, setCopied] = React.useState(false);
 
-  const configured = React.useMemo(() => {
-    const data = providers.data;
-    if (!data) return [] as OAuthProviderName[];
-    return (
-      Object.entries(data) as [OAuthProviderName, { configured: boolean; supports_signin: boolean }][]
-    )
-      .filter(([, info]) => info.configured && info.supports_signin)
-      .map(([name]) => name);
-  }, [providers.data]);
-
-  const available = React.useMemo(
-    () => PROVIDER_ORDER.filter((p) => configured.includes(p)),
-    [configured]
+  const available = React.useCallback(
+    (provider: OAuthProviderName) => {
+      const info = providers.data?.[provider];
+      return Boolean(info?.configured && info.supports_signin);
+    },
+    [providers.data],
   );
 
-  // Auth0-mediated social buttons: shown when the tenant is configured, and
-  // skipped for providers also configured for direct OAuth so the same
-  // provider never renders twice.
-  const auth0Buttons = React.useMemo(
-    () =>
-      configured.includes('auth0')
-        ? AUTH0_CONNECTIONS.filter((c) => !configured.includes(c.provider))
-        : [],
-    [configured]
-  );
+  const auth0Available = available('auth0');
+  const loading = providers.isLoading;
 
-  if (providers.isLoading || (available.length === 0 && auth0Buttons.length === 0)) return null;
+  const primary = PRIMARY_PROVIDERS.map((provider) => {
+    const direct = available(provider);
+    // Federating through Auth0 still opens a real consent screen, so the
+    // button is live — it just uses the tenant's connection.
+    const connection = !direct && auth0Available ? AUTH0_CONNECTIONS[provider] : undefined;
+    return { provider, connection, ready: direct || Boolean(connection) };
+  });
 
-  const label: Record<OAuthProviderName, string> = {
-    github: 'GitHub',
-    gitlab: 'GitLab',
-    google: 'Google',
-    microsoft: 'Microsoft',
-    bitbucket: 'Bitbucket',
-    auth0: 'Auth0',
-    oracle: 'Oracle',
-  };
+  const secondary = SECONDARY_PROVIDERS.filter(available);
+  const anySetup = primary.some((item) => !item.ready);
 
-  function ProviderIcon({ provider }: { provider: OAuthProviderName }) {
-    switch (provider) {
-      case 'github':
-        return <Github className="size-4" aria-hidden="true" />;
-      case 'gitlab':
-        return <Gitlab className="size-4" aria-hidden="true" />;
-      case 'google':
-        return <GoogleIcon className="size-4" />;
-      case 'microsoft':
-        return <MicrosoftIcon className="size-4" />;
-      case 'bitbucket':
-        return <BitbucketIcon className="size-4" />;
-      case 'auth0':
-        return <Auth0Icon className="size-4" />;
-      case 'oracle':
-        return <OracleIcon className="size-4" />;
-      default:
-        return null;
+  function start(provider: OAuthProviderName, connection?: string) {
+    setPending(connection ? `auth0:${provider}` : provider);
+    // Full-page navigation: the provider must return to the backend callback,
+    // which owns the OAuth state cookie.
+    window.location.href = connection
+      ? oauthService.loginUrl('auth0', next, { connection })
+      : oauthService.loginUrl(provider, next);
+  }
+
+  const setupTarget = setupProvider;
+  const setupLabel = setupTarget ? PROVIDER_LABEL[setupTarget] : '';
+  const callbackUrl = setupTarget ? oauthService.callbackUrl(setupTarget) : '';
+
+  React.useEffect(() => {
+    setCopied(false);
+  }, [setupProvider]);
+
+  async function copyCallbackUrl() {
+    try {
+      await navigator.clipboard.writeText(callbackUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
     }
   }
 
@@ -285,51 +315,167 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
         <span className="text-[12px] text-muted">or continue with</span>
         <span className="h-px flex-1 bg-hairline" />
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {auth0Buttons.map(({ provider, connection }) => (
-          <Button
-            key={`auth0:${connection}`}
-            variant="secondary"
-            size="md"
-            className="flex-1 min-w-[120px]"
-            loading={pending === `auth0:${connection}`}
-            onClick={() => {
-              setPending(`auth0:${connection}`);
-              // Federates through the Auth0 tenant but skips its connection
-              // picker by deep-linking straight to the named connection.
-              window.location.href = oauthService.loginUrl('auth0', next, { connection });
-            }}
-          >
-            <ProviderIcon provider={provider} />
-            {label[provider]}
-          </Button>
-        ))}
-        {available.map((provider) => (
-          <Button
-            key={provider}
-            variant="secondary"
-            size="md"
-            className="flex-1 min-w-[120px]"
-            loading={pending === provider}
-            onClick={() => {
-              setPending(provider);
-              // Full-page navigation: the provider must return to the backend
-              // callback, which owns the OAuth state cookie.
-              window.location.href = oauthService.loginUrl(provider, next);
-            }}
-          >
-            <ProviderIcon provider={provider} />
-            {label[provider]}
-          </Button>
-        ))}
+
+      <div className="mt-4 space-y-2">
+        {primary.map(({ provider, connection, ready }) => {
+          const label = PROVIDER_LABEL[provider];
+          const key = connection ? `auth0:${provider}` : provider;
+          return (
+            <Button
+              key={provider}
+              variant="secondary"
+              size="md"
+              className="w-full justify-start"
+              disabled={loading}
+              loading={pending === key}
+              aria-label={
+                ready
+                  ? `Continue with ${label}`
+                  : `${label} sign-in is not configured on this deployment — see setup steps`
+              }
+              onClick={() => (ready ? start(provider, connection) : setSetupProvider(provider))}
+            >
+              <ProviderIcon provider={provider} />
+              <span>Continue with {label}</span>
+              {!loading && !ready ? (
+                <span className="ml-auto rounded-sm bg-surface px-1 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.07em] text-faint">
+                  Setup
+                </span>
+              ) : null}
+            </Button>
+          );
+        })}
       </div>
-      <p className="mt-3 flex items-center gap-1.5 text-[12px] text-muted">
+
+      {auth0Available || secondary.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {auth0Available ? (
+            <Button
+              variant="secondary"
+              size="md"
+              className="flex-1"
+              loading={pending === 'auth0'}
+              onClick={() => {
+                setPending('auth0');
+                window.location.href = oauthService.loginUrl('auth0', next);
+              }}
+            >
+              <ProviderIcon provider="auth0" />
+              {PROVIDER_LABEL.auth0}
+            </Button>
+          ) : null}
+          {secondary.map((provider) => (
+            <Button
+              key={provider}
+              variant="secondary"
+              size="md"
+              className="flex-1"
+              loading={pending === provider}
+              onClick={() => start(provider)}
+            >
+              <ProviderIcon provider={provider} />
+              {PROVIDER_LABEL[provider]}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
+      <p className="mt-3 text-[12px] leading-relaxed text-muted" role="status">
+        {loading ? (
+          'Checking which providers this deployment has configured…'
+        ) : providers.isError ? (
+          <>
+            Provider status could not be read.{' '}
+            <button
+              type="button"
+              className="text-accent underline-offset-4 hover:underline"
+              onClick={() => void providers.refetch()}
+            >
+              Try again
+            </button>
+          </>
+        ) : anySetup ? (
+          'A button marked Setup opens the steps needed to switch that provider on. Email and password sign-in works either way.'
+        ) : null}
+      </p>
+
+      <p className="mt-2 flex items-center gap-1.5 text-[12px] text-muted">
         <Tooltip label="The provider returns you to this deployment's callback, which hands the session back to the app.">
           <span className="cursor-help underline decoration-dotted underline-offset-4">
             How this works
           </span>
         </Tooltip>
       </p>
+
+      <Dialog
+        open={Boolean(setupProvider)}
+        onOpenChange={(open) => {
+          if (!open) setSetupProvider(null);
+        }}
+      >
+        {setupTarget ? (
+          <DialogContent
+            title={`${setupLabel} sign-in is not set up`}
+            description={
+              providers.isError
+                ? `Provider status could not be read from the API, so this button cannot start a sign-in right now. Retry the status check, or configure ${setupLabel} as described below.`
+                : `This deployment has no ${setupLabel} OAuth app yet, so there is no consent screen to open. Nothing is broken: email and password sign-in still works.`
+            }
+            footer={
+              <Button variant="secondary" size="md" onClick={() => void copyCallbackUrl()}>
+                {copied ? (
+                  <Check className="size-3.5" aria-hidden="true" />
+                ) : (
+                  <Copy className="size-3.5" aria-hidden="true" />
+                )}
+                {copied ? 'Redirect URI copied' : 'Copy redirect URI'}
+              </Button>
+            }
+          >
+            <ol className="space-y-3 text-[13px] leading-relaxed text-body">
+              <li className="flex gap-2.5">
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-hairline text-[11px] text-muted">
+                  1
+                </span>
+                <span>Create an OAuth app in {setupLabel}&apos;s developer settings.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-hairline text-[11px] text-muted">
+                  2
+                </span>
+                <span>
+                  Register this redirect URI, character for character:
+                  <code className="mt-1.5 block break-all rounded-sm border border-hairline bg-surface px-2 py-1.5 font-mono text-[11.5px] text-ink">
+                    {callbackUrl}
+                  </code>
+                </span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-hairline text-[11px] text-muted">
+                  3
+                </span>
+                <span>
+                  Set{' '}
+                  <code className="font-mono text-[11.5px] text-ink">
+                    REPOVERIX_{OAUTH_ENV_PREFIX[setupTarget]}_OAUTH_CLIENT_ID
+                  </code>{' '}
+                  and{' '}
+                  <code className="font-mono text-[11.5px] text-ink">
+                    REPOVERIX_{OAUTH_ENV_PREFIX[setupTarget]}_OAUTH_CLIENT_SECRET
+                  </code>{' '}
+                  on the API, then restart it.
+                </span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-hairline text-[11px] text-muted">
+                  4
+                </span>
+                <span>Reload this page. The button starts the real consent screen.</span>
+              </li>
+            </ol>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }

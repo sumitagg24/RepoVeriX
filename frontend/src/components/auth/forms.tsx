@@ -16,6 +16,7 @@ import { Callout } from '@/components/ui/panel';
 import { LoadingRegion, SkeletonText } from '@/components/ui/states';
 import { useAuth } from '@/context/auth-context';
 import { authService, readStoredToken, toApiFailure } from '@/services/api';
+import { safeRedirectPath } from '@/lib/utils';
 
 /**
  * Account forms.
@@ -43,7 +44,7 @@ export function SignInForm() {
   const { login, user } = useAuth();
   const [failure, setFailure] = React.useState<string | null>(null);
   const expired = params.get('expired') === '1';
-  const next = params.get('next') || '/dashboard';
+  const next = safeRedirectPath(params.get('next'), '/dashboard');
 
   const form = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
@@ -552,10 +553,28 @@ export function VerifyEmailFlow() {
 
 // --------------------------------------------------------- oauth callback
 
+/** Backend callback error codes, written for the person reading them. */
+const OAUTH_ERROR_DETAILS: Record<string, string> = {
+  access_denied:
+    'The provider reported that access was denied. Nothing was changed on your account.',
+  invalid_state:
+    'The sign-in request expired, or it did not start in this browser. Start again from the sign-in page.',
+  not_configured:
+    'This deployment does not have that provider configured any more. Use email and password, or another provider.',
+  oauth_failed:
+    'The provider rejected the token exchange. Try again; if it keeps failing, the OAuth app credentials on the server need checking.',
+  profile_failed:
+    'The provider did not return a usable profile. Check that the OAuth app has the email and profile scopes, then try again.',
+  email_required:
+    'The provider did not return an email address, so there is no account to sign in to. Use another provider or email and password.',
+  unknown_provider: 'That sign-in provider is not supported by this deployment.',
+};
+
 /**
  * The provider returns to the backend callback, which then hands the session to
  * this route. The backend places the token in the URL fragment (`#token=…`) so a
- * long-lived credential never lands in a server log or referrer header.
+ * long-lived credential never lands in a server log or referrer header. The
+ * fragment is removed from the address bar before the token is validated.
  */
 export function OAuthCallback() {
   const [state, setState] = React.useState<'working' | 'failed'>('working');
@@ -569,12 +588,17 @@ export function OAuthCallback() {
       const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
       const query = new URLSearchParams(window.location.search);
       const token = hash.get('token') ?? query.get('token');
-      const next = hash.get('next') ?? query.get('next') ?? '/onboarding';
+      const next = safeRedirectPath(hash.get('next') ?? query.get('next'), '/onboarding');
       const error = hash.get('error') ?? query.get('error');
+
+      // The session token is single-use material. Remove it from the address
+      // bar and history before validation, so a failed hand-off cannot leave
+      // it sitting in a screenshot, a shared tab or the back button.
+      window.history.replaceState(null, '', window.location.pathname);
 
       if (error) {
         if (!cancelled) {
-          setDetail(error);
+          setDetail(OAUTH_ERROR_DETAILS[error] ?? `The provider returned an error: ${error}.`);
           setState('failed');
         }
         return;
@@ -588,8 +612,6 @@ export function OAuthCallback() {
       }
       try {
         await adoptToken(token);
-        // Drop the token from the address bar before navigating.
-        window.history.replaceState(null, '', window.location.pathname);
         if (!cancelled) router.replace(next);
       } catch (err) {
         if (!cancelled) {

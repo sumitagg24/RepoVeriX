@@ -77,7 +77,10 @@ async def test_oauth_callback_token_survives_token_version_bump(client, db_sessi
             client.cookies.delete("rvx_oauth_state")  # type: ignore[misc]
         assert resp.status_code in (301, 302, 307), resp.text
         location = resp.headers["location"]
-        fragment = location.split("?", 1)[1]
+        # The session token is handed over in the URL fragment (never a query
+        # string, which would reach server logs and referrer headers).
+        assert "?" not in location.split("#", 1)[0], location
+        fragment = location.split("#", 1)[1]
         params = dict(p.split("=", 1) for p in fragment.split("&"))
         assert params.get("provider") == "github", location
         return params["token"]

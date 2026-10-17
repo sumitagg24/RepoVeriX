@@ -63,16 +63,20 @@ credentials are set the **Auth0** button appears on `/auth/sign-in` and
    * fetches the normalized profile at `.../userinfo`,
    * upserts a local `User` (email verified) and an `OAuthAccount`,
    * mints a RepoVeriX JWT and redirects to the frontend callback with the
-     token in the URL query.
-4. The frontend `/auth/oauth/callback` adopts the token and navigates to
-   `next`.
+     token in the URL **fragment** (`#token=…&provider=…&next=…`). A fragment
+     is never sent to a server, so the credential stays out of access logs,
+     referrer headers and proxy caches.
+4. The frontend `/auth/oauth/callback` immediately removes the fragment from
+   the address bar, adopts the token and navigates to `next`.
 
 ## Social buttons (Google, GitHub)
 
 When the tenant is configured, the sign-in page renders the generic **Auth0**
 button (full Auth0 login page: database connection + every enabled social
-connection) *plus* one button per federated provider — Google, GitHub —
-that deep-links into the tenant:
+connection) *plus* federated buttons for Google, GitHub and GitLab when those
+providers have no direct credentials of their own. The standard Google/GitHub/
+GitLab buttons are always visible on `/auth/sign-in` and `/auth/sign-up`; with
+Auth0 configured they deep-link into the tenant:
 
 ```
 GET /api/v1/auth/oauth/auth0/login?next=/dashboard&connection=google-oauth2
@@ -87,16 +91,14 @@ provider. The button/connection mapping lives in `AUTH0_CONNECTIONS` in
 | -------- | --------------------- |
 | Google   | `google-oauth2`       |
 | GitHub   | `github`              |
+| GitLab   | `gitlab`              |
 
-A button renders only for providers that can actually sign in: add a row here
-(and enable the matching connection for the app in Auth0) to surface another
-provider. GitLab, for example, gets its button the moment its tenant
-connection exists.
-
-A button only renders when the Auth0 credentials are configured; if a provider
-is also configured for *direct* OAuth (its own `REPOVERIX_<PROVIDER>_OAUTH_*`
-credentials), the direct button wins and the Auth0 one is skipped so a provider
-never appears twice.
+Enable the matching connection for the app in Auth0; the button then starts the
+real consent screen through the tenant. If a provider is also configured for
+*direct* OAuth (its own `REPOVERIX_<PROVIDER>_OAUTH_*` credentials), the direct
+button wins and the Auth0 connection is not used, so a provider never appears
+twice. A provider without either configuration shows the `Setup` badge instead
+of a broken sign-in.
 
 ## Verification
 

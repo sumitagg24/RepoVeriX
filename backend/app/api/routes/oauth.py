@@ -6,8 +6,11 @@ Flow (browser):
         -> 307 to the provider consent screen (state stored in a cookie)
     provider -> /auth/oauth/{provider}/callback?code=...&state=...
         -> exchange code, upsert the local user, redirect to the frontend
-           with ``?token=<jwt>&provider=<name>``
+           with ``#token=<jwt>&provider=<name>&next=<path>``
     frontend /auth/oauth/callback stores the token and continues.
+
+The session token travels in the fragment, never the query string: fragments
+are not sent to servers, so the credential stays out of logs and referrers.
 
 Authenticated callers can then list importable repositories with
 ``GET /auth/oauth/{provider}/repos`` and import one via
@@ -53,6 +56,10 @@ _STATE_COOKIE = "rvx_oauth_state"
 # authorize URL, never interpreted locally.
 _CONNECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,60}$")
 
+# OAuth callback error codes forwarded to the frontend (oauth_failed,
+# access_denied, …). Same reasoning: a fixed, small alphabet, never raw text.
+_ERROR_CODE_RE = re.compile(r"^[a-z0-9_]{1,40}$")
+
 
 def _sanitize_next_path(path: str | None) -> str:
     """Validate a path to ensure it is a safe relative path on the same origin."""
@@ -80,10 +87,49 @@ def _frontend_redirect(path: str = "/dashboard") -> str:
 
 
 def _redirect_uri(request: Request, provider: str) -> str:
+    """Build the callback URL registered on the provider's OAuth app.
+
+    ``REPOVERIX_BACKEND_PUBLIC_URL`` wins when set: behind a reverse proxy the
+    request's base URL can be an internal host/scheme, and providers require
+    this value to match the registered redirect URI exactly. Otherwise the
+    request base URL is the best signal available.
+    """
     settings = get_settings()
-    origin = str(request.base_url).rstrip("/")
+    origin = (settings.backend_public_url or str(request.base_url)).rstrip("/")
     # base_url already carries the mount point; append the callback path
     return f"{origin}{settings.api_prefix}/auth/oauth/{provider}/callback"
+
+
+def _clear_state_cookie(response: RedirectResponse) -> RedirectResponse:
+    response.delete_cookie(_STATE_COOKIE, path="/")
+    return response
+
+
+def _failure_redirect(code: str) -> RedirectResponse:
+    """Send the browser back to the app with an error the callback can explain.
+
+    The state cookie is single-use: it is cleared on every outcome, so a
+    refused or failed attempt cannot be replayed from the same browser. Only a
+    short code charset is accepted (the provider's own ``error`` value is
+    attacker-influenced), and it is URL-encoded into the query string.
+    """
+    if not _ERROR_CODE_RE.fullmatch(code):
+        code = "oauth_failed"
+    query = urlencode({"error": code})
+    return _clear_state_cookie(RedirectResponse(url=_frontend_redirect(f"/auth/oauth/callback?{query}")))
+
+
+def _signin_redirect(token: str, provider: str, next_path: str) -> RedirectResponse:
+    """Hand the minted session to the frontend.
+
+    The token travels in the URL *fragment*: browsers never send a fragment to
+    a server, so the credential stays out of access logs, referrer headers and
+    proxy caches. The frontend callback reads it and immediately replaces the
+    address bar.
+    """
+    params = urlencode({"token": token, "provider": provider, "next": next_path})
+    response = RedirectResponse(url=_frontend_redirect(f"/auth/oauth/callback#{params}"))
+    return _clear_state_cookie(response)
 
 
 @router.get("/providers")
@@ -113,6 +159,11 @@ async def oauth_login(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"{provider} OAuth is not configured on the server (see docs/MANUAL-SETUP.md)",
+        )
+    if not oauth_service.provider_allowed(provider):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{provider} sign-in is disabled on this deployment",
         )
     state = oauth_service.new_oauth_state()
     pkce_verifier = oauth_service.new_pkce_verifier()
@@ -152,13 +203,11 @@ async def oauth_callback(
 ):
     """Handle the provider redirect: exchange the code with PKCE, upsert the user, sign in."""
     if provider not in oauth_service.PROVIDER_SPECS:
-        return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=unknown_provider"))
+        return _failure_redirect("unknown_provider")
     if error or not code:
-        return RedirectResponse(
-            url=_frontend_redirect(f"/auth/oauth/callback?error={error or 'access_denied'}")
-        )
+        return _failure_redirect(error or "access_denied")
     if not rvx_oauth_state:
-        return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=invalid_state"))
+        return _failure_redirect("invalid_state")
 
     # Unpack state cookie: state[:pkce_verifier[:next_path]]
     parts = rvx_oauth_state.split(":", 2)
@@ -167,9 +216,9 @@ async def oauth_callback(
     next_path = _sanitize_next_path(parts[2]) if len(parts) > 2 else "/dashboard"
 
     if not state or not secrets.compare_digest(expected_state, state):
-        return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=invalid_state"))
-    if oauth_service.provider_credentials(provider) is None:
-        return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=not_configured"))
+        return _failure_redirect("invalid_state")
+    if oauth_service.provider_credentials(provider) is None or not oauth_service.provider_allowed(provider):
+        return _failure_redirect("not_configured")
 
     try:
         try:
@@ -192,15 +241,14 @@ async def oauth_callback(
         # error so internals (URLs, response bodies) never reach the browser.
         host = request.client.host if request.client else "?"
         _logger.warning("OAuth %s exchange failed for %s: %s", provider, host, exc)
-        params = urlencode({"error": "oauth_failed"})
-        return RedirectResponse(url=_frontend_redirect(f"/auth/oauth/callback?{params}"))
+        return _failure_redirect("oauth_failed")
     if not access_token or not profile.get("id"):
-        return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=profile_failed"))
+        return _failure_redirect("profile_failed")
 
     email = profile.get("email") or ""
     user = await _upsert_oauth_user(db, provider, profile, email)
     if user is None:
-        return RedirectResponse(url=_frontend_redirect("/auth/oauth/callback?error=email_required"))
+        return _failure_redirect("email_required")
 
     await _upsert_oauth_account(db, user, provider, profile, token_data, access_token)
 
@@ -208,13 +256,9 @@ async def oauth_callback(
     # revoke-all, suspension) the authenticator's tv-claim check would
     # otherwise reject the OAuth session this callback just minted.
     token = create_access_token(user.id, token_version=user.token_version or 0)
-    query_dict = {"token": token, "provider": provider}
-    if next_path and next_path != "/dashboard":
-        query_dict["next"] = next_path
-    params = urlencode(query_dict)
-    response = RedirectResponse(url=_frontend_redirect(f"/auth/oauth/callback?{params}"))
-    response.delete_cookie(_STATE_COOKIE, path="/")
-    return response
+    # Always hand `next` back: the sign-in form already chose where to land,
+    # and dropping it here would strand every existing user on onboarding.
+    return _signin_redirect(token, provider, next_path or "/dashboard")
 
 
 async def _upsert_oauth_user(db: AsyncSession, provider: str, profile: dict, email: str) -> User | None:
