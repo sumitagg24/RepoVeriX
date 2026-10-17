@@ -59,12 +59,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        # npm install (not ci): the lockfile was generated on Windows and omits
-        # the platform-specific optional binaries (lightningcss-linux-*), so
-        # `npm ci` installs nothing for them on the Linux runner and the build
-        # fails. Vercel builds with `npm install` too, so CI matches the
-        # deploy platform. The lockfile still pins every resolved version.
-        run: npm install
+        # npm ci is safe again: package.json declares the lightningcss platform
+        # binaries as optionalDependencies, so the lockfile carries Linux/musl
+        # entries for the runner (previously only Windows ones were recorded).
+        run: npm ci
 
       - name: Lint
         run: npm run lint

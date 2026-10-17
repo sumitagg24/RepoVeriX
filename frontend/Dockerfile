@@ -14,9 +14,9 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
 
 COPY package.json package-lock.json* ./
 
-# npm install (not ci): the Windows-generated lockfile omits the Linux/musl
-# optional binaries (lightningcss-*); npm ci would not install them here.
-RUN npm install --legacy-peer-deps
+# npm ci is safe here: the lockfile pins the Linux/musl lightningcss binaries
+# (declared as optionalDependencies in package.json).
+RUN npm ci --legacy-peer-deps
 
 COPY . .
 
