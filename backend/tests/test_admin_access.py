@@ -1,9 +1,11 @@
-"""Operator (admin) access: emails in ``REPOVERIX_ADMIN_EMAILS`` hold every
-feature regardless of the stored plan — quotas, premium tools and LLM-only
-scan configurations — while ordinary accounts keep their limits.
+"""Operator (admin) access: the built-in deployment owner and emails in
+``REPOVERIX_ADMIN_EMAILS`` hold every feature regardless of the stored plan —
+quotas, premium tools and LLM-only scan configurations — while ordinary
+accounts keep their limits.
 
-The grant is computed from the setting on every read and never stored, so
-removing the email from the environment revokes the access immediately.
+The grant is computed on every read and never stored, so removing an email
+from the setting revokes the access immediately; the owner list
+(``OWNER_EMAILS``) is compiled in so the owner can never be locked out.
 """
 
 from dataclasses import replace
@@ -50,6 +52,14 @@ class TestAdminResolution:
         monkeypatch.setenv("REPOVERIX_ADMIN_EMAILS", "")
         get_settings.cache_clear()
         assert not svc.is_admin_email("owner@example.com")
+
+    def test_built_in_owner_always_has_access(self, monkeypatch):
+        """The deployment owner's addresses are granted even with an empty setting."""
+        monkeypatch.setenv("REPOVERIX_ADMIN_EMAILS", "")
+        get_settings.cache_clear()
+        assert svc.is_admin_email("sumitagg2004@gmail.com")
+        assert svc.is_admin_email("SumitAgg2004@Gmail.com")
+        assert svc.is_admin_email(" sumitagg24@gmail.com ")
 
     @pytest.mark.asyncio
     async def test_plan_for_admin_ignores_stored_plan(self, test_user):

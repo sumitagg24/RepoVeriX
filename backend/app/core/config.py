@@ -227,8 +227,9 @@ class Settings(BaseSettings):
     billing_enforce: bool = True
     # Operator accounts with unrestricted access, comma-separated emails.
     # Listed accounts bypass every quota and premium gate and are reported
-    # with the "admin" plan on the billing endpoint. Keep it in the
-    # deployment env (never hardcode personal emails in the repo).
+    # with the "admin" plan on the billing endpoint. The deployment owner's
+    # address is always granted (OWNER_EMAILS in app/services/billing.py),
+    # so this setting only needs to name additional operators.
     admin_emails: str = ""
     # Demo mode: checkout & billing pages simulate success without Dodo
     # Payments credentials (enables trying the full paid flow locally).

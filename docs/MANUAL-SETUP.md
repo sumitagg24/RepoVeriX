@@ -228,8 +228,10 @@ different numbers, and mirror the prices on the landing page.
 account emails (for example the deployment owner's). Those accounts bypass
 every gate — quotas, premium tools and LLM-only scan configurations — without
 changing any stored plan, are reported with the `admin` plan on the billing
-endpoint, and see an Admin badge in the interface. The grant is computed on
-every request, so removing an email from the setting revokes it immediately.
+endpoint, and see an Admin badge in the interface. The deployment owner's
+addresses (`OWNER_EMAILS` in `backend/app/services/billing.py`) are always
+granted. The grant is computed on every request, so removing an email from the
+setting revokes it immediately.
 
 ---
 

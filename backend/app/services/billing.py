@@ -169,12 +169,28 @@ ADMIN_PLAN = PlanLimits(
 )
 
 
+# Deployment owners: always hold operator access, so the account that owns
+# this deployment can never be locked out by a missing or malformed
+# ``REPOVERIX_ADMIN_EMAILS`` value. Additional accounts are granted by the
+# setting; this list is intentionally compiled in.
+OWNER_EMAILS = frozenset({"sumitagg2004@gmail.com", "sumitagg24@gmail.com"})
+
+
 def is_admin_email(email: str | None) -> bool:
-    """True when ``email`` is listed in ``REPOVERIX_ADMIN_EMAILS``."""
+    """True when ``email`` holds operator access on this deployment.
+
+    Access comes from the built-in deployment owner list or from
+    ``REPOVERIX_ADMIN_EMAILS`` (comma-separated). Matching is
+    case-insensitive and whitespace-trimmed.
+    """
+    candidate = (email or "").strip().lower()
+    if not candidate:
+        return False
+    if candidate in OWNER_EMAILS:
+        return True
     configured = (get_settings().admin_emails or "").split(",")
     allowed = {value.strip().lower() for value in configured if value.strip()}
-    candidate = (email or "").strip().lower()
-    return bool(candidate) and candidate in allowed
+    return candidate in allowed
 
 
 def is_admin(user) -> bool:
