@@ -137,6 +137,26 @@ API is served from a different origin than the UI:
    REPOVERIX_CORS_ORIGINS: '["https://your-domain.com"]'
    ```
 
+### 2b. Keeping a free-tier backend warm
+
+Render spins a Free web service down after **15 minutes without inbound
+traffic**, and the next request pays a cold start (often 30–60 s). An external
+uptime monitor pointed at the backend keeps it running:
+
+- Create an HTTP(s) monitor (e.g. [UptimeRobot](https://uptimerobot.com), free
+  plan, 5-minute interval) with the URL `https://<api-host>/keepalive` — a
+  dependency-free keep-warm probe. `/health` also works; `/ready` additionally
+  checks the database.
+- Point it at the **backend** host (`*.onrender.com`), not the Vercel
+  frontend: the frontend never sleeps, and loading a frontend page does not
+  wake the API.
+- The first check may time out while the instance cold-starts; once it is up,
+  the 5-minute cadence keeps it up.
+
+Warming one service around the clock consumes roughly the full 750 free
+instance hours a Render workspace gets per month — fine for a single service,
+but avoid keeping several free services awake at once.
+
 ## 3. Deploying to a server (via GitHub Actions)
 
 `.github/workflows/deploy.yml` pushes GHCR images on every `main` push and, when

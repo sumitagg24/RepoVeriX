@@ -218,6 +218,18 @@ def create_app() -> FastAPI:
             return JSONResponse(status_code=503, content={"status": "not_ready"})
         return {"status": "ready", "service": settings.app_name}
 
+    @app.api_route("/keepalive", methods=["GET", "HEAD"], tags=["health"])
+    async def keepalive_check():
+        """Keep-warm probe for external uptime monitors (UptimeRobot et al.).
+
+        Render's free instances suspend after ~15 minutes without inbound
+        traffic. Pointing a monitor at this route every ~5 minutes keeps the
+        instance running, so the first real request is never a cold start.
+        Unlike ``/ready`` it touches no dependencies (no DB round-trip), and
+        it lives outside the API prefix so it is exempt from rate limiting.
+        """
+        return {"status": "awake", "service": settings.app_name}
+
     @app.get("/metrics", tags=["observability"])
     async def metrics_endpoint():
         """Prometheus-format metrics for scraping (request rates, durations,

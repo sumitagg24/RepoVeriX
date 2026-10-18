@@ -70,6 +70,17 @@ async def test_health_and_readiness_endpoints(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_keepalive_endpoint(client: AsyncClient):
+    """Keep-warm probe answers 200 (GET and HEAD) without touching dependencies."""
+    res = await client.get("/keepalive")
+    assert res.status_code == 200
+    assert res.json() == {"status": "awake", "service": "RepoVeriX"}
+
+    res_head = await client.head("/keepalive")
+    assert res_head.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_startup_recovery_reconciles_interrupted_jobs(db_session, session_factory, test_user: User):
     """Stale pending/running scans and verifications are marked failed on startup."""
     repo = Repository(
