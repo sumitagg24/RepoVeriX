@@ -89,6 +89,29 @@ services:
       # (reported with the "admin" plan). Set in the dashboard.
       - key: REPOVERIX_ADMIN_EMAILS
         sync: false
+      # OAuth sign-in providers (Google, GitHub, GitLab, Microsoft, Bitbucket).
+      # Register an app per provider; the redirect URI is
+      #   https://repoverix.onrender.com/api/v1/auth/oauth/<provider>/callback
+      - key: REPOVERIX_GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: REPOVERIX_GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: REPOVERIX_GITHUB_OAUTH_CLIENT_ID
+        sync: false
+      - key: REPOVERIX_GITHUB_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: REPOVERIX_GITLAB_OAUTH_CLIENT_ID
+        sync: false
+      - key: REPOVERIX_GITLAB_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: REPOVERIX_MICROSOFT_OAUTH_CLIENT_ID
+        sync: false
+      - key: REPOVERIX_MICROSOFT_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: REPOVERIX_BITBUCKET_OAUTH_CLIENT_ID
+        sync: false
+      - key: REPOVERIX_BITBUCKET_OAUTH_CLIENT_SECRET
+        sync: false
       - key: REPOVERIX_TOKEN_ENCRYPTION_KEY
         sync: false
       - key: REPOVERIX_EMAIL_BACKEND
