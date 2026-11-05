@@ -57,6 +57,16 @@ PROVIDER_SPECS: dict[str, ProviderSpec] = {
         scope="read_user read_api read_repository",
         repos_url="https://gitlab.com/api/v4/projects",
     ),
+    "auth0": ProviderSpec(
+        name="auth0",
+        # URLs are resolved dynamically from REPOVERIX_AUTH0_DOMAIN in
+        # get_provider_spec; these are placeholders so the spec exists for
+        # configured_providers() and type lookups.
+        authorize_url="",
+        token_url="",
+        userinfo_url="",
+        scope="openid email profile",
+    ),
     "microsoft": ProviderSpec(
         name="microsoft",
         authorize_url="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
@@ -95,8 +105,24 @@ def pkce_challenge(verifier: str) -> str:
 
 
 def get_provider_spec(provider: str, settings: Settings | None = None) -> ProviderSpec:
-    """Return the provider spec, dynamically resolving tenant domains if set with SSRF validation."""
+    """Return the provider spec, dynamically resolving tenant domains if set with SSRF validation.
+
+    Auth0's authorize/token/userinfo endpoints live on the tenant domain, so
+    those URLs are built from ``REPOVERIX_AUTH0_DOMAIN`` at call time.
+    """
     settings = settings or get_settings()
+    if provider == "auth0":
+        domain = (settings.auth0_domain or "").strip().rstrip("/")
+        if not domain:
+            raise OAuthError("Auth0 domain is not configured (REPOVERIX_AUTH0_DOMAIN)")
+        base = PROVIDER_SPECS["auth0"]
+        return ProviderSpec(
+            name="auth0",
+            authorize_url=f"https://{domain}/authorize",
+            token_url=f"https://{domain}/oauth/token",
+            userinfo_url=f"https://{domain}/userinfo",
+            scope=base.scope,
+        )
     return PROVIDER_SPECS[provider]
 
 
@@ -122,6 +148,7 @@ def provider_credentials(provider: str, settings: Settings | None = None) -> tup
         "gitlab": (settings.gitlab_oauth_client_id, settings.gitlab_oauth_client_secret),
         "microsoft": (settings.microsoft_oauth_client_id, settings.microsoft_oauth_client_secret),
         "bitbucket": (settings.bitbucket_oauth_client_id, settings.bitbucket_oauth_client_secret),
+        "auth0": (settings.auth0_client_id, settings.auth0_client_secret),
     }
     client_id, client_secret = mapping.get(provider, (None, None))
     if not client_id or not client_secret:
@@ -243,6 +270,14 @@ async def fetch_profile(
         if resp.status_code >= 400:
             raise OAuthError(f"Profile fetch failed ({resp.status_code})")
         data = resp.json()
+        if provider == "auth0":
+            # Auth0 userinfo: sub is the stable id (e.g. auth0|1234567890),
+            # identities[0] names the social connection that signed in.
+            return {
+                "id": str(data.get("sub", "")),
+                "email": data.get("email", ""),
+                "name": data.get("name", ""),
+            }
         if provider == "github":
             return {
                 "id": str(data.get("id", "")),

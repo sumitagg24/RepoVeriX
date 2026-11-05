@@ -281,6 +281,14 @@ class Settings(BaseSettings):
     bitbucket_oauth_client_id: str | None = None
     bitbucket_oauth_client_secret: str | None = None
 
+    # --- Auth0 (social identity layer) ---
+    # Auth0 holds the Google and GitHub social connections. RepoVeriX talks to
+    # Auth0 only; the provider credentials (GitHub OAuth app, Google Cloud
+    # Console project) live inside the Auth0 tenant, not here.
+    auth0_domain: str | None = None
+    auth0_client_id: str | None = None
+    auth0_client_secret: str | None = None
+
     # --- GitHub pull-request auditing ---
     # Optional server-level token for public-repo PR metadata/API calls when a
     # user has not connected their own GitHub account (never required — a

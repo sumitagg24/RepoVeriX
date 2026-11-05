@@ -44,6 +44,7 @@ Provider = Literal[
     "gitlab",
     "microsoft",
     "bitbucket",
+    "auth0",
 ]
 _logger = logging.getLogger("repoverix.http")
 

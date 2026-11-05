@@ -693,7 +693,8 @@ export type OAuthProviderName =
   | 'gitlab'
   | 'google'
   | 'microsoft'
-  | 'bitbucket';
+  | 'bitbucket'
+  | 'auth0';
 
 export interface OAuthConnection {
   provider: OAuthProviderName;

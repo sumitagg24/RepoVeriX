@@ -16,6 +16,17 @@ import type { OAuthProviderName } from '@/types/api';
 import { cn } from '@/lib/utils';
 
 /** Inline SVG brand icons for providers not in lucide-react. */
+function Auth0Icon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+      <path
+        d="M12 2.04C6.5 2.04 2 6.53 2 12.04c0 4.84 3.8 8.81 8.65 9.45v-6.88h-2.54V12.04h2.54V9.9c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.26 2.24.26v2.5h-1.45c-1.21 0-1.48.57-1.48 1.37v1.13h2.77l-.44 2.25h-2.33v6.88c4.85-.64 8.79-4.62 8.79-9.45 0-5.51-4.49-10-10-10z"
+        fill="#EB5424"
+      />
+    </svg>
+  );
+}
+
 function GoogleIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
@@ -168,7 +179,7 @@ export function AuthError({ message, className }: { message: React.ReactNode; cl
  * when configured, because they are capabilities an operator chooses rather
  * than part of the standard front door.
  */
-const PRIMARY_PROVIDERS: OAuthProviderName[] = ['google', 'github', 'gitlab'];
+const PRIMARY_PROVIDERS: OAuthProviderName[] = ['google', 'github', 'gitlab', 'auth0'];
 
 const SECONDARY_PROVIDERS: OAuthProviderName[] = ['microsoft', 'bitbucket'];
 
@@ -176,6 +187,7 @@ const PROVIDER_LABEL: Record<OAuthProviderName, string> = {
   github: 'GitHub',
   gitlab: 'GitLab',
   google: 'Google',
+  auth0: 'Auth0',
   microsoft: 'Microsoft',
   bitbucket: 'Bitbucket',
 };
@@ -185,6 +197,7 @@ const OAUTH_ENV_PREFIX: Record<OAuthProviderName, string> = {
   github: 'GITHUB',
   gitlab: 'GITLAB',
   google: 'GOOGLE',
+  auth0: 'AUTH0',
   microsoft: 'MICROSOFT',
   bitbucket: 'BITBUCKET',
 };
@@ -197,6 +210,8 @@ function ProviderIcon({ provider }: { provider: OAuthProviderName }) {
       return <Gitlab className="size-4" aria-hidden="true" />;
     case 'google':
       return <GoogleIcon className="size-4" />;
+    case 'auth0':
+      return <Auth0Icon className="size-4" />;
     case 'microsoft':
       return <MicrosoftIcon className="size-4" />;
     case 'bitbucket':
