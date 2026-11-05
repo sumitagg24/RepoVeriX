@@ -135,6 +135,6 @@ services:
       - key: REPOVERIX_DODO_PRODUCT_ID_TEAM
         sync: false
       - key: REPOVERIX_DODO_ENVIRONMENT
-        value: test_mode
+        value: live_mode
       - key: REPOVERIX_BILLING_DEMO_MODE
-        value: "true"
+        value: "false"
