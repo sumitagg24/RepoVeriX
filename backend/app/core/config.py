@@ -119,8 +119,6 @@ class Settings(BaseSettings):
         "gitlab",
         "microsoft",
         "bitbucket",
-        "auth0",
-        "oracle",
     ]
     # Password accounts must verify their email before provider connections,
     # repository registration and scans are allowed (server-side gate).
@@ -281,12 +279,6 @@ class Settings(BaseSettings):
     microsoft_oauth_client_secret: str | None = None
     bitbucket_oauth_client_id: str | None = None
     bitbucket_oauth_client_secret: str | None = None
-    auth0_domain: str | None = None
-    auth0_oauth_client_id: str | None = None
-    auth0_oauth_client_secret: str | None = None
-    oracle_idcs_url: str | None = None
-    oracle_oauth_client_id: str | None = None
-    oracle_oauth_client_secret: str | None = None
 
     # --- GitHub pull-request auditing ---
     # Optional server-level token for public-repo PR metadata/API calls when a

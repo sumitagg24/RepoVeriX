@@ -62,6 +62,13 @@ const nextConfig = {
   eslint: {
     dirs: ['src', 'scripts'],
   },
+  async redirects() {
+    return [
+      // The backend's OAuth callback hands the session to /auth/oauth/callback.
+      // Keep the old path working for links issued before the cutover.
+      { source: '/auth/callback', destination: '/auth/oauth/callback', permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

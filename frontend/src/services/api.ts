@@ -375,18 +375,9 @@ export const oauthService = {
    * the backend origin directly: the backend stores the OAuth `state` in a
    * cookie scoped to that origin, and the provider redirects back to the
    * backend callback before returning the session to the app.
-   *
-   * ``options.connection`` is an Auth0 connection name (``google-oauth2``,
-   * ``github``, …): the auth0 login route deep-links to it so a social button
-   * federates through the tenant without showing Auth0's connection picker.
    */
-  loginUrl: (
-    provider: OAuthProviderName,
-    next = '/dashboard',
-    options?: { connection?: string },
-  ) => {
+  loginUrl: (provider: OAuthProviderName, next = '/dashboard') => {
     const params = new URLSearchParams({ next });
-    if (options?.connection) params.set('connection', options.connection);
     return `${API_ORIGIN}${API_PREFIX}/auth/oauth/${provider}/login?${params.toString()}`;
   },
 

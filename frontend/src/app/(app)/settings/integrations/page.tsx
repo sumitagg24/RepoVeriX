@@ -32,8 +32,6 @@ const ORDER: OAuthProviderName[] = [
   'google',
   'microsoft',
   'bitbucket',
-  'auth0',
-  'oracle',
 ];
 
 export default function IntegrationsSettingsPage() {

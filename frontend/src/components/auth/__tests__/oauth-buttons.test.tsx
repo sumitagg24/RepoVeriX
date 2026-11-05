@@ -38,7 +38,7 @@ function providerInfo(configured: boolean) {
 }
 
 function mockProviders(overrides: Record<string, boolean> = {}) {
-  const names = ['google', 'github', 'gitlab', 'microsoft', 'bitbucket', 'auth0', 'oracle'];
+  const names = ['google', 'github', 'gitlab', 'microsoft', 'bitbucket'];
   const data = Object.fromEntries(
     names.map((name) => [name, providerInfo(Boolean(overrides[name]))]),
   ) as Providers;
@@ -100,16 +100,6 @@ describe('OAuthButtons', () => {
     fireEvent.click(screen.getByRole('button', { name: /Continue with GitHub/i }));
 
     expect(mockedLoginUrl).toHaveBeenCalledWith('github', '/dashboard');
-  });
-
-  it('federates a standard provider through Auth0 when that is configured', () => {
-    mockProviders({ auth0: true, google: true });
-    renderButtons();
-
-    // GitHub and GitLab fall back to Auth0 connections; Google is direct.
-    fireEvent.click(screen.getByRole('button', { name: /Continue with GitHub/i }));
-
-    expect(mockedLoginUrl).toHaveBeenCalledWith('auth0', '/dashboard', { connection: 'github' });
   });
 
   it('shows a retry affordance when provider status cannot be read', () => {

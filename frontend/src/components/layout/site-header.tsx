@@ -11,8 +11,8 @@ import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Wordmark } from '@/components/layout/logo';
 import { PUBLIC_NAV } from '@/lib/site';
 import { cn } from '@/lib/utils';
-import { useAuth0 } from '@auth0/auth0-react';
-import { Auth0UserMenu } from '@/components/auth0-buttons';
+import { useAuth } from '@/context/auth-context';
+import { UserMenu } from '@/components/app/user-menu';
 
 /**
  * Public navigation.
@@ -23,7 +23,7 @@ import { Auth0UserMenu } from '@/components/auth0-buttons';
  */
 export function SiteHeader() {
   const pathname = usePathname();
-  const { isAuthenticated } = useAuth0();
+  const { user } = useAuth();
   const [open, setOpen] = React.useState(false);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -55,8 +55,8 @@ export function SiteHeader() {
           <div className="hidden lg:block">
             <ThemeToggle />
           </div>
-          {isAuthenticated ? (
-            <Auth0UserMenu />
+          {user ? (
+            <UserMenu />
           ) : (
             <>
               <Button asChild variant="ghost" size="sm" className="hidden lg:inline-flex">
@@ -107,8 +107,8 @@ export function SiteHeader() {
                   </div>
                 </nav>
                 <div className="space-y-2 border-t border-hairline px-5 py-5">
-                  {isAuthenticated ? (
-                    <Auth0UserMenu className="w-full" />
+                  {user ? (
+                    <UserMenu />
                   ) : (
                     <>
                       <Button asChild variant="primary" size="lg" className="w-full">

@@ -61,32 +61,6 @@ function BitbucketIcon({ className }: { className?: string }) {
   );
 }
 
-export function Auth0Icon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M21.98 7.348L19.294.544a.434.434 0 00-.518-.276L12.08 2.012 5.385.268a.434.434 0 00-.518.276L2.181 7.348a.434.434 0 00.174.498l9.467 6.442a.434.434 0 00.496 0l9.468-6.442a.434.434 0 00.194-.498z"
-        fill="#EB5424"
-      />
-      <path
-        d="M12.08 14.868a.434.434 0 01-.248-.076L2.365 8.35a.434.434 0 00-.608.156L.073 11.532a.434.434 0 00.146.574l11.613 7.897a.434.434 0 00.496 0l11.613-7.897a.434.434 0 00.146-.574l-1.684-3.026a.434.434 0 00-.608-.156l-9.467 6.442a.434.434 0 01-.248.076z"
-        fill="#EB5424"
-      />
-    </svg>
-  );
-}
-
-function OracleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M16.272 5.093c-4.444 0-8.048 3.092-8.048 6.907s3.604 6.907 8.048 6.907c4.444 0 8.048-3.092 8.048-6.907s-3.604-6.907-8.048-6.907zm0 11.233c-2.88 0-5.216-1.938-5.216-4.326s2.336-4.326 5.216-4.326c2.88 0 5.216 1.938 5.216 4.326s-2.336 4.326-5.216 4.326zM7.728 5.093C3.284 5.093-.32 8.185-.32 12s3.604 6.907 8.048 6.907c1.378 0 2.673-.306 3.805-.845-.595-.758-1.074-1.622-1.392-2.569-.747.288-1.558.45-2.413.45-2.88 0-5.216-1.938-5.216-4.326s2.336-4.326 5.216-4.326c.855 0 1.666.162 2.413.45.318-.947.797-1.811 1.392-2.569-1.132-.539-2.427-.845-3.805-.845z"
-        fill="#F80000"
-      />
-    </svg>
-  );
-}
-
 /**
  * Auth surface.
  *
@@ -190,27 +164,13 @@ export function AuthError({ message, className }: { message: React.ReactNode; cl
  * exact server setting that is missing — the button is never a silent dead
  * end, and it never pretends a sign-in is available when it is not.
  *
- * The remaining providers (Microsoft, Bitbucket, Auth0, Oracle) stay opt-in:
- * they appear only when configured, because they are capabilities an operator
- * chooses rather than part of the standard front door.
- *
- * When Auth0 is configured and a standard provider is not configured directly,
- * its button federates through the tenant's connection of the same name
- * instead of rendering a duplicate button for the same provider.
+ * The remaining providers (Microsoft, Bitbucket) stay opt-in: they appear only
+ * when configured, because they are capabilities an operator chooses rather
+ * than part of the standard front door.
  */
 const PRIMARY_PROVIDERS: OAuthProviderName[] = ['google', 'github', 'gitlab'];
 
-const SECONDARY_PROVIDERS: OAuthProviderName[] = ['microsoft', 'bitbucket', 'oracle'];
-
-/**
- * Auth0 connection names for the standard social buttons. These are Auth0's
- * defaults; a renamed connection in the tenant must be updated here.
- */
-const AUTH0_CONNECTIONS: Partial<Record<OAuthProviderName, string>> = {
-  google: 'google-oauth2',
-  github: 'github',
-  gitlab: 'gitlab',
-};
+const SECONDARY_PROVIDERS: OAuthProviderName[] = ['microsoft', 'bitbucket'];
 
 const PROVIDER_LABEL: Record<OAuthProviderName, string> = {
   github: 'GitHub',
@@ -218,8 +178,6 @@ const PROVIDER_LABEL: Record<OAuthProviderName, string> = {
   google: 'Google',
   microsoft: 'Microsoft',
   bitbucket: 'Bitbucket',
-  auth0: 'Auth0',
-  oracle: 'Oracle',
 };
 
 /** `REPOVERIX_<PREFIX>_OAUTH_CLIENT_ID` / `..._SECRET` for the setup dialog. */
@@ -229,8 +187,6 @@ const OAUTH_ENV_PREFIX: Record<OAuthProviderName, string> = {
   google: 'GOOGLE',
   microsoft: 'MICROSOFT',
   bitbucket: 'BITBUCKET',
-  auth0: 'AUTH0',
-  oracle: 'ORACLE',
 };
 
 function ProviderIcon({ provider }: { provider: OAuthProviderName }) {
@@ -245,10 +201,6 @@ function ProviderIcon({ provider }: { provider: OAuthProviderName }) {
       return <MicrosoftIcon className="size-4" />;
     case 'bitbucket':
       return <BitbucketIcon className="size-4" />;
-    case 'auth0':
-      return <Auth0Icon className="size-4" />;
-    case 'oracle':
-      return <OracleIcon className="size-4" />;
     default:
       return null;
   }
@@ -268,27 +220,21 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
     [providers.data],
   );
 
-  const auth0Available = available('auth0');
   const loading = providers.isLoading;
 
-  const primary = PRIMARY_PROVIDERS.map((provider) => {
-    const direct = available(provider);
-    // Federating through Auth0 still opens a real consent screen, so the
-    // button is live — it just uses the tenant's connection.
-    const connection = !direct && auth0Available ? AUTH0_CONNECTIONS[provider] : undefined;
-    return { provider, connection, ready: direct || Boolean(connection) };
-  });
+  const primary = PRIMARY_PROVIDERS.map((provider) => ({
+    provider,
+    ready: available(provider),
+  }));
 
   const secondary = SECONDARY_PROVIDERS.filter(available);
   const anySetup = primary.some((item) => !item.ready);
 
-  function start(provider: OAuthProviderName, connection?: string) {
-    setPending(connection ? `auth0:${provider}` : provider);
+  function start(provider: OAuthProviderName) {
+    setPending(provider);
     // Full-page navigation: the provider must return to the backend callback,
     // which owns the OAuth state cookie.
-    window.location.href = connection
-      ? oauthService.loginUrl('auth0', next, { connection })
-      : oauthService.loginUrl(provider, next);
+    window.location.href = oauthService.loginUrl(provider, next);
   }
 
   const setupTarget = setupProvider;
@@ -317,9 +263,8 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
       </div>
 
       <div className="mt-4 space-y-2">
-        {primary.map(({ provider, connection, ready }) => {
+        {primary.map(({ provider, ready }) => {
           const label = PROVIDER_LABEL[provider];
-          const key = connection ? `auth0:${provider}` : provider;
           return (
             <Button
               key={provider}
@@ -327,13 +272,13 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
               size="md"
               className="w-full justify-start"
               disabled={loading}
-              loading={pending === key}
+              loading={pending === provider}
               aria-label={
                 ready
                   ? `Continue with ${label}`
                   : `${label} sign-in is not configured on this deployment — see setup steps`
               }
-              onClick={() => (ready ? start(provider, connection) : setSetupProvider(provider))}
+              onClick={() => (ready ? start(provider) : setSetupProvider(provider))}
             >
               <ProviderIcon provider={provider} />
               <span>Continue with {label}</span>
@@ -347,23 +292,8 @@ export function OAuthButtons({ next = '/dashboard' }: { next?: string }) {
         })}
       </div>
 
-      {auth0Available || secondary.length > 0 ? (
+      {secondary.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
-          {auth0Available ? (
-            <Button
-              variant="secondary"
-              size="md"
-              className="flex-1"
-              loading={pending === 'auth0'}
-              onClick={() => {
-                setPending('auth0');
-                window.location.href = oauthService.loginUrl('auth0', next);
-              }}
-            >
-              <ProviderIcon provider="auth0" />
-              {PROVIDER_LABEL.auth0}
-            </Button>
-          ) : null}
           {secondary.map((provider) => (
             <Button
               key={provider}
