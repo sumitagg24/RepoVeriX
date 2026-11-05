@@ -51,3 +51,7 @@ docs/implementation-plan.md
 
 # Nginx local artifacts
 nginx/ssl/
+
+# Report build cache
+report/__pycache__/
+report_output/_pass1.pdf
