@@ -18,6 +18,13 @@ FIG_DIR = REPORT_DIR / "figures"
 OUT_DIR = ROOT / "report_output"
 FONT_DIR = Path("/home/user/report_assets/fonts")
 
+# Page geometry and type specification taken from the departmental format sheet:
+# A4, Times New Roman 12 pt at 1.5 line spacing, 3.5 cm binding margin on the
+# left, 2.5 cm at the top, 1.25 cm on the right and at the bottom.
+LEFT_CM, RIGHT_CM, TOP_CM, BOTTOM_CM = 3.5, 1.25, 2.5, 1.25
+USABLE_CM = 21.0 - LEFT_CM - RIGHT_CM
+BODY_PT, LEAD_PT = 12.0, 21.6
+
 sys.path.insert(0, str(REPORT_DIR))
 
 from content_part1 import CHAPTERS as C1, FRONT_MATTER, FRONT_MATTER_BLOCKS  # noqa: E402
@@ -67,8 +74,8 @@ def toc_text(block: dict) -> str:
     if not num:
         return title
     if block["t"] == "h1":
-        return title if title.startswith("Appendix") else f"{num}    {title}"
-    return f"        {num}  {title}"
+        return title if title.startswith("Appendix") else f"{num}.  {title}"
+    return f"{num}  {title}"
 
 
 # --------------------------------------------------------------------------- document assembly
@@ -149,7 +156,28 @@ def locate_pages(doc: "Doc", pdf_path: Path, body_start: int, first_h1: int) -> 
     return out
 
 
-def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, body_start=None):
+def chapter_openers(pdf_path: Path, body_start: int, doc: "Doc") -> set:
+    """Pages in the rendered PDF whose first block is a level-1 heading."""
+    import pymupdf
+
+    titles = {b["text"] for b in doc.blocks if b["t"] == "h1"}
+    out = set()
+    with pymupdf.open(pdf_path) as pdf:
+        for i in range(body_start - 1, len(pdf)):
+            blocks = [b for b in pdf[i].get_text("blocks") if b[1] > 65]
+            if not blocks:
+                continue
+            first = sorted(blocks, key=lambda b: b[1])[0]
+            top = first[4].strip().split("\n")[0].strip()
+            if first[1] > 95 and not first[4].strip().endswith("\n") and False:
+                continue
+            if top in titles and first[1] < 95:      # a heading sits at the frame top
+                out.add(i + 1)
+    return out
+
+
+def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, body_start=None,
+              first_pages=None):
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
     from reportlab.lib.pagesizes import A4
@@ -180,64 +208,75 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         italic="Caladea-Italic", boldItalic="Caladea-BoldItalic",
     )
 
-    BODY_SIZE = 10.5
-    LEAD = 13.45
+    BODY_SIZE = 12
+    LEAD = 21.6                     # 1.5 line spacing, as the departmental format requires
 
+    # everything is black: the formatting note asks for a plain Times-style report
     s_body = ParagraphStyle("body", fontName="Caladea", fontSize=BODY_SIZE, leading=LEAD,
-                            alignment=TA_JUSTIFY, spaceAfter=4.2, textColor=INK)
-    s_h1 = ParagraphStyle("h1", fontName="Caladea-Bold", fontSize=16.5, leading=20,
-                          textColor=ACCENT, spaceBefore=0, spaceAfter=9, keepWithNext=1)
-    s_h2 = ParagraphStyle("h2", fontName="Caladea-Bold", fontSize=12.2, leading=15,
-                          textColor=ACCENT, spaceBefore=8, spaceAfter=3.5, keepWithNext=0)
-    s_h3 = ParagraphStyle("h3", fontName="Caladea-BoldItalic", fontSize=11.5, leading=15,
+                            alignment=TA_JUSTIFY, spaceAfter=6, textColor=INK)
+    s_h1 = ParagraphStyle("h1", fontName="Caladea-Bold", fontSize=16, leading=22,
+                          textColor=INK, spaceBefore=0, spaceAfter=10, keepWithNext=1)
+    s_h2 = ParagraphStyle("h2", fontName="Caladea-Bold", fontSize=13, leading=19,
+                          textColor=INK, spaceBefore=10, spaceAfter=4, keepWithNext=0)
+    s_h3 = ParagraphStyle("h3", fontName="Caladea-BoldItalic", fontSize=12, leading=18,
                           textColor=INK, spaceBefore=8, spaceAfter=3)
-    s_bullet = ParagraphStyle("bullet", parent=s_body, leftIndent=15, bulletIndent=3,
-                              spaceAfter=2.6, bulletFontName="Caladea", bulletFontSize=BODY_SIZE)
-    s_num = ParagraphStyle("num", parent=s_body, leftIndent=17, bulletIndent=3,
-                           spaceAfter=3.2, bulletFontName="Caladea", bulletFontSize=BODY_SIZE)
-    s_doc = ParagraphStyle("docbody", fontName="Caladea", fontSize=11.2, leading=16.4,
-                           alignment=TA_JUSTIFY, spaceAfter=7.5, textColor=INK)
-    s_note = ParagraphStyle("note", fontName="Caladea-Italic", fontSize=9, leading=12.6,
-                            textColor=MUTED, alignment=TA_LEFT, spaceAfter=6)
-    s_capfig = ParagraphStyle("capfig", fontName="Caladea", fontSize=9.1, leading=12,
-                              alignment=TA_CENTER, textColor=INK, spaceBefore=3, spaceAfter=2)
-    s_src = ParagraphStyle("src", fontName="Caladea-Italic", fontSize=8.0, leading=10.4,
-                           alignment=TA_CENTER, textColor=MUTED, spaceAfter=7)
-    s_captab = ParagraphStyle("captab", fontName="Caladea", fontSize=9.1, leading=12,
+    s_bullet = ParagraphStyle("bullet", parent=s_body, leftIndent=16, bulletIndent=3,
+                              spaceAfter=3, bulletFontName="Caladea", bulletFontSize=BODY_SIZE)
+    s_num = ParagraphStyle("num", parent=s_body, leftIndent=18, bulletIndent=3,
+                           spaceAfter=3, bulletFontName="Caladea", bulletFontSize=BODY_SIZE)
+    s_doc = ParagraphStyle("docbody", fontName="Caladea", fontSize=12, leading=19,
+                           alignment=TA_JUSTIFY, spaceAfter=7, textColor=INK)
+    s_note = ParagraphStyle("note", fontName="Caladea-Italic", fontSize=10, leading=15,
+                            textColor=INK, alignment=TA_LEFT, spaceAfter=6)
+    s_capfig = ParagraphStyle("capfig", fontName="Caladea", fontSize=11, leading=15.5,
+                              alignment=TA_CENTER, textColor=INK, spaceBefore=4, spaceAfter=2)
+    s_src = ParagraphStyle("src", fontName="Caladea-Italic", fontSize=9.5, leading=13,
+                           alignment=TA_CENTER, textColor=INK, spaceAfter=8)
+    s_captab = ParagraphStyle("captab", fontName="Caladea", fontSize=11, leading=15.5,
                               alignment=TA_LEFT, textColor=INK, spaceBefore=2, spaceAfter=4)
-    s_tcell = ParagraphStyle("tcell", fontName="Caladea", fontSize=7.9, leading=9.5, textColor=INK)
-    s_thead = ParagraphStyle("thead", fontName="Caladea-Bold", fontSize=7.9, leading=9.5,
+    s_tcell = ParagraphStyle("tcell", fontName="Caladea", fontSize=9.2, leading=12.2, textColor=INK)
+    s_thead = ParagraphStyle("thead", fontName="Caladea-Bold", fontSize=9.2, leading=12.2,
                              textColor=colors.white)
-    s_toc1 = ParagraphStyle("toc1", fontName="Caladea-Bold", fontSize=9.7, leading=11.6,
+    s_toc1 = ParagraphStyle("toc1", fontName="Caladea-Bold", fontSize=12, leading=20,
                             textColor=INK, leftIndent=0, firstLineIndent=0)
-    s_toc2 = ParagraphStyle("toc2", fontName="Caladea", fontSize=9.1, leading=10.15,
-                            textColor=INK, leftIndent=18, firstLineIndent=0)
-    s_cover_inst = ParagraphStyle("ci", fontName="Caladea-Bold", fontSize=14, leading=19,
+    s_toc2 = ParagraphStyle("toc2", fontName="Caladea", fontSize=12, leading=19,
+                            textColor=INK, leftIndent=22, firstLineIndent=0)
+    s_cover_inst = ParagraphStyle("ci", fontName="Caladea-Bold", fontSize=15, leading=21,
                                   alignment=TA_CENTER, textColor=INK, spaceAfter=2)
-    s_cover_small = ParagraphStyle("cs", fontName="Caladea", fontSize=11.5, leading=16,
-                                   alignment=TA_CENTER, textColor=MUTED)
-    s_cover_title = ParagraphStyle("ct", fontName="Caladea-Bold", fontSize=30, leading=36,
-                                   alignment=TA_CENTER, textColor=ACCENT, spaceAfter=2)
-    s_cover_sub = ParagraphStyle("csub", fontName="Caladea-Italic", fontSize=12.5, leading=17,
+    s_cover_small = ParagraphStyle("cs", fontName="Caladea", fontSize=12, leading=17,
+                                   alignment=TA_CENTER, textColor=INK)
+    s_cover_title = ParagraphStyle("ct", fontName="Caladea-Bold", fontSize=24, leading=30,
+                                   alignment=TA_CENTER, textColor=INK, spaceAfter=2)
+    s_cover_sub = ParagraphStyle("csub", fontName="Caladea-BoldItalic", fontSize=13, leading=18,
                                  alignment=TA_CENTER, textColor=INK)
+    s_fm_head = ParagraphStyle("fmhead", fontName="Caladea-Bold", fontSize=14, leading=19,
+                               alignment=TA_CENTER, textColor=INK, spaceAfter=6)
+
+    def fm_heading(text):
+        """Front-matter heading set 55 mm below the top edge of the page."""
+        return [Spacer(1, 55 * mm - TOP_CM * cm), P(text, s_fm_head)]
     s_center = ParagraphStyle("center", parent=s_body, alignment=TA_CENTER)
     s_refs = ParagraphStyle("refs", parent=s_body, leftIndent=17, firstLineIndent=-17,
                             spaceAfter=4.0, fontSize=9.9, leading=13.4)
 
-    pages_meta = {"body_start": None, "headings": {}, "current_h1": ""}
+    pages_meta = {"body_start": None, "headings": {}, "current_h1": "",
+                  "first_pages": set(first_pages or ())}
 
     class Marker(Flowable):
         """Zero-height flowable that records the page a heading lands on."""
 
-        def __init__(self, key=None, body_start=False):
+        def __init__(self, key=None, body_start=False, h1_start=False):
             super().__init__()
             self.key = key
             self.body_start = body_start
+            self.h1_start = h1_start
             self.width = 0
             self.height = 0
 
         def draw(self):
             page = self.canv.getPageNumber()
+            if self.h1_start:
+                pages_meta.setdefault("first_pages", set()).add(page)
             if self.body_start:
                 pages_meta["body_start"] = page
             elif self.key is not None:
@@ -268,26 +307,25 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
                 out += sym
                 v -= value
         canv.saveState()
-        canv.setFont("Caladea", 9)
-        canv.setFillColor(MUTED)
-        canv.drawCentredString(A4[0] / 2, 1.12 * cm, out.lower() if out else "")
+        canv.setFont("Caladea", 12)
+        canv.setFillColor(INK)
+        canv.drawCentredString(A4[0] / 2, 1.25 * cm, out.lower() if out else "")
         canv.restoreState()
 
     def on_body(canv, d):
+        # The format sheet asks for page numbers at the bottom centre only, and for
+        # the first page of every chapter to carry no printed number.
+        first_pages = pages_meta.setdefault("first_pages", set())
         canv.saveState()
-        canv.setStrokeColor(RULE)
-        canv.setLineWidth(0.5)
-        canv.line(2.35 * cm, A4[1] - 1.75 * cm, A4[0] - 2.15 * cm, A4[1] - 1.75 * cm)
-        canv.setFont("Caladea", 8.4)
-        canv.setFillColor(MUTED)
-        canv.drawString(2.35 * cm, A4[1] - 1.58 * cm, "RepoVeriX  |  Evidence-Grounded Repository Auditing and Verified Repair")
-        canv.drawRightString(A4[0] - 2.15 * cm, A4[1] - 1.58 * cm, "Project Report")
-        start = body_start or pages_meta["body_start"] or 1
-        canv.setFont("Caladea", 9)
-        canv.drawCentredString(A4[0] / 2, 1.12 * cm, str(canv.getPageNumber() - start + 1))
+        canv.setFont("Caladea", 12)
+        canv.setFillColor(INK)
+        if canv.getPageNumber() not in first_pages:
+            start = body_start or pages_meta["body_start"] or 1
+            canv.drawCentredString(A4[0] / 2, 1.25 * cm,
+                                   str(canv.getPageNumber() - start + 1))
         canv.restoreState()
 
-    left, right, top, bottom = 2.35 * cm, 2.15 * cm, 2.2 * cm, 1.95 * cm
+    left, right, top, bottom = LEFT_CM * cm, RIGHT_CM * cm, TOP_CM * cm, BOTTOM_CM * cm
     frame = Frame(left, bottom, A4[0] - left - right, A4[1] - top - bottom, id="main",
                   leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     cover_frame = Frame(left, bottom, A4[0] - left - right, A4[1] - top - bottom, id="cover",
@@ -391,7 +429,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
 
     # ---------------------------------------------------------------- certificate
     flow.append(NextPageTemplate("front"))
-    flow.append(P("CERTIFICATE", s_h1))
+    flow.extend(fm_heading("CERTIFICATE"))
     flow.append(Spacer(1, 0.5 * cm))
     flow.append(para(
         "This is to certify that the project report entitled **“RepoVeriX — Evidence-Grounded "
@@ -422,7 +460,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "developer interface, the benchmark apparatus and the supporting documentation. The candidate has "
         "presented the work at the internal review stages prescribed by the department, and the corrections "
         "suggested during those reviews have been incorporated into this version of the report.", s_doc))
-    flow.append(Spacer(1, 1.5 * cm))
+    flow.append(Spacer(1, 0.9 * cm))
     sig = Table(
         [
             [P("<b>Signature of Guide</b>", s_body), P("<b>Signature of Head of Department</b>", s_body)],
@@ -433,10 +471,10 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     sig.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
     ]))
     flow.append(sig)
-    flow.append(Spacer(1, 1.4 * cm))
+    flow.append(Spacer(1, 0.8 * cm))
     flow.append(HRule(usable, 0.5, RULE, 6))
     flow.append(para(
         "Internal Examiner: ______________________________        External Examiner: "
@@ -445,7 +483,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- declaration
-    flow.append(P("DECLARATION", s_h1))
+    flow.extend(fm_heading("DECLARATION"))
     flow.append(Spacer(1, 0.5 * cm))
     flow.append(para(
         f"I, **{fm['student']}**, student of {fm['programme']}, Roll Number {fm['roll']}, Section "
@@ -476,7 +514,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "repository facts, that no product screenshot has been fabricated, and that the source of each figure "
         "is recorded in its caption. The repository itself has been acknowledged in the references as the "
         "primary source for the system described here.", s_doc))
-    flow.append(Spacer(1, 1.7 * cm))
+    flow.append(Spacer(1, 1.1 * cm))
     place = Table([[P(f"Date: ____________________", s_body), P(f"<b>{fm['student']}</b><br/>Roll Number {fm['roll']}", s_body)]],
                   colWidths=[usable * 0.45, usable * 0.55])
     place.setStyle(TableStyle([
@@ -488,7 +526,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- acknowledgement
-    flow.append(P("ACKNOWLEDGEMENT", s_h1))
+    flow.extend(fm_heading("ACKNOWLEDGEMENT"))
     flow.append(Spacer(1, 0.4 * cm))
     flow.append(para(
         "A project of this kind accumulates debts that are easy to forget and impossible to repay "
@@ -528,13 +566,21 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "on a problem that others have already thought hard about is a humbling and useful experience, and the "
         "honest reporting conventions followed in this report are borrowed from that tradition rather than "
         "invented for it.", s_doc))
-    flow.append(Spacer(1, 1.2 * cm))
+    flow.append(para(
+        "A word is owed, finally, to the tooling that made the verification work possible without "
+        "any recourse to a live host: the container runtime that provided a disposable filesystem, "
+        "the parsing libraries that supplied a uniform syntax tree across three languages, and the "
+        "test runner whose per-module isolation made it practical to check the security guards "
+        "separately from the features they defend. Those dependencies are ordinary infrastructure, "
+        "and the project's debt to them is worth recording precisely because infrastructure is "
+        "usually invisible in a report of this kind.", s_doc))
+    flow.append(Spacer(1, 0.9 * cm))
     flow.append(P(f"<b>{fm['student']}</b>", s_body))
     flow.append(P(f"Roll Number {fm['roll']}   ·   Section {fm['section']}", s_body))
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- abstract
-    flow.append(P("ABSTRACT", s_h1))
+    flow.extend(fm_heading("ABSTRACT"))
     flow.append(Spacer(1, 0.3 * cm))
     flow.append(para(
         "Software audits today are performed by tools that report defects with more confidence than "
@@ -577,6 +623,13 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "of originals, secret redaction, per-stage failure recording, addressable evidence chains, "
         "execution-gated repair verdicts and the refusal to invent metrics — are documented with the "
         "mechanism that enforces each.", s_doc))
+    flow.append(para(
+        "The report's own contribution is documentary as much as technical. For each capability it "
+        "states whether the repository implements it, documents it, treats it as experimental or "
+        "merely plans it; every count, identifier and limit is recorded with the file it came from; "
+        "and the quantitative questions are left open rather than answered with numbers that no run "
+        "has produced. A reader who wants to know what this prototype establishes, and what it does "
+        "not, should find both answers in the same paragraph rather than in a footnote.", s_doc))
     flow.append(Spacer(1, 0.35 * cm))
     flow.append(P("<b>Keywords:</b> repository-level code auditing; evidence-grounded analysis; "
                   "automated program repair; execution-based verification; static analysis; large "
@@ -585,7 +638,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- table of contents
-    flow.append(P("TABLE OF CONTENTS", s_h1))
+    flow.extend(fm_heading("TABLE OF CONTENTS"))
     flow.append(Spacer(1, 0.2 * cm))
     toc_pages_at = len(flow)
 
@@ -600,12 +653,12 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         for level, text, _ in entries:
             flow.append(toc_line(level, text, None))
         flow.append(PageBreak())
-        flow.append(P("LIST OF FIGURES", s_h1))
+        flow.extend(fm_heading("LIST OF FIGURES"))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.figures:
             flow.append(toc_line(2, f"Figure {n}.  {plain(cap)[:96]}", None))
         flow.append(Spacer(1, 0.45 * cm))
-        flow.append(P("LIST OF TABLES", s_h1))
+        flow.extend(fm_heading("LIST OF TABLES"))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.tables:
             flow.append(toc_line(1, f"Table {n}.  {plain(cap)[:96]}", None))
@@ -614,19 +667,19 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         for level, text, idx in entries:
             flow.append(toc_line(level, text, page_numbers.get(idx)))
         flow.append(PageBreak())
-        flow.append(P("LIST OF FIGURES", s_h1))
+        flow.extend(fm_heading("LIST OF FIGURES"))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.figures:
             flow.append(toc_line(2, f"Figure {n}.  {plain(cap)[:96]}", page_numbers.get(("fig", n))))
         flow.append(Spacer(1, 0.45 * cm))
-        flow.append(P("LIST OF TABLES", s_h1))
+        flow.extend(fm_heading("LIST OF TABLES"))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.tables:
             flow.append(toc_line(1, f"Table {n}.  {plain(cap)[:96]}", page_numbers.get(("tab", n))))
         flow.append(PageBreak())
 
     # ---------------------------------------------------------------- abbreviations
-    flow.append(P("LIST OF ABBREVIATIONS", s_h1))
+    flow.extend(fm_heading("LIST OF ABBREVIATIONS"))
     flow.append(Spacer(1, 0.2 * cm))
     abbr = [
         ("API", "Application Programming Interface"),
@@ -692,11 +745,9 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     for i, b in enumerate(doc.blocks):
         kind = b["t"]
         if kind == "h1":
-            flow.append(CondPageBreak(3.1 * cm) if i else CondPageBreak(0))
             if i:
-                flow.append(Spacer(1, 0.55 * cm))
-                flow.append(HRule(usable, 0.7, RULE, 8))
-                flow.append(Spacer(1, 0.15 * cm))
+                flow.append(PageBreak())          # every chapter opens on a new page
+                flow.append(Marker(h1_start=True))
             flow.append(Marker(key=i))
             flow.append(P(heading_text(b), s_h1))
         elif kind == "h2":
@@ -721,7 +772,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         elif kind == "table":
             flow.append(Marker(key=("tab", b["num"])))
             flow.append(make_table(b))
-            flow.append(fig_source(b))
+            flow.append(KeepTogether([fig_source(b)]))
         elif kind == "figure":
             caption = fig_caption(b)
             flow.append(Marker(key=("fig", b["num"])))
@@ -733,7 +784,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
             width = min(usable, max_h * w / h)
             img = Image(str(path), width=width, height=width * h / w)
             flow.append(KeepTogether([Spacer(1, 3), img, caption]))
-            flow.append(fig_source(b))
+            flow.append(KeepTogether([fig_source(b)]))
         elif kind == "closing":
             flow.append(Spacer(1, 0.6 * cm))
             flow.append(HRule(usable, 0.5, RULE, 8))
@@ -756,16 +807,15 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     from docx.oxml.ns import qn
     from docx.shared import Cm, Pt, RGBColor
 
-    ACCENT = RGBColor(0x14, 0x50, 0x3C)
-    INK = RGBColor(0x1D, 0x25, 0x29)
-    MUTED = RGBColor(0x5B, 0x6B, 0x70)
+    ACCENT = RGBColor(0x00, 0x00, 0x00)
+    INK = RGBColor(0x00, 0x00, 0x00)
+    MUTED = RGBColor(0x00, 0x00, 0x00)
     WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-    USABLE_CM = 21.0 - 2.35 - 2.15
 
     document = Document()
     normal = document.styles["Normal"]
-    normal.font.name = "Cambria"
-    normal.font.size = Pt(10.5)
+    normal.font.name = "Times New Roman"
+    normal.font.size = Pt(12)
     normal.font.color.rgb = INK
     rpr = normal.element.get_or_add_rPr()
     rfonts = rpr.find(qn("w:rFonts"))
@@ -773,11 +823,11 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
         rfonts = OxmlElement("w:rFonts")
         rpr.append(rfonts)
     for attr in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
-        rfonts.set(qn(attr), "Cambria")
+        rfonts.set(qn(attr), "Times New Roman")
     pf = normal.paragraph_format
-    pf.space_after = Pt(4.6)
+    pf.space_after = Pt(6)
     pf.space_before = Pt(0)
-    pf.line_spacing = 1.0
+    pf.line_spacing = 1.5
 
     def shade(el, hex_fill):
         shd = OxmlElement("w:shd")
@@ -820,12 +870,12 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     def page_setup(section):
         section.page_width = Cm(21.0)
         section.page_height = Cm(29.7)
-        section.left_margin = Cm(2.35)
-        section.right_margin = Cm(2.15)
-        section.top_margin = Cm(2.2)
-        section.bottom_margin = Cm(1.95)
-        section.header_distance = Cm(1.1)
-        section.footer_distance = Cm(0.9)
+        section.left_margin = Cm(LEFT_CM)
+        section.right_margin = Cm(RIGHT_CM)
+        section.top_margin = Cm(TOP_CM)
+        section.bottom_margin = Cm(BOTTOM_CM)
+        section.header_distance = Cm(1.0)
+        section.footer_distance = Cm(0.7)
 
     def rich(p, text, size=None, color=None, bold=False, italic=False):
         for chunk, b, i in rich_runs(text):
@@ -838,9 +888,9 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
                 r.font.color.rgb = color
         return p
 
-    def para(text="", size=10.5, color=INK, bold=False, italic=False, align="justify",
-             space_after=4.6, space_before=0, indent=0, first_indent=0, keep_next=False,
-             style=None, line=1.0):
+    def para(text="", size=12, color=INK, bold=False, italic=False, align="justify",
+             space_after=6, space_before=0, indent=0, first_indent=0, keep_next=False,
+             style=None, line=1.5):
         p = document.add_paragraph(style=style) if style else document.add_paragraph()
         pf = p.paragraph_format
         pf.alignment = {"justify": WD_ALIGN_PARAGRAPH.JUSTIFY, "center": WD_ALIGN_PARAGRAPH.CENTER,
@@ -857,17 +907,21 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
             rich(p, text, size=size, color=color, bold=bold, italic=italic)
         return p
 
-    def heading(text, level):
+    def heading(text, level, centre=False, page_break=True):
         p = document.add_paragraph()
         pf = p.paragraph_format
-        pf.space_before = Pt(0 if level == 1 else 9)
-        pf.space_after = Pt(9 if level == 1 else 3.5)
+        pf.space_before = Pt(0 if level == 1 else 10)
+        pf.space_after = Pt(10 if level == 1 else 4)
         pf.keep_with_next = True
-        pf.line_spacing = 1.0
+        pf.line_spacing = 1.15
+        if level == 1 and page_break:
+            pf.page_break_before = True
+        if centre:
+            pf.alignment = WD_ALIGN_PARAGRAPH.CENTER
         r = p.add_run(text)
         r.bold = True
-        r.font.color.rgb = ACCENT
-        r.font.size = Pt(16.5 if level == 1 else 12.2)
+        r.font.color.rgb = INK
+        r.font.size = Pt(14 if (level == 1 and centre) else 16 if level == 1 else 13)
         if level == 3:
             r.italic = True
             r.font.color.rgb = INK
@@ -876,13 +930,13 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
             return p
         return p
 
-    def bullet(text, numbered=None, size=10.5, indent=0.62):
+    def bullet(text, numbered=None, size=12, indent=0.62):
         p = document.add_paragraph()
         pf = p.paragraph_format
         pf.left_indent = Cm(indent + 0.55)
         pf.first_line_indent = Cm(-0.55)
-        pf.space_after = Pt(2.8)
-        pf.line_spacing = 1.02
+        pf.space_after = Pt(3)
+        pf.line_spacing = 1.5
         pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         prefix = f"{numbered}.  " if numbered is not None else "\u2022  "
         r = p.add_run(prefix)
@@ -890,7 +944,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
         rich(p, text, size=size)
         return p
 
-    def table_block(block, size=8.1):
+    def table_block(block, size=9.2):
         cols = block["cols"]
         total = sum(cols)
         table = document.add_table(rows=1, cols=len(cols))
@@ -908,7 +962,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
             pf = p.paragraph_format
             pf.space_after = Pt(1.5)
             pf.space_before = Pt(1.5)
-            pf.line_spacing = 1.05
+            pf.line_spacing = 1.0
             rich(p, str(text), size=size_pt, color=color, bold=bold)
 
         widths = [Cm(w / total * USABLE_CM) for w in cols]
@@ -919,7 +973,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
             c = hdr.cells[i]
             c.width = widths[i]
             cell_text(c, h, bold=True, color=WHITE, white=True)
-            shade(c._tc.get_or_add_tcPr(), "14503C")
+            shade(c._tc.get_or_add_tcPr(), "000000")
         for ridx, row in enumerate(block["rows"]):
             r = table.add_row()
             trPr = r._tr.get_or_add_trPr()
@@ -979,12 +1033,12 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
     add_field(fp, " PAGE ")
     for r in fp.runs:
-        r.font.size = Pt(9)
-        r.font.color.rgb = MUTED
-        r.font.name = "Cambria"
+        r.font.size = Pt(12)
+        r.font.color.rgb = INK
+        r.font.name = "Times New Roman"
 
     # certificate
-    heading("CERTIFICATE", 1)
+    heading("CERTIFICATE", 1, centre=True, page_break=False)
     para("", space_after=10)
     para("This is to certify that the project report entitled **“RepoVeriX — Evidence-Grounded "
          "Repository-Level Code Auditing and Verified Automated Repair”** is the bona fide work carried "
@@ -1033,7 +1087,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     document.add_page_break()
 
     # declaration
-    heading("DECLARATION", 1)
+    heading("DECLARATION", 1, centre=True, page_break=False)
     para("", space_after=10)
     para(f"I, **{FRONT_MATTER['student']}**, student of {FRONT_MATTER['programme']}, Roll Number "
          f"{FRONT_MATTER['roll']}, Section {FRONT_MATTER['section']}, hereby declare that the project "
@@ -1066,7 +1120,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     document.add_page_break()
 
     # acknowledgement
-    heading("ACKNOWLEDGEMENT", 1)
+    heading("ACKNOWLEDGEMENT", 1, centre=True, page_break=False)
     para("", space_after=6)
     for txt in [
         "A project of this kind accumulates debts that are easy to forget and impossible to repay "
@@ -1105,7 +1159,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     document.add_page_break()
 
     # abstract
-    heading("ABSTRACT", 1)
+    heading("ABSTRACT", 1, centre=True, page_break=False)
     para("", space_after=6)
     for txt in [
         "Software audits today are performed by tools that report defects with more confidence than they "
@@ -1155,7 +1209,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     document.add_page_break()
 
     # table of contents
-    heading("TABLE OF CONTENTS", 1)
+    heading("TABLE OF CONTENTS", 1, centre=True, page_break=False)
     para("", space_after=4)
 
     def toc_entry(text, page, level=1):
@@ -1178,19 +1232,19 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
         toc_entry(text, page_numbers.get(idx), level)
     document.add_page_break()
 
-    heading("LIST OF FIGURES", 1)
+    heading("LIST OF FIGURES", 1, centre=True, page_break=False)
     para("", space_after=4)
     for n, cap, _ in doc.figures:
         toc_entry(f"Figure {n}.  {plain(cap)}", page_numbers.get(("fig", n)), 2)
     document.add_page_break()
 
-    heading("LIST OF TABLES", 1)
+    heading("LIST OF TABLES", 1, centre=True, page_break=False)
     para("", space_after=4)
     for n, cap, _ in doc.tables:
         toc_entry(f"Table {n}.  {plain(cap)}", page_numbers.get(("tab", n)), 2)
     document.add_page_break()
 
-    heading("LIST OF ABBREVIATIONS", 1)
+    heading("LIST OF ABBREVIATIONS", 1, centre=True, page_break=False)
     para("", space_after=4)
     abbr = [
         ("API", "Application Programming Interface"), ("AST", "Abstract Syntax Tree"),
@@ -1222,34 +1276,18 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     set_page_numbering(body, "decimal", 1)
     body.header.is_linked_to_previous = False
     body.footer.is_linked_to_previous = False
-    hp = body.header.paragraphs[0]
-    hp.paragraph_format.space_after = Pt(2)
-    hp.paragraph_format.tab_stops.add_tab_stop(Cm(USABLE_CM), WD_TAB_ALIGNMENT.RIGHT)
-    r = hp.add_run("RepoVeriX  |  Evidence-Grounded Repository Auditing and Verified Repair")
-    r.font.size = Pt(8.4)
-    r.font.color.rgb = MUTED
-    r2 = hp.add_run("\tProject Report")
-    r2.font.size = Pt(8.4)
-    r2.font.color.rgb = MUTED
-    para_border_bottom(hp, 4)
     bfp = body.footer.paragraphs[0]
     bfp.alignment = WD_ALIGN_PARAGRAPH.CENTER
     add_field(bfp, " PAGE ")
     for r in bfp.runs:
-        r.font.size = Pt(9)
-        r.font.color.rgb = MUTED
-        r.font.name = "Cambria"
+        r.font.size = Pt(12)
+        r.font.color.rgb = INK
+        r.font.name = "Times New Roman"
 
     first = True
     for b in doc.blocks:
         kind = b["t"]
         if kind == "h1":
-            if not first:
-                sp = document.add_paragraph()
-                sp.paragraph_format.space_before = Pt(10)
-                sp.paragraph_format.space_after = Pt(0)
-                sp.paragraph_format.line_spacing = 1.0
-                para_border_bottom(sp, 6)
             first = False
             heading(heading_text(b), 1)
         elif kind == "h2":
@@ -1259,7 +1297,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
         elif kind == "p":
             para(b["text"])
         elif kind == "note":
-            para(b["text"], size=9, color=MUTED, italic=True, space_after=6)
+            para(b["text"], size=10, italic=True, space_after=6)
         elif kind == "bullets":
             for it in b["items"]:
                 bullet(it)
@@ -1320,8 +1358,15 @@ def main():
     # document rather than trusting in-flow markers: a zero-height marker can be
     # flushed at the foot of a page while the heading itself is pushed over.
     nums = locate_pages(doc, tmp, body_start, first_h1)
+    # The first page of every chapter carries no printed folio. Chapter openers are
+    # located by scanning a rendered copy, and the final render is repeated if the
+    # scan of the first attempt disagrees with the pages that were suppressed.
     final = OUT_DIR / "RepoVeriX_Project_Report.pdf"
-    meta2 = build_pdf(doc, final, page_numbers=nums, body_start=body_start)
+    starts = chapter_openers(tmp, body_start, doc) | {body_start}
+    meta2 = build_pdf(doc, final, page_numbers=nums, body_start=body_start, first_pages=starts)
+    check = chapter_openers(final, body_start, doc) | {body_start}
+    if check != starts:
+        meta2 = build_pdf(doc, final, page_numbers=nums, body_start=body_start, first_pages=check)
     verify = locate_pages(doc, final, body_start, first_h1)
     shifted = [k for k in nums if verify.get(k) != nums[k]]
     if shifted:
