@@ -252,9 +252,39 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     s_fm_head = ParagraphStyle("fmhead", fontName="Caladea-Bold", fontSize=14, leading=19,
                                alignment=TA_CENTER, textColor=INK, spaceAfter=6)
 
-    def fm_heading(text):
-        """Front-matter heading set 55 mm below the top edge of the page."""
-        return [Spacer(1, 55 * mm - TOP_CM * cm), P(text, s_fm_head)]
+    def fm_heading(text, offset_mm=28):
+        """Front-matter heading set a fixed distance below the top edge of the page."""
+        return [Spacer(1, offset_mm * mm - TOP_CM * cm), P(text, s_fm_head)]
+
+    # A front-matter page that must not spill is trimmed to fit the frame at
+    # render time: the shortest spacer on the page absorbs the overflow.
+    class FitOnePage(Flowable):
+        def __init__(self, blocks):
+            super().__init__()
+            self.blocks = blocks
+            self.width, self.height = 0, 0
+
+        def wrap(self, aw, ah):
+            needed = sum(f.wrap(aw, ah)[1] + getattr(f, "getSpaceBefore", lambda: 0)()
+                         for f in self.blocks)
+            slack = needed - ah
+            if slack > 0:
+                spacers = [f for f in self.blocks if isinstance(f, Spacer)]
+                for sp in sorted(spacers, key=lambda x: -x.height):
+                    take = min(sp.height - 2, slack)
+                    if take > 0:
+                        sp.height -= take
+                        slack -= take
+                    if slack <= 0:
+                        break
+            return aw, sum(f.wrap(aw, ah)[1] for f in self.blocks)
+
+        def draw(self):
+            canv = self.canv
+            for f in self.blocks:
+                f.draw()
+                canv.translate(0, -(f.wrap(self.width or 460, 700)[1]
+                                    + getattr(f, "getSpaceBefore", lambda: 0)()))
     s_center = ParagraphStyle("center", parent=s_body, alignment=TA_CENTER)
     s_refs = ParagraphStyle("refs", parent=s_body, leftIndent=17, firstLineIndent=-17,
                             spaceAfter=4.0, fontSize=9.9, leading=13.4)
@@ -397,89 +427,101 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     # ---------------------------------------------------------------- cover
     fm = FRONT_MATTER
     flow.append(NextPageTemplate("cover"))
-    flow.append(Spacer(1, 0.9 * cm))
+    s_cover_note = ParagraphStyle("cn", fontName="Caladea", fontSize=10, leading=13.5,
+                                  alignment=TA_CENTER, textColor=INK)
+    flow.append(Spacer(1, 1.0 * cm))
     flow.append(P(fm["institution"].upper(), s_cover_inst))
-    flow.append(P(fm["programme"], s_cover_small))
-    flow.append(Spacer(1, 0.28 * cm))
+    flow.append(P(fm["department"], s_cover_small))
+    flow.append(P("Affiliated to GGSIP University, Delhi  ·  NAAC Grade A++  ·  "
+                  "NBA Accredited (MCA)  ·  ISO 9001:2015", s_cover_note))
+    flow.append(Spacer(1, 0.24 * cm))
     flow.append(HRule(usable, 1.1, ACCENT, 6))
     flow.append(Spacer(1, 2.0 * cm))
+    flow.append(P("MINOR PROJECT REPORT (ES-451)", s_cover_small))
+    flow.append(Spacer(1, 0.45 * cm))
     flow.append(P("A PROJECT REPORT ON", s_cover_small))
-    flow.append(Spacer(1, 0.5 * cm))
+    flow.append(Spacer(1, 0.45 * cm))
     flow.append(P(fm["project_title"], s_cover_title))
     flow.append(P(fm["project_subtitle"], s_cover_sub))
-    flow.append(Spacer(1, 1.6 * cm))
+    flow.append(Spacer(1, 1.0 * cm))
     flow.append(HRule(usable * 0.42, 0.7, RULE, 6))
-    flow.append(Spacer(1, 1.4 * cm))
-    flow.append(P("Submitted in partial fulfilment of the requirements for the award of the degree of", s_cover_small))
-    flow.append(P("Bachelor of Technology in Computer Science and Engineering", s_center))
     flow.append(Spacer(1, 1.5 * cm))
+    flow.append(P("Submitted in partial fulfilment of the requirements for the award of the degree of",
+                  s_cover_small))
+    flow.append(P("Bachelor of Technology in Computer Science and Engineering", s_center))
+    flow.append(Spacer(1, 1.3 * cm))
     flow.append(P("<b>Submitted by</b>", s_cover_small))
-    flow.append(Spacer(1, 0.22 * cm))
+    flow.append(Spacer(1, 0.15 * cm))
     flow.append(P(f"<b>{fm['student']}</b>", s_center))
-    flow.append(P(f"Roll Number {fm['roll']}   ·   Section {fm['section']}", s_cover_small))
-    flow.append(Spacer(1, 1.2 * cm))
+    flow.append(P(f"Enrollment Number {fm['roll']}   ·   {fm['section']}", s_cover_small))
+    flow.append(Spacer(1, 1.1 * cm))
     flow.append(P("<b>Under the guidance of</b>", s_cover_small))
-    flow.append(P(fm["guide"], s_center))
+    flow.append(Spacer(1, 0.15 * cm))
+    flow.append(P(f"<b>{fm['guide']}</b>", s_center))
     flow.append(P(fm["guide_line"], s_cover_small))
-    flow.append(Spacer(1, 1.6 * cm))
+    flow.append(Spacer(1, 1.4 * cm))
     flow.append(HRule(usable, 0.6, RULE, 6))
     flow.append(P(fm["session"], s_cover_small))
-    flow.append(P("Department of Computer Science and Engineering", s_cover_small))
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- certificate
     flow.append(NextPageTemplate("front"))
+    cert_start = len(flow)
     flow.extend(fm_heading("CERTIFICATE"))
     flow.append(Spacer(1, 0.5 * cm))
+    s_cert = ParagraphStyle("cert", parent=s_doc, leading=18.2, spaceAfter=6)
     flow.append(para(
         "This is to certify that the project report entitled **“RepoVeriX — Evidence-Grounded "
         "Repository-Level Code Auditing and Verified Automated Repair”** is the bona fide work "
         f"carried out by **{fm['student']}** (Roll Number {fm['roll']}), a student of "
-        f"{fm['programme']} at the {fm['institution']}, in partial fulfilment of the requirements "
-        "for the award of the degree of Bachelor of Technology.", s_doc))
+        f"{fm['programme']}, {fm['department']}, {fm['institution']}, in partial fulfilment of the requirements "
+        "for the award of the degree of Bachelor of Technology.", s_cert))
     flow.append(para(
         "The work recorded in this report was carried out under my supervision during the "
         f"{fm['session']}. The report has been prepared in accordance with the guidelines issued by "
         "the department, and the contents of this report have not been submitted, in whole or in "
-        "part, for the award of any other degree or diploma at this or any other institution.", s_doc))
+        "part, for the award of any other degree or diploma at this or any other institution.", s_cert))
     flow.append(para(
         "The project addresses evidence-grounded repository-level code auditing and verified "
         "automated repair. The implementation, the benchmark apparatus and the documentation "
         "described in the chapters that follow were examined during the preparation of this report. "
         "To the best of my knowledge, the report represents the candidate's own work, and all "
-        "external material used has been acknowledged in the references.", s_doc))
+        "external material used has been acknowledged in the references.", s_cert))
     flow.append(para(
         "The report documents the system as it exists in the project repository rather than as it is intended "
         "to exist. Behaviour present in the code is described with reference to the module that provides it; "
         "behaviour that depends on an external service or an operator action is marked as documented; and "
         "quantitative results that require an experiment not yet executed are marked as pending. This "
         "distinction is maintained throughout so that the examiner can separate demonstrated capability from "
-        "intended capability without ambiguity.", s_doc))
-    flow.append(para(
-        "The project work includes the analysis engine, the service interface, the persistence schema, the "
-        "developer interface, the benchmark apparatus and the supporting documentation. The candidate has "
-        "presented the work at the internal review stages prescribed by the department, and the corrections "
-        "suggested during those reviews have been incorporated into this version of the report.", s_doc))
-    flow.append(Spacer(1, 0.9 * cm))
+        "intended capability without ambiguity.", s_cert))
+    sig_cell = ParagraphStyle("sigcell", parent=s_body, alignment=TA_LEFT, leading=14.4)
+    flow.append(Spacer(1, 0.45 * cm))
     sig = Table(
         [
-            [P("<b>Signature of Guide</b>", s_body), P("<b>Signature of Head of Department</b>", s_body)],
-            [P(f"{fm['guide']}<br/>{fm['guide_line']}", s_body), P(f"{fm['hod']}<br/>{fm['hod_line']}", s_body)],
+            [P("<b>Signature of Supervisor</b>", sig_cell), P("<b>Signature of Head of Department</b>", sig_cell)],
+            [P("________________________", sig_cell), P("________________________", sig_cell)],
+            [P(f"<b>{fm['guide']}</b><br/>Supervisor<br/>Department of Computer Science and Engineering", sig_cell),
+             P(f"<b>{fm['hod']}</b><br/>Department of Computer Science and Engineering", sig_cell)],
         ],
         colWidths=[usable / 2, usable / 2],
+        repeatRows=0,
     )
     sig.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
     ]))
-    flow.append(sig)
-    flow.append(Spacer(1, 0.8 * cm))
+    flow.append(KeepTogether([sig]))
+    flow.append(Spacer(1, 0.55 * cm))
     flow.append(HRule(usable, 0.5, RULE, 6))
     flow.append(para(
         "Internal Examiner: ______________________________        External Examiner: "
         "______________________________", s_body))
     flow.append(para("Date of Examination: ____________________                 Place: ____________________", s_body))
+    cert_blocks = flow[cert_start:]
+    del flow[cert_start:]
+    flow.append(KeepTogether(cert_blocks))
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- declaration
@@ -538,13 +580,14 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "result be labelled as such, and repeated pressure to state claims in a form that another "
         "person could check. Much of what is honest about both the system and this report came from "
         "that pressure.", s_doc))
+    s_ack = ParagraphStyle("ackbody", parent=s_doc, leading=18.0, spaceAfter=5)
     flow.append(para(
         "I extend my sincere thanks to the Head of the Department and to the faculty members of the "
         "Department of Computer Science and Engineering for the academic environment in which the "
         "work was carried out, and for the reviews that helped me separate what the project "
         "demonstrated from what it merely intended. I am grateful to the department for the "
         "laboratory facilities and the freedom to work on a problem that required equal parts of "
-        "systems engineering and careful measurement.", s_doc))
+        "systems engineering and careful measurement.", s_ack))
     flow.append(para(
         "I thank my classmates and project partners for the long arguments about false positives, "
         "verification and what constitutes evidence — arguments that repeatedly turned out to be "
@@ -552,12 +595,12 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "on which the implementation depends: the parsing library, the web framework, the "
         "object-relational mapper, the container runtime and the frontend framework. A prototype "
         "that must run untrusted code and measure itself stands on a great deal of patient work by "
-        "others.", s_doc))
+        "others.", s_ack))
     flow.append(para(
         "Finally, I thank my family for their patience during the months when the project took more "
         "time than it promised, and for the steady encouragement that made the work possible. Any "
         "errors that remain in the system described here, and in the description itself, are my "
-        "own.", s_doc))
+        "own.", s_ack))
     flow.append(para(
         "I also record my appreciation for the wider research community whose published work made the design "
         "possible: the maintainers of static-analysis tooling and vulnerability benchmarks, the authors of the "
@@ -565,18 +608,10 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "execution as the only credible oracle shaped the verification engine described in Chapter 7. Working "
         "on a problem that others have already thought hard about is a humbling and useful experience, and the "
         "honest reporting conventions followed in this report are borrowed from that tradition rather than "
-        "invented for it.", s_doc))
-    flow.append(para(
-        "A word is owed, finally, to the tooling that made the verification work possible without "
-        "any recourse to a live host: the container runtime that provided a disposable filesystem, "
-        "the parsing libraries that supplied a uniform syntax tree across three languages, and the "
-        "test runner whose per-module isolation made it practical to check the security guards "
-        "separately from the features they defend. Those dependencies are ordinary infrastructure, "
-        "and the project's debt to them is worth recording precisely because infrastructure is "
-        "usually invisible in a report of this kind.", s_doc))
-    flow.append(Spacer(1, 0.9 * cm))
-    flow.append(P(f"<b>{fm['student']}</b>", s_body))
-    flow.append(P(f"Roll Number {fm['roll']}   ·   Section {fm['section']}", s_body))
+        "invented for it.", s_ack))
+    flow.append(Spacer(1, 0.4 * cm))
+    flow.append(P(f"<b>{fm['student']}</b>&nbsp;&nbsp;·&nbsp;&nbsp;Roll Number {fm['roll']}"
+                  f"&nbsp;&nbsp;·&nbsp;&nbsp;Section {fm['section']}", s_body))
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- abstract
@@ -638,7 +673,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     flow.append(PageBreak())
 
     # ---------------------------------------------------------------- table of contents
-    flow.extend(fm_heading("TABLE OF CONTENTS"))
+    flow.extend(fm_heading("TABLE OF CONTENTS", 55))
     flow.append(Spacer(1, 0.2 * cm))
     toc_pages_at = len(flow)
 
@@ -653,12 +688,12 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         for level, text, _ in entries:
             flow.append(toc_line(level, text, None))
         flow.append(PageBreak())
-        flow.extend(fm_heading("LIST OF FIGURES"))
+        flow.extend(fm_heading("LIST OF FIGURES", 55))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.figures:
             flow.append(toc_line(2, f"Figure {n}.  {plain(cap)[:96]}", None))
         flow.append(Spacer(1, 0.45 * cm))
-        flow.extend(fm_heading("LIST OF TABLES"))
+        flow.extend(fm_heading("LIST OF TABLES", 55))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.tables:
             flow.append(toc_line(1, f"Table {n}.  {plain(cap)[:96]}", None))
@@ -667,19 +702,19 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         for level, text, idx in entries:
             flow.append(toc_line(level, text, page_numbers.get(idx)))
         flow.append(PageBreak())
-        flow.extend(fm_heading("LIST OF FIGURES"))
+        flow.extend(fm_heading("LIST OF FIGURES", 55))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.figures:
             flow.append(toc_line(2, f"Figure {n}.  {plain(cap)[:96]}", page_numbers.get(("fig", n))))
         flow.append(Spacer(1, 0.45 * cm))
-        flow.extend(fm_heading("LIST OF TABLES"))
+        flow.extend(fm_heading("LIST OF TABLES", 55))
         flow.append(Spacer(1, 0.2 * cm))
         for n, cap, _ in doc.tables:
             flow.append(toc_line(1, f"Table {n}.  {plain(cap)[:96]}", page_numbers.get(("tab", n))))
         flow.append(PageBreak())
 
     # ---------------------------------------------------------------- abbreviations
-    flow.extend(fm_heading("LIST OF ABBREVIATIONS"))
+    flow.extend(fm_heading("LIST OF ABBREVIATIONS", 55))
     flow.append(Spacer(1, 0.2 * cm))
     abbr = [
         ("API", "Application Programming Interface"),

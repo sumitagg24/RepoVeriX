@@ -20,7 +20,9 @@ from __future__ import annotations
 FIG = "../figures"
 
 FRONT_MATTER = {
-    "institution": "Department of Computer Science and Engineering",
+    "institution": "Vivekananda Institute of Professional Studies — Technical Campus",
+    "department": "Department of Computer Science and Engineering",
+    "affiliation": "Affiliated to GGSIP University, Delhi",
     "programme": "Bachelor of Technology — Computer Science and Engineering",
     "session": "Academic Session 2025–26",
     "project_title": "RepoVeriX",
@@ -28,8 +30,8 @@ FRONT_MATTER = {
     "student": "SUMIT AGGARWAL",
     "roll": "04317702723",
     "section": "CSE-A",
-    "guide": "Project Guide",
-    "guide_line": "Faculty Guide, Department of Computer Science and Engineering",
+    "guide": "Dr. Swati Garg",
+    "guide_line": "Supervisor, Department of Computer Science and Engineering",
     "hod": "Head of Department",
     "hod_line": "Department of Computer Science and Engineering",
 }
