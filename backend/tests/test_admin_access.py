@@ -68,7 +68,7 @@ class TestAdminResolution:
         assert limits.name == "admin"
         assert limits.llm_enabled and limits.sandbox_enabled
         assert limits.max_repositories == svc.ADMIN_QUOTA
-        assert test_user.plan == PlanName.free  # the stored plan is untouched
+        assert test_user._plan == PlanName.free  # the stored plan is untouched
 
     @pytest.mark.asyncio
     async def test_plan_for_regular_user_unchanged(self, test_user):

@@ -169,6 +169,7 @@ class PlanName(str, enum.Enum):
     free = "free"
     pro = "pro"
     team = "team"
+    admin = "admin"
 
 
 class UserStatus(str, enum.Enum):
@@ -209,8 +210,10 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # --- subscription & usage (billing) ---
-    plan: Mapped[PlanName] = mapped_column(
-        enum_type(PlanName, "plan_name"), default=PlanName.free, nullable=False
+    # Stored as ``_plan`` in the DB; the public ``plan`` property returns
+    # PlanName.admin for owner emails (see property below).
+    _plan: Mapped[PlanName] = mapped_column(
+        "plan", enum_type(PlanName, "plan_name"), default=PlanName.free, nullable=False
     )
     subscription_status: Mapped[SubscriptionStatus | None] = mapped_column(
         enum_type(SubscriptionStatus, "subscription_status"), nullable=True
@@ -270,6 +273,35 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         from app.services.billing import is_admin_email
 
         return is_admin_email(self.email)
+
+    @property
+    def email_verified(self) -> bool:
+        """True when the account's email address has been verified.
+
+        OAuth sign-ins are verified at creation. Password accounts verify via
+        the emailed link. Surfaced on auth responses via ``UserRead``.
+        """
+        return self.email_verified_at is not None
+
+    @property
+    def plan(self) -> PlanName:
+        """Effective plan for this user.
+
+        Owner emails (``OWNER_EMAILS``) always get the admin plan regardless of
+        the stored plan column. This is computed on every read so it cannot
+        diverge from the billing endpoint.
+        """
+        from app.services.billing import is_admin_email
+
+        return PlanName.admin if is_admin_email(self.email) else object.__getattribute__(self, "_plan")
+
+    @plan.setter
+    def plan(self, value: PlanName) -> None:
+        """Set the stored plan (billing use only; admin emails always resolve to admin)."""
+        from app.services.billing import is_admin_email
+
+        if not is_admin_email(self.email):
+            object.__setattr__(self, "_plan", value)
 
 
 class OAuthAccount(UUIDPrimaryKeyMixin, TimestampMixin, Base):
