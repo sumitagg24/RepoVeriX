@@ -63,6 +63,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <TooltipProvider delayDuration={200} skipDelayDuration={300}>
             <UpgradeListener />
+            {children}
             <Toaster
               position="bottom-right"
               closeButton
