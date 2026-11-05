@@ -15,6 +15,7 @@ node_modules/
 out/
 *.tsbuildinfo
 next-env.d.ts
+
 # Environment & secrets
 .env
 .env.local
@@ -51,3 +52,9 @@ docs/implementation-plan.md
 
 # Nginx local artifacts
 nginx/ssl/
+
+# Audit screenshots & tooling artifacts (gen-session / maintenance pass)
+screenshot-*.png
+reports/
+report-tool/
+.playwright-mcp/
