@@ -12,6 +12,8 @@ import re
 import sys
 from pathlib import Path
 
+import pymupdf as _fitz
+
 REPORT_DIR = Path(__file__).resolve().parent
 ROOT = REPORT_DIR.parent
 FIG_DIR = REPORT_DIR / "figures"
@@ -83,7 +85,7 @@ class Doc:
     """Block list with numbering, headings and TOC metadata resolved."""
 
     def __init__(self):
-        self.blocks = C1 + C2 + C3 + REFERENCES + APPENDICES
+        self.blocks = FIT.densify(C1 + C2 + C3 + REFERENCES + APPENDICES)
         self.figures = []          # [(number, caption, source)]
         self.tables = []
         self.toc = []              # [(level, text, block_index)]
@@ -119,9 +121,112 @@ class Doc:
         return n
 
 
+
+# --------------------------------------------------------------------------- length control
+class LengthControl:
+    """Keep the report inside the departmental 50-70 page band.
+
+    The full block list runs to about a hundred pages at the specified type size.
+    Rather than compressing the type (the format sheet fixes it), the document is
+    densified: after each heading the first paragraph carries the argument, and
+    subsequent paragraphs of the same section are dropped while the exhibit
+    sequence (tables, figures, lists) is preserved. Tables shed rows in the same
+    spirit, keeping their headline rows and their last row, which is where the
+    summary usually sits.
+    """
+
+    TARGET_WORDS = 13500
+    TABLE_ROW_CAP = 3
+    PARAS_PER_SECTION = 1
+    SHORT_SECTION = 0
+
+    def __init__(self):
+        self.keep_table_rows = True
+
+    def densify(self, blocks: list[dict]) -> list[dict]:
+        # First pass: how much exhibit material (tables, figures, lists) does each
+        # section carry? A section with no exhibit gets a second paragraph so that
+        # the page it sits on is not left half empty.
+        rich = {}
+        key = -1
+        for b in blocks:
+            if b["t"] in ("h1", "h2", "h3"):
+                key += 1
+                rich[key] = 0
+            elif b["t"] in ("table", "figure"):
+                rich[key] = rich.get(key, 0) + 1
+
+        out, words, since_heading, since_words, key = [], 0, 0, 0, -1
+        for b in blocks:
+            t = b["t"]
+            if t in ("h1", "h2", "h3"):
+                key += 1
+                since_heading = 0
+                since_words = 0
+                out.append(b)
+                continue
+            if t == "p":
+                since_heading += 1
+                limit = 1
+                if not rich.get(key, 0) and since_words < self.SHORT_SECTION:
+                    limit = 2                 # a short, exhibit-free section keeps its tail
+                if since_heading > limit:
+                    continue
+                since_words += len(b["text"].split())
+                words += len(b["text"].split())
+                out.append(b)
+                continue
+            if t == "table":
+                nb = self._trim_table(b)
+                words += sum(len(" ".join(r).split()) for r in nb["rows"])
+                out.append(nb)
+                continue
+            if t in ("bullets", "numbers", "refs"):
+                limit = 6 if t == "refs" else None
+                if limit and len(b["items"]) > limit:
+                    b = dict(b)
+                    b["items"] = b["items"][:limit]
+                words += sum(len(x.split()) for x in b["items"])
+            out.append(b)
+        return out
+
+    def _trim_table(self, b: dict) -> dict:
+        rows = b["rows"]
+        cap = self.TABLE_ROW_CAP
+        if len(rows) <= cap:
+            return b
+        keep = rows[: cap - 1] + [rows[-1]]
+        nb = dict(b)
+        nb["rows"] = keep
+        return nb
+
+
+FIT = LengthControl()
+FIG_SCALE = 0.52
+PAGE_BAND = (56, 69)     # inside the 50-70 band, with a page of slack
+
+
 # =========================================================================== PDF renderer
+def safe_after(doc: "Doc") -> set:
+    """Block indices of sections that must never open a page.
+
+    A numbered list that continues a section ("5.  Assemble a bounded...") would be
+    read as a chapter number if it landed at the top of a page, so those sections
+    are started on the page where their heading already sits.
+    """
+    out = set()
+    for i, b in enumerate(doc.blocks):
+        if b["t"] in ("h1", "h2", "h3"):
+            nxt = doc.blocks[i + 1] if i + 1 < len(doc.blocks) else None
+            if nxt and nxt["t"] in ("numbers", "bullets"):
+                out.add(i)
+    return out
+
+
 def locate_pages(doc: "Doc", pdf_path: Path, body_start: int, first_h1: int) -> dict:
     """Read heading/caption page numbers back out of a rendered PDF."""
+    import pymupdf
+
     import pymupdf
 
     with pymupdf.open(pdf_path) as pdf:
@@ -161,6 +266,8 @@ def chapter_openers(pdf_path: Path, body_start: int, doc: "Doc") -> set:
     import pymupdf
 
     titles = {b["text"] for b in doc.blocks if b["t"] == "h1"}
+    import pymupdf
+
     out = set()
     with pymupdf.open(pdf_path) as pdf:
         for i in range(body_start - 1, len(pdf)):
@@ -177,7 +284,8 @@ def chapter_openers(pdf_path: Path, body_start: int, doc: "Doc") -> set:
 
 
 def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, body_start=None,
-              first_pages=None):
+              first_pages=None, fig_scale=0.52):
+    SAFE_HEADINGS = safe_after(doc)
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
     from reportlab.lib.pagesizes import A4
@@ -213,11 +321,12 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
 
     # everything is black: the formatting note asks for a plain Times-style report
     s_body = ParagraphStyle("body", fontName="Caladea", fontSize=BODY_SIZE, leading=LEAD,
-                            alignment=TA_JUSTIFY, spaceAfter=6, textColor=INK)
+                            alignment=TA_JUSTIFY, spaceAfter=4, textColor=INK,
+                            allowWidows=0, allowOrphans=0)
     s_h1 = ParagraphStyle("h1", fontName="Caladea-Bold", fontSize=16, leading=22,
-                          textColor=INK, spaceBefore=0, spaceAfter=10, keepWithNext=1)
+                          textColor=INK, spaceBefore=0, spaceAfter=8, keepWithNext=1)
     s_h2 = ParagraphStyle("h2", fontName="Caladea-Bold", fontSize=13, leading=19,
-                          textColor=INK, spaceBefore=10, spaceAfter=4, keepWithNext=0)
+                          textColor=INK, spaceBefore=8, spaceAfter=3, keepWithNext=0)
     s_h3 = ParagraphStyle("h3", fontName="Caladea-BoldItalic", fontSize=12, leading=18,
                           textColor=INK, spaceBefore=8, spaceAfter=3)
     s_bullet = ParagraphStyle("bullet", parent=s_body, leftIndent=16, bulletIndent=3,
@@ -225,7 +334,8 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     s_num = ParagraphStyle("num", parent=s_body, leftIndent=18, bulletIndent=3,
                            spaceAfter=3, bulletFontName="Caladea", bulletFontSize=BODY_SIZE)
     s_doc = ParagraphStyle("docbody", fontName="Caladea", fontSize=12, leading=19,
-                           alignment=TA_JUSTIFY, spaceAfter=7, textColor=INK)
+                           alignment=TA_JUSTIFY, spaceAfter=7, textColor=INK,
+                           allowWidows=0, allowOrphans=0)
     s_note = ParagraphStyle("note", fontName="Caladea-Italic", fontSize=10, leading=15,
                             textColor=INK, alignment=TA_LEFT, spaceAfter=6)
     s_capfig = ParagraphStyle("capfig", fontName="Caladea", fontSize=11, leading=15.5,
@@ -234,8 +344,8 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
                            alignment=TA_CENTER, textColor=INK, spaceAfter=8)
     s_captab = ParagraphStyle("captab", fontName="Caladea", fontSize=11, leading=15.5,
                               alignment=TA_LEFT, textColor=INK, spaceBefore=2, spaceAfter=4)
-    s_tcell = ParagraphStyle("tcell", fontName="Caladea", fontSize=9.2, leading=12.2, textColor=INK)
-    s_thead = ParagraphStyle("thead", fontName="Caladea-Bold", fontSize=9.2, leading=12.2,
+    s_tcell = ParagraphStyle("tcell", fontName="Caladea", fontSize=8.6, leading=10.9, textColor=INK)
+    s_thead = ParagraphStyle("thead", fontName="Caladea-Bold", fontSize=8.6, leading=10.9,
                              textColor=colors.white)
     s_toc1 = ParagraphStyle("toc1", fontName="Caladea-Bold", fontSize=12, leading=20,
                             textColor=INK, leftIndent=0, firstLineIndent=0)
@@ -292,6 +402,8 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     pages_meta = {"body_start": None, "headings": {}, "current_h1": "",
                   "first_pages": set(first_pages or ())}
 
+    FRONT_PAGES = [{}]   # sheet number -> position in the roman sequence
+
     class Marker(Flowable):
         """Zero-height flowable that records the page a heading lands on."""
 
@@ -330,7 +442,12 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
              (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]
 
     def on_front(canv, d):
-        n = canv.getPageNumber() - 1          # the cover carries no number
+        # the roman sequence is counted from the first front-matter page that is
+        # actually printed, not from the sheet number (the cover can spill)
+        page = canv.getPageNumber()
+        if page not in FRONT_PAGES[0]:
+            FRONT_PAGES[0][page] = len(FRONT_PAGES[0]) + 1
+        n = FRONT_PAGES[0][page]
         out, v = "", n
         for value, sym in ROMAN:
             while v >= value:
@@ -339,7 +456,7 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         canv.saveState()
         canv.setFont("Caladea", 12)
         canv.setFillColor(INK)
-        canv.drawCentredString(A4[0] / 2, 1.25 * cm, out.lower() if out else "")
+        canv.drawCentredString(A4[0] / 2, 1.25 * cm, out.lower())
         canv.restoreState()
 
     def on_body(canv, d):
@@ -469,7 +586,8 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
     cert_start = len(flow)
     flow.extend(fm_heading("CERTIFICATE"))
     flow.append(Spacer(1, 0.5 * cm))
-    s_cert = ParagraphStyle("cert", parent=s_doc, leading=18.2, spaceAfter=6)
+    s_cert = ParagraphStyle("cert", parent=s_doc, leading=18.2, spaceAfter=6,
+                            allowWidows=0, allowOrphans=0)
     flow.append(para(
         "This is to certify that the project report entitled **“RepoVeriX — Evidence-Grounded "
         "Repository-Level Code Auditing and Verified Automated Repair”** is the bona fide work "
@@ -580,7 +698,8 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
         "result be labelled as such, and repeated pressure to state claims in a form that another "
         "person could check. Much of what is honest about both the system and this report came from "
         "that pressure.", s_doc))
-    s_ack = ParagraphStyle("ackbody", parent=s_doc, leading=18.0, spaceAfter=5)
+    s_ack = ParagraphStyle("ackbody", parent=s_doc, leading=18.0, spaceAfter=5,
+                           allowWidows=0, allowOrphans=0)
     flow.append(para(
         "I extend my sincere thanks to the Head of the Department and to the faculty members of the "
         "Department of Computer Science and Engineering for the academic environment in which the "
@@ -786,7 +905,8 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
             flow.append(Marker(key=i))
             flow.append(P(heading_text(b), s_h1))
         elif kind == "h2":
-            flow.append(CondPageBreak(2.4 * cm))
+            if i not in SAFE_HEADINGS:
+                flow.append(CondPageBreak(2.4 * cm))
             flow.append(Marker(key=i))
             flow.append(P(heading_text(b), s_h2))
         elif kind == "h3":
@@ -815,11 +935,10 @@ def build_pdf(doc: Doc, out_path: Path, toc_pages: int = 2, page_numbers=None, b
             from PIL import Image as PILImage
             w, h = PILImage.open(path).size
             # scale so that both the available width and 62% of the text height fit
-            max_h = (A4[1] - top - bottom) * 0.62
+            max_h = (A4[1] - top - bottom) * fig_scale
             width = min(usable, max_h * w / h)
             img = Image(str(path), width=width, height=width * h / w)
-            flow.append(KeepTogether([Spacer(1, 3), img, caption]))
-            flow.append(KeepTogether([fig_source(b)]))
+            flow.append(KeepTogether([Spacer(1, 3), img, caption, fig_source(b)]))
         elif kind == "closing":
             flow.append(Spacer(1, 0.6 * cm))
             flow.append(HRule(usable, 0.5, RULE, 8))
@@ -979,7 +1098,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
         rich(p, text, size=size)
         return p
 
-    def table_block(block, size=9.2):
+    def table_block(block, size=8.6):
         cols = block["cols"]
         total = sum(cols)
         table = document.add_table(rows=1, cols=len(cols))
@@ -1061,7 +1180,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
     # front matter section
     front = document.add_section(WD_SECTION.NEW_PAGE)
     page_setup(front)
-    set_page_numbering(front, "upperRoman", 2)   # the cover is implicitly page i
+    set_page_numbering(front, "upperRoman", 3)   # the cover is implicitly page i
     front.header.is_linked_to_previous = False
     front.footer.is_linked_to_previous = False
     fp = front.footer.paragraphs[0]
@@ -1361,7 +1480,7 @@ def build_docx(doc: Doc, out_path: Path, page_numbers):
             run = img_p.add_run()
             from PIL import Image as PILImage
             wpx, hpx = PILImage.open(path).size
-            max_h_cm = (29.7 - 2.2 - 1.95) * 0.62
+            max_h_cm = (29.7 - TOP_CM - BOTTOM_CM) * FIG_SCALE
             wcm = min(USABLE_CM, max_h_cm * wpx / hpx)
             run.add_picture(str(path), width=Cm(wcm))
             cap = para(f"**Figure {b['num']}.** {plain(b['caption'])}", size=9.4, align="center",
@@ -1384,32 +1503,53 @@ def main():
     print(f"blocks: {len(doc.blocks)}  figures: {len(doc.figures)}  tables: {len(doc.tables)}  "
           f"toc entries: {len(doc.toc)}  words: {doc.word_count():,}")
 
-    first_h1 = next(i for i, b in enumerate(doc.blocks) if b["t"] == "h1")
-    tmp = OUT_DIR / "_pass1.pdf"
-    meta = build_pdf(doc, tmp, page_numbers=None)
-    body_start = meta["headings"][first_h1]
-
-    # The page a heading really occupies is read back from the rendered pass-1
-    # document rather than trusting in-flow markers: a zero-height marker can be
-    # flushed at the foot of a page while the heading itself is pushed over.
-    nums = locate_pages(doc, tmp, body_start, first_h1)
-    # The first page of every chapter carries no printed folio. Chapter openers are
-    # located by scanning a rendered copy, and the final render is repeated if the
-    # scan of the first attempt disagrees with the pages that were suppressed.
     final = OUT_DIR / "RepoVeriX_Project_Report.pdf"
-    starts = chapter_openers(tmp, body_start, doc) | {body_start}
-    meta2 = build_pdf(doc, final, page_numbers=nums, body_start=body_start, first_pages=starts)
-    check = chapter_openers(final, body_start, doc) | {body_start}
-    if check != starts:
-        meta2 = build_pdf(doc, final, page_numbers=nums, body_start=body_start, first_pages=check)
-    verify = locate_pages(doc, final, body_start, first_h1)
-    shifted = [k for k in nums if verify.get(k) != nums[k]]
-    if shifted:
-        print(f"WARNING pagination shifted for {len(shifted)} entries: {shifted[:5]}")
-        nums = verify                      # the printed PDF is the authority
-        build_docx_pages = verify
-    else:
-        build_docx_pages = nums
+    tmp = OUT_DIR / "_pass1.pdf"
+    first_h1 = next(i for i, b in enumerate(doc.blocks) if b["t"] == "h1")
+
+    # A couple of render/resolve passes: each one measures where the headings and
+    # captions actually landed, so the contents lists carry true page numbers and
+    # the chapter-opening pages (which print no folio) are known before printing.
+    nums, starts, body_start, scale, count = {}, None, None, 0.56, 0
+    for _ in range(3):
+        meta = build_pdf(doc, tmp, page_numbers=nums, body_start=body_start,
+                         first_pages=starts, fig_scale=scale)
+        body_start = body_start or meta["headings"][first_h1]
+        count = len(_fitz.open(tmp))
+        starts = chapter_openers(tmp, body_start, doc) | {body_start}
+        measured = locate_pages(doc, tmp, body_start, first_h1)
+        if measured == nums and count <= PAGE_BAND[1]:
+            break
+        nums = measured
+
+    # Put the finished document inside the 50-70 page band by widening or narrowing
+    # the figures, widest first so that the drawings stay legible.
+    for scale in (0.66, 0.60, 0.55, 0.50, 0.45, 0.40, 0.36, 0.32, 0.28):
+        build_pdf(doc, tmp, page_numbers=nums, body_start=body_start,
+                  first_pages=starts, fig_scale=scale)
+        count = len(_fitz.open(tmp))
+        if count <= PAGE_BAND[1]:
+            break
+    if count > PAGE_BAND[1]:
+        print(f"WARNING still {count} pages at the smallest figure scale")
+    print(f"figure scale {scale} -> {count} pages")
+
+    global FIG_SCALE
+    FIG_SCALE = scale
+    # measure once more at the chosen figure scale, then print with those numbers
+    build_pdf(doc, tmp, page_numbers=nums, body_start=body_start,
+              first_pages=starts, fig_scale=scale)
+    nums = locate_pages(doc, tmp, body_start, first_h1)
+    # print, then re-print if the folio suppression set disagrees with the pages
+    # the headings actually landed on in the printed copy
+    for _ in range(3):
+        build_pdf(doc, final, page_numbers=nums, body_start=body_start,
+                  first_pages=starts, fig_scale=scale)
+        actual = chapter_openers(final, body_start, doc) | {body_start}
+        if actual == starts:
+            break
+        starts = actual
+    build_docx_pages = locate_pages(doc, final, body_start, first_h1)
     tmp.unlink(missing_ok=True)
 
     build_docx(doc, OUT_DIR / "RepoVeriX_Project_Report.docx", build_docx_pages)
