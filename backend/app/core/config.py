@@ -119,6 +119,7 @@ class Settings(BaseSettings):
         "gitlab",
         "microsoft",
         "bitbucket",
+        "auth0",
     ]
     # Password accounts must verify their email before provider connections,
     # repository registration and scans are allowed (server-side gate).
